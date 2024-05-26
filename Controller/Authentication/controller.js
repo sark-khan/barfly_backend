@@ -8,7 +8,7 @@ router.post("/login", async (req, res) => {
     const response = await login(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "User logged in succesfully", response });
+      .json({ message: "User logged in succesfully", token: response.token, userDetails: response.user });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }

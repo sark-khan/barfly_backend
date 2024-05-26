@@ -12,4 +12,17 @@ const STATUS_CODES = {
   TOO_MANY_REQUESTS: 429,
 };
 
-module.exports = { STATUS_CODES };
+const ROLES = {
+  CUSTOMER: "Customer",
+  STORE_OWNER: "Owner",
+  ADMIN: "Admin",
+};
+
+const PRODUCT_TYPE = {
+  BAR: "Bar",
+  RESTAURANT: "Restaurant",
+  FOODTRUCK: "Foodtruck",
+  CLUB: 'Club'
+};
+
+module.exports = { STATUS_CODES, ROLES, PRODUCT_TYPE };
