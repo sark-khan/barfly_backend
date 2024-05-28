@@ -22,7 +22,12 @@ const PRODUCT_TYPE = {
   BAR: "Bar",
   RESTAURANT: "Restaurant",
   FOODTRUCK: "Foodtruck",
-  CLUB: 'Club'
+  CLUB: "Club",
 };
 
-module.exports = { STATUS_CODES, ROLES, PRODUCT_TYPE };
+const INSIDER_TYPE = {
+  BAR: "Bar",
+  LOUNGE: "Lounge",
+};
+
+module.exports = { STATUS_CODES, ROLES, PRODUCT_TYPE, INSIDER_TYPE };
