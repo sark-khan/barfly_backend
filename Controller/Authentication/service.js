@@ -6,7 +6,6 @@ const {
   getJwtToken,
 } = require("../../Utils/commonFunction");
 const throwError = require("../../Utils/throwError");
-const { verifyToken } = require("../../Utils/verifyToken");
 
 module.exports.register = async (req) => {
   const userExist = await User.findOne({ email: req.body.email }).lean();

@@ -3,7 +3,7 @@ const { SECRET_KEY } = require("../Utils/commonFunction");
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
 const verifyToken = (req, res, next) => {
-  const token = req.headers["Token"];
+  const token = req.headers["token"];
 
   if (!token) {
     return res

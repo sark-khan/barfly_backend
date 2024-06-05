@@ -6,7 +6,7 @@ const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 
 app.use("/api/auth", require("./Controller/Authentication/controller"));
-app.use("/api/owner", require("./Controller/insider/controller"));
+app.use("/api/owner", require("./Controller/Insider/controller"));
 
 const port = process.env.PORT;
 
