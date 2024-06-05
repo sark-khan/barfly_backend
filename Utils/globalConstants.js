@@ -22,7 +22,32 @@ const PRODUCT_TYPE = {
   BAR: "Bar",
   RESTAURANT: "Restaurant",
   FOODTRUCK: "Foodtruck",
-  CLUB: 'Club'
+  CLUB: "Club",
 };
 
-module.exports = { STATUS_CODES, ROLES, PRODUCT_TYPE };
+const INSIDER_TYPE = {
+  BAR: "Bar",
+  LOUNGE: "Lounge",
+  FEEDBACK: "Feedback",
+};
+
+const DRINKS_SIZE = {
+  SMALL: "Small",
+  MEDIUM: "Medium",
+  LARGE: "Large",
+};
+
+const FOOD_TYPE = {
+  APPETIZER: "Appetizer",
+  MAINCOURSE: "Maincourse",
+  DESSERT: "Dessert",
+};
+
+module.exports = {
+  STATUS_CODES,
+  ROLES,
+  PRODUCT_TYPE,
+  INSIDER_TYPE,
+  DRINKS_SIZE,
+  FOOD_TYPE
+};
