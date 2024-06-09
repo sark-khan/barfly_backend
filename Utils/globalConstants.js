@@ -30,6 +30,10 @@ const INSIDER_TYPE = {
   LOUNGE: "Lounge",
   FEEDBACK: "Feedback",
 };
+const FOOD_TYPE = {
+  SNACK: "Snacks",
+  DRINK: "Drink",
+};
 
 const DRINKS_SIZE = {
   SMALL: "Small",
@@ -37,11 +41,11 @@ const DRINKS_SIZE = {
   LARGE: "Large",
 };
 
-const FOOD_TYPE = {
-  APPETIZER: "Appetizer",
-  MAINCOURSE: "Maincourse",
-  DESSERT: "Dessert",
-};
+// const FOOD_TYPE = {
+//   APPETIZER: "Appetizer",
+//   MAINCOURSE: "Maincourse",
+//   DESSERT: "Dessert",
+// };
 
 module.exports = {
   STATUS_CODES,
@@ -49,5 +53,5 @@ module.exports = {
   PRODUCT_TYPE,
   INSIDER_TYPE,
   DRINKS_SIZE,
-  FOOD_TYPE
+  FOOD_TYPE,
 };
