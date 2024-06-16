@@ -1,0 +1,19 @@
+const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
+
+const eventSchema = new Schema({
+  locationName: { type: String, required: true },
+  eventName: { type: String, required: true },
+  date: { type: Date, required: true },
+  from: { type: Date, required: true },
+  to: { type: Date, required: true },
+  insiderId: [
+    { type: mongoose.Types.ObjectId, ref: "Insider", required: true },
+  ],
+  ageLimit: { type: Number, required: true },
+  isBar: { type: Boolean, default: false },
+  isLounge: { type: Boolean, default: false },
+  isFeedback: { type: Boolean, default: false },
+});
+
+module.exports = mongoose.model("Event", eventSchema);
