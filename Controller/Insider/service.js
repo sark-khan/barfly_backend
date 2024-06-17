@@ -8,14 +8,6 @@ const mongoose = require("mongoose");
 module.exports.createInsider = async (req) => {
   const { insiderName, insiderType } = req.body;
 
-  // const insiders = await Insider.findOne({ insiderName }, { _id: 1 });
-  // if (insiders) {
-  //   throwError({
-  //     status: STATUS_CODES.CONFLICT,
-  //     message: "This insider name already exists",
-  //   });
-  // }
-
   let updateFields = {};
   if (insiderType === INSIDER_TYPE.BAR) {
     updateFields = { insiderName, hasBar: true, ownerId: req.id };
@@ -57,7 +49,7 @@ module.exports.createMenu = async (req) => {
   }
   if (insiderDetails.insiderType === "Bar") {
     const existingBarDetails = await Bar.findOne(
-      { name: menuName },
+      { name: menuName, insiderId: insiderDetails._id },
       { _id: 1 }
     );
     if (existingBarDetails) {
@@ -79,7 +71,8 @@ module.exports.createMenu = async (req) => {
 module.exports.getItemsOfMenu = async (req) => {
   const { insiderType, id } = req.query;
   if (insiderType === "Bar") {
-    const barDetails = await Bar.find({ _id: id }).sort({ updatedAt: -1 });
+    const barDetails = await Bar.findById(id).sort({ updatedAt: -1 });
+    console.log({ barDetails });
     return barDetails;
   }
   throwError({
@@ -99,6 +92,28 @@ module.exports.getMenuOfInsider = async (req) => {
   // const menuList= await
 };
 
+module.exports.createItemsOfMenu = async (req) => {
+  const { type, description, quantity, image, price, barId, itemName } =
+    req.body;
+  const barDetails = await Bar.findById(barId);
+  if (!barDetails) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "No such Menu exists",
+    });
+  }
+  barDetails.items.push({
+    price,
+    description:"hello",
+    type,
+    image,
+    quantity,
+    itemName,
+  });
+
+  await barDetails.save();
+  return barDetails;
+}
 module.exports.createEvent = async (req) => {
   const {
     locationName,

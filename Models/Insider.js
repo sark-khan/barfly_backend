@@ -4,7 +4,7 @@ const Schema = mongoose.Schema;
 
 const insiderSchema = new Schema(
   {
-    insiderName: { type: String, required: true, unique: true },
+    insiderName: { type: String, required: true},
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     hasBar: { type: Boolean, default: false },
     hasLounge: { type: Boolean, default: false },

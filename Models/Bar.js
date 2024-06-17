@@ -8,6 +8,7 @@ const barSchema = new Schema({
   insiderId: { type: mongoose.Types.ObjectId, ref: "Insider", required: true },
   items: [
     {
+      itemName: { type: String },
       price: { type: Number },
       quantity: { type: Number },
       description: { type: String },
