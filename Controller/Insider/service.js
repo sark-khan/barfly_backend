@@ -6,14 +6,17 @@ const throwError = require("../../Utils/throwError");
 
 module.exports.createInsider = async (req) => {
   const { insiderName, insiderType } = req.body;
-  const insiders = await Insider.findOne({ insiderName, ownerId:req.id }, { _id: 1 });
+  const insiders = await Insider.findOne(
+    { insiderName, ownerId: req.id },
+    { _id: 1 }
+  );
   console.log({ insiders });
   if (insiders) {
     throwError({
       status: STATUS_CODES.CONFLICT,
       message: "This insider name already exists",
     });
-  } 
+  }
 
   let updateFields = {};
   if (insiderType === INSIDER_TYPE.BAR) {
@@ -110,7 +113,7 @@ module.exports.createItemsOfMenu = async (req) => {
   }
   barDetails.items.push({
     price,
-    description:"hello",
+    description: "hello",
     type,
     image,
     quantity,
@@ -119,7 +122,7 @@ module.exports.createItemsOfMenu = async (req) => {
 
   await barDetails.save();
   return barDetails;
-}
+};
 module.exports.createEvent = async (req) => {
   const {
     locationName,
@@ -152,6 +155,7 @@ module.exports.createEvent = async (req) => {
     isBar,
     isLounge,
     isFeedback,
+    ownerId: req.id,
   });
 
   if (existingEvent) {
@@ -172,6 +176,7 @@ module.exports.createEvent = async (req) => {
     isBar,
     isLounge,
     isFeedback,
+    ownerId: req.id,
   });
 
   const savedEvent = await newEvent.save();

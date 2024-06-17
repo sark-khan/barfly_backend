@@ -16,6 +16,6 @@ const barSchema = new Schema({
       image: { type: String },
     },
   ],
-});
+},{ timestamps: true });
 
 module.exports = mongoose.model("Bar", barSchema);

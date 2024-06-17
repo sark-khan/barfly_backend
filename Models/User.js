@@ -14,7 +14,7 @@ const userSchema = new Schema({
   zipcode: { type: String, required: true },
   productName: { type: String, required: true },
   productType: { type: String, required: true, enum: PRODUCT_TYPE },
-});
+},{ timestamps: true });
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
