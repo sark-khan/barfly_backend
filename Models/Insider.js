@@ -6,10 +6,9 @@ const insiderSchema = new Schema(
   {
     insiderName: { type: String, required: true, unique: true },
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    insiderType: { type: String, required: true, enum: INSIDER_TYPE },
-    // barItems: [{type: Schema.Types.ObjectId, ref: 'Bar'}],
-    // loungeItems: [{type: Schema.Types.ObjectId, ref: 'Lounge'}],
-    // feedbackItems: [{type: Schema.Types.ObjectId, ref: 'Feedback'}]
+    hasBar: { type: Boolean, default: false },
+    hasLounge: { type: Boolean, default: false },
+    hasFeedback: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
