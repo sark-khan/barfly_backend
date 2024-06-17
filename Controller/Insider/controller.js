@@ -23,6 +23,7 @@ router.use((req, res, next) => {
   }
   return next();
 });
+
 router.post("/insider", async (req, res) => {
   try {
     const response = await createInsider(req);
@@ -39,7 +40,7 @@ router.get("/get-insider", async (req, res) => {
   try {
     const insiders = await Insider.find(
       { ownerId: req.id },
-      { insiderName: 1, updatedAt: 1 }
+      { insiderName: 1, hasBar: 1, hasLounge: 1, hasFeedback: 1, updatedAt: 1 }
     ).sort({ updatedAt: -1 });
     return res
       .status(STATUS_CODES.OK)
