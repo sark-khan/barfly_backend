@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../Utils/globalConstants");
-const { createInsider, createMenu, getItemsOfMenu, getMenuOfInsider } = require("./service");
+const { createInsider, createMenu, getItemsOfMenu, getMenuOfInsider, createItemsOfMenu } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Insider = require("../../Models/Insider");
 
@@ -77,13 +77,13 @@ router.get("/get-items-of-menu", async (req, res) => {
 
 router.post("/create-items-of-menu",async(req,res)=>{
   try {
-    const response = await getItemsOfMenu(req);
+    const response = await createItemsOfMenu(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Items succesfully fetched", data: response });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }
-})
+});
 
 module.exports = router;

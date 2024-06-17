@@ -5,7 +5,7 @@ const throwError = require("../../Utils/throwError");
 
 module.exports.createInsider = async (req) => {
   const { insiderName, insiderType } = req.body;
-  const insiders = await Insider.findOne({ insiderName }, { _id: 1 });
+  const insiders = await Insider.findOne({ insiderName, ownerId:req.id }, { _id: 1 });
   console.log({ insiders });
   if (insiders) {
     throwError({
@@ -39,7 +39,7 @@ module.exports.createMenu = async (req) => {
   }
   if (insiderDetails.insiderType === "Bar") {
     const existingBarDetails = await Bar.findOne(
-      { name: menuName },
+      { name: menuName, insiderId: insiderDetails._id },
       { _id: 1 }
     );
     if (existingBarDetails) {
@@ -62,7 +62,7 @@ module.exports.getItemsOfMenu = async (req) => {
   const { insiderType, id } = req.query;
   console.log("reacccc", { insiderType });
   if (insiderType === "Bar") {
-    const barDetails = await Bar.find({ _id: id }).sort({ updatedAt: -1 });
+    const barDetails = await Bar.findById(id).sort({ updatedAt: -1 });
     console.log({ barDetails });
     return barDetails;
   }
@@ -81,4 +81,27 @@ module.exports.getMenuOfInsider = async (req) => {
   }
   throwError({ status: STATUS_CODES.BAD_REQUEST, message: "Invalid Request" });
   // const menuList= await
+};
+
+module.exports.createItemsOfMenu = async (req) => {
+  const { type, description, quantity, image, price, barId, itemName } =
+    req.body;
+  const barDetails = await Bar.findById(barId);
+  if (!barDetails) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "No such Menu exists",
+    });
+  }
+  barDetails.items.push({
+    price,
+    description:"hello",
+    type,
+    image,
+    quantity,
+    itemName,
+  });
+
+  await barDetails.save();
+  return barDetails;
 };
