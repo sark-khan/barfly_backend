@@ -103,6 +103,7 @@ router.post("/create-event", async (req, res) => {
       .status(STATUS_CODES.OK)
       .json({ message: "Event succesfully created", data: response });
   } catch (error) {
+    console.error({error, message:"Error occured in create event"})
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
