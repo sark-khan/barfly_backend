@@ -27,7 +27,6 @@ module.exports.createInsider = async (req) => {
   } else if (insiderType === INSIDER_TYPE.FEEDBACK) {
     updateFields = { insiderName, hasFeedback: true, ownerId: req.id };
   } else {
-
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Invalid insider type",
@@ -126,24 +125,24 @@ module.exports.createItemsOfMenu = async (req) => {
   return barDetails;
 };
 module.exports.createEvent = async (req) => {
-  const {
-    locationName,
-    eventName,
-    date,
-    from,
-    to,
-    insiderId,
-    ageLimit,
-    isBar,
-    isLounge,
-    isFeedback,
-  } = req.body;
-  console.log("insiderId:", insiderId);
+  const { locationName, eventName, date, from, to, insiders, ageLimit } =
+    req.body;
   const ownerId = req.id;
-  const insider = await Insider.findOne({ _id: insiderId, ownerId });
-  console.log("insiderId:", insiderId);
-  console.log("ownerId:", ownerId);
-  if (!insider) {
+  const insiderIds=[];
+  const insidersList= insiders.map((insiderDetails)=>{
+    insiderIds.push(insiderDetails.insiderId);
+    const obj={
+      insiderId:insiderDetails.insiderId,
+      isBar: insiderDetails.isBar,
+      isLounge: insiderDetails.isLounge,
+      isFeedback: insiderDetails.isFeedback
+    }
+    return obj;
+  })
+  const existingInsiders = await Insider.find({ _id: {$in:insiderIds}, ownerId });
+  console.log({existingInsiders});
+  if(existingInsiders.length!= insiderIds.length)
+  {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
       message: "Insider does not exist",
@@ -156,10 +155,6 @@ module.exports.createEvent = async (req) => {
     date,
     from,
     to,
-    insiderId,
-    isBar,
-    isLounge,
-    isFeedback,
     ownerId,
   });
 
@@ -176,12 +171,10 @@ module.exports.createEvent = async (req) => {
     date,
     from,
     to,
-    insiderId,
     ageLimit,
-    isBar,
-    isLounge,
-    isFeedback,
     ownerId,
+    insiders:insidersList
+    // insiders:[{}]
   });
 
   const savedEvent = await newEvent.save();
