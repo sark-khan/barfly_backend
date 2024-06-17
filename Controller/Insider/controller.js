@@ -10,6 +10,7 @@ const {
   getUpcomingEvents,
   getDistinctMonthsAndYears,
   getEventsByMonthAndYear,
+  createItemsOfMenu
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Insider = require("../../Models/Insider");
@@ -85,7 +86,7 @@ router.get("/get-items-of-menu", async (req, res) => {
 
 router.post("/create-items-of-menu", async (req, res) => {
   try {
-    const response = await getItemsOfMenu(req);
+    const response = await createItemsOfMenu(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Items succesfully fetched", data: response });

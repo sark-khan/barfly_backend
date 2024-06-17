@@ -122,7 +122,7 @@ module.exports.sendOtp = async (req) => {
     ${otp}
     `,
   };
-  // createMail(mail_data);
+  createMail(mail_data);
 };
 
 module.exports.reSendOtp = async (req) => {
