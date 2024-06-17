@@ -24,6 +24,7 @@ router.use((req, res, next) => {
   }
   return next();
 });
+
 router.post("/insider", async (req, res) => {
   try {
     const response = await createInsider(req);
@@ -40,7 +41,7 @@ router.get("/get-insider", async (req, res) => {
   try {
     const insiders = await Insider.find(
       { ownerId: req.id },
-      { insiderName: 1, updatedAt: 1 }
+      { insiderName: 1, hasBar: 1, hasLounge: 1, hasFeedback: 1, updatedAt: 1 }
     ).sort({ updatedAt: -1 });
     return res
       .status(STATUS_CODES.OK)
@@ -125,7 +126,7 @@ router.get("/get-upcoming-events", async (req, res) => {
 
 router.get("/get-past-events-months", async (req, res) => {
   try {
-    const response = await getDistinctMonthsAndYears();
+    const response = await getDistinctMonthsAndYears(req);
     if (!response.length) {
       return res
         .status(STATUS_CODES.OK)
@@ -156,7 +157,7 @@ router.get("/get-past-events-by-month", async (req, res) => {
         .json({ message: `No events found for ${month}/${year}` });
     }
     return res.status(STATUS_CODES.OK).json({
-      message: "Events successfully fetched",
+      message: "Past events successfully fetched",
       data: response,
     });
   } catch (error) {
