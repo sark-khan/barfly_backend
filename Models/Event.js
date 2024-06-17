@@ -14,6 +14,7 @@ const eventSchema = new Schema({
   isBar: { type: Boolean, default: false },
   isLounge: { type: Boolean, default: false },
   isFeedback: { type: Boolean, default: false },
+  ownerId: { type: mongoose.Types.ObjectId, ref: "User", required: true },
 });
 
 module.exports = mongoose.model("Event", eventSchema);

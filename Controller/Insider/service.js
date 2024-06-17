@@ -6,14 +6,14 @@ const throwError = require("../../Utils/throwError");
 
 module.exports.createInsider = async (req) => {
   const { insiderName, insiderType } = req.body;
-  
+
   const insiders = await Insider.findOne({ insiderName }, { _id: 1 });
   if (insiders) {
     throwError({
       status: STATUS_CODES.CONFLICT,
       message: "This insider name already exists",
     });
-  } 
+  }
 
   let updateFields = {};
   if (insiderType === INSIDER_TYPE.BAR) {
@@ -110,8 +110,8 @@ module.exports.createEvent = async (req) => {
     isLounge,
     isFeedback,
   } = req.body;
-
-  const insider = await Insider.findById(insiderId);
+  const ownerId = req.id
+  const insider = await Insider.findOne({ _id: insiderId, ownerId });
   if (!insider) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
@@ -129,6 +129,7 @@ module.exports.createEvent = async (req) => {
     isBar,
     isLounge,
     isFeedback,
+    ownerId,
   });
 
   if (existingEvent) {
@@ -149,6 +150,7 @@ module.exports.createEvent = async (req) => {
     isBar,
     isLounge,
     isFeedback,
+    ownerId,
   });
 
   const savedEvent = await newEvent.save();
@@ -157,8 +159,9 @@ module.exports.createEvent = async (req) => {
 
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
-
+  const ownerId = req.id;
   const upcomingEvents = await Event.find({
+    ownerId,
     date: { $gte: currentDateTime },
   }).sort({ date: 1 });
 
@@ -166,8 +169,10 @@ module.exports.getUpcomingEvents = async (req) => {
 };
 
 module.exports.getDistinctMonthsAndYears = async () => {
+  const ownerId = req.id;
   const distinctMonthsAndYears = await Event.aggregate([
     {
+      ownerId,
       $match: { date: { $lt: new Date() } },
     },
     {
