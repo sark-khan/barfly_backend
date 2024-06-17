@@ -149,12 +149,46 @@ module.exports.createEvent = async (req) => {
     });
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).send('Invalid date format. Use YYYY-MM-DD.');
+  }
+
+  // Validate the time string format (optional but recommended)
+  if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(from)) {
+    return res.status(400).send('Invalid time format. Use h:mm AM/PM.');
+  }
+
+  if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(to)) {
+    return res.status(400).send('Invalid time format. Use h:mm AM/PM.');
+  }
+
+  // Combine date and time into a single string
+  const dateTimeTO = `${date} ${to}`;
+
+  const dateTimeFrom = `${date} ${from}`;
+
+  // Convert the combined date and time string to a JavaScript Date object
+  const dateTimeToVal = new Date(dateTimeTO);
+  console.log({dateTimeToVal});
+  const dateTimeFromVal = new Date(dateTimeFrom);
+  console.log({dateTimeFromVal})
+  // Validate the Date object (optional but recommended)
+  if (isNaN(dateTimeToVal.getTime())) {
+    throwError({status:STATUS_CODES.BAD_REQUEST, message:"The time format is inavalid"});
+  }
+  if(isNaN(dateTimeFromVal.getTime())){
+    throwError({status:STATUS_CODES.BAD_REQUEST, message:"The time format is inavalid"});
+  }
+
+  if(dateTimeFromVal>dateTimeToVal){
+    throwError({status:STATUS_CODES.BAD_REQUEST, message:"Invalid time selection"})
+  }
   const existingEvent = await Event.findOne({
     locationName,
     eventName,
-    date,
-    from,
-    to,
+    date: new Date(date),
+    from: dateTimeFromVal,
+    to: dateTimeToVal,
     ownerId,
   });
 
@@ -168,9 +202,9 @@ module.exports.createEvent = async (req) => {
   const newEvent = new Event({
     locationName,
     eventName,
-    date,
-    from,
-    to,
+    date: new Date(date),
+    from: dateTimeFromVal,
+    to: dateTimeToVal,
     ageLimit,
     ownerId,
     insiders:insidersList
