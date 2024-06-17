@@ -3,17 +3,18 @@ const Insider = require("../../Models/Insider");
 const Event = require("../../Models/Event");
 const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
+const mongoose = require("mongoose");
 
 module.exports.createInsider = async (req) => {
   const { insiderName, insiderType } = req.body;
 
-  const insiders = await Insider.findOne({ insiderName }, { _id: 1 });
-  if (insiders) {
-    throwError({
-      status: STATUS_CODES.CONFLICT,
-      message: "This insider name already exists",
-    });
-  }
+  // const insiders = await Insider.findOne({ insiderName }, { _id: 1 });
+  // if (insiders) {
+  //   throwError({
+  //     status: STATUS_CODES.CONFLICT,
+  //     message: "This insider name already exists",
+  //   });
+  // }
 
   let updateFields = {};
   if (insiderType === INSIDER_TYPE.BAR) {
@@ -23,6 +24,7 @@ module.exports.createInsider = async (req) => {
   } else if (insiderType === INSIDER_TYPE.FEEDBACK) {
     updateFields = { insiderName, hasFeedback: true, ownerId: req.id };
   } else {
+
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Invalid insider type",
@@ -110,8 +112,11 @@ module.exports.createEvent = async (req) => {
     isLounge,
     isFeedback,
   } = req.body;
-  const ownerId = req.id
+  console.log("insiderId:", insiderId);
+  const ownerId = req.id;
   const insider = await Insider.findOne({ _id: insiderId, ownerId });
+  console.log("insiderId:", insiderId);
+  console.log("ownerId:", ownerId);
   if (!insider) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
@@ -168,12 +173,14 @@ module.exports.getUpcomingEvents = async (req) => {
   return upcomingEvents;
 };
 
-module.exports.getDistinctMonthsAndYears = async () => {
+module.exports.getDistinctMonthsAndYears = async (req) => {
   const ownerId = req.id;
   const distinctMonthsAndYears = await Event.aggregate([
     {
-      ownerId,
-      $match: { date: { $lt: new Date() } },
+      $match: {
+        ownerId: mongoose.Types.ObjectId(ownerId),
+        date: { $lt: new Date() },
+      },
     },
     {
       $group: {

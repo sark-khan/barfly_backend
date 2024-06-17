@@ -124,7 +124,7 @@ router.get("/get-upcoming-events", async (req, res) => {
 
 router.get("/get-past-events-months", async (req, res) => {
   try {
-    const response = await getDistinctMonthsAndYears();
+    const response = await getDistinctMonthsAndYears(req);
     if (!response.length) {
       return res
         .status(STATUS_CODES.OK)
@@ -155,7 +155,7 @@ router.get("/get-past-events-by-month", async (req, res) => {
         .json({ message: `No events found for ${month}/${year}` });
     }
     return res.status(STATUS_CODES.OK).json({
-      message: "Events successfully fetched",
+      message: "Past events successfully fetched",
       data: response,
     });
   } catch (error) {
