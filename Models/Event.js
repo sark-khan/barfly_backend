@@ -21,7 +21,6 @@ const eventSchema = new Schema(
       },
     ],
     ageLimit: { type: Number, required: true },
-
     ownerId: { type: mongoose.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true }

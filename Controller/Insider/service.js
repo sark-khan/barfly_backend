@@ -11,7 +11,7 @@ module.exports.createInsider = async (req) => {
     { insiderName, ownerId: req.id },
     { _id: 1 }
   );
-  console.log({ insiders });
+
   if (insiders) {
     throwError({
       status: STATUS_CODES.CONFLICT,
@@ -57,7 +57,7 @@ module.exports.createMenu = async (req) => {
       message: "No such Insider exists for this owner",
     });
   }
-  if (insiderDetails.insiderType === "Bar") {
+  if (insiderDetails.insiderType === INSIDER_TYPE.BAR) {
     const existingBarDetails = await Bar.findOne(
       { name: menuName, insiderId: insiderDetails._id },
       { _id: 1 }
@@ -80,7 +80,7 @@ module.exports.createMenu = async (req) => {
 
 module.exports.getItemsOfMenu = async (req) => {
   const { insiderType, id } = req.query;
-  if (insiderType === "Bar") {
+  if (insiderType === INSIDER_TYPE.BAR) {
     const barDetails = await Bar.findById(id).sort({ updatedAt: -1 });
     console.log({ barDetails });
     return barDetails;
@@ -99,7 +99,6 @@ module.exports.getMenuOfInsider = async (req) => {
     return menuList;
   }
   throwError({ status: STATUS_CODES.BAD_REQUEST, message: "Invalid Request" });
-  // const menuList= await
 };
 
 module.exports.createItemsOfMenu = async (req) => {
@@ -124,25 +123,31 @@ module.exports.createItemsOfMenu = async (req) => {
   await barDetails.save();
   return barDetails;
 };
+
 module.exports.createEvent = async (req) => {
   const { locationName, eventName, date, from, to, insiders, ageLimit } =
     req.body;
+    
   const ownerId = req.id;
-  const insiderIds=[];
-  const insidersList= insiders.map((insiderDetails)=>{
+  const insiderIds = [];
+
+  const insidersList = insiders.map((insiderDetails) => {
     insiderIds.push(insiderDetails.insiderId);
-    const obj={
-      insiderId:insiderDetails.insiderId,
+    const obj = {
+      insiderId: insiderDetails.insiderId,
       isBar: insiderDetails.isBar,
       isLounge: insiderDetails.isLounge,
-      isFeedback: insiderDetails.isFeedback
-    }
+      isFeedback: insiderDetails.isFeedback,
+    };
     return obj;
-  })
-  const existingInsiders = await Insider.find({ _id: {$in:insiderIds}, ownerId });
-  console.log({existingInsiders});
-  if(existingInsiders.length!= insiderIds.length)
-  {
+  });
+
+  const existingInsiders = await Insider.find({
+    _id: { $in: insiderIds },
+    ownerId,
+  });
+
+  if (existingInsiders.length != insiderIds.length) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
       message: "Insider does not exist",
@@ -150,39 +155,44 @@ module.exports.createEvent = async (req) => {
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return res.status(400).send('Invalid date format. Use YYYY-MM-DD.');
+    return res.status(400).send("Invalid date format. Use YYYY-MM-DD.");
   }
 
-  // Validate the time string format (optional but recommended)
   if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(from)) {
-    return res.status(400).send('Invalid time format. Use h:mm AM/PM.');
+    return res.status(400).send("Invalid time format. Use h:mm AM/PM.");
   }
 
   if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(to)) {
-    return res.status(400).send('Invalid time format. Use h:mm AM/PM.');
+    return res.status(400).send("Invalid time format. Use h:mm AM/PM.");
   }
 
-  // Combine date and time into a single string
   const dateTimeTO = `${date} ${to}`;
-
   const dateTimeFrom = `${date} ${from}`;
 
-  // Convert the combined date and time string to a JavaScript Date object
   const dateTimeToVal = new Date(dateTimeTO);
-  console.log({dateTimeToVal});
   const dateTimeFromVal = new Date(dateTimeFrom);
-  console.log({dateTimeFromVal})
-  // Validate the Date object (optional but recommended)
+
   if (isNaN(dateTimeToVal.getTime())) {
-    throwError({status:STATUS_CODES.BAD_REQUEST, message:"The time format is inavalid"});
-  }
-  if(isNaN(dateTimeFromVal.getTime())){
-    throwError({status:STATUS_CODES.BAD_REQUEST, message:"The time format is inavalid"});
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "The time format is inavalid",
+    });
   }
 
-  if(dateTimeFromVal>dateTimeToVal){
-    throwError({status:STATUS_CODES.BAD_REQUEST, message:"Invalid time selection"})
+  if (isNaN(dateTimeFromVal.getTime())) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "The time format is inavalid",
+    });
   }
+
+  if (dateTimeFromVal > dateTimeToVal) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid time selection",
+    });
+  }
+
   const existingEvent = await Event.findOne({
     locationName,
     eventName,
@@ -207,8 +217,7 @@ module.exports.createEvent = async (req) => {
     to: dateTimeToVal,
     ageLimit,
     ownerId,
-    insiders:insidersList
-    // insiders:[{}]
+    insiders: insidersList,
   });
 
   const savedEvent = await newEvent.save();
@@ -218,11 +227,11 @@ module.exports.createEvent = async (req) => {
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
   const ownerId = req.id;
+
   const upcomingEvents = await Event.find({
     ownerId,
     date: { $gte: currentDateTime },
   }).sort({ date: 1 });
-
   return upcomingEvents;
 };
 
