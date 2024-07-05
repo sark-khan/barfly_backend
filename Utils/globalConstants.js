@@ -19,14 +19,14 @@ const ROLES = {
 };
 
 const PRODUCT_TYPE = {
-  BAR: "Bar",
+  MENU: "Menu",
   RESTAURANT: "Restaurant",
   FOODTRUCK: "Foodtruck",
   CLUB: "Club",
 };
 
 const INSIDER_TYPE = {
-  BAR: "Bar",
+  MENU: "Menu",
   LOUNGE: "Lounge",
   FEEDBACK: "Feedback",
 };
@@ -40,12 +40,6 @@ const DRINKS_SIZE = {
   MEDIUM: "Medium",
   LARGE: "Large",
 };
-
-// const FOOD_TYPE = {
-//   APPETIZER: "Appetizer",
-//   MAINCOURSE: "Maincourse",
-//   DESSERT: "Dessert",
-// };
 
 module.exports = {
   STATUS_CODES,
