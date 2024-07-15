@@ -1,145 +1,166 @@
 const Bar = require("../../Models/Bar");
 const Insider = require("../../Models/Insider");
 const Event = require("../../Models/Event");
+const InsiderElement = require("../../Models/InsiderElement");
+const MenuItem = require("../../Models/MenuItem");
 const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
 
 module.exports.createInsider = async (req) => {
-  const { insiderName, insiderType } = req.body;
-  const insiders = await Insider.findOne(
+  const { insiderName } = req.body;
+  if (!insiderName) {
+    throw {
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "InsiderName is required",
+    };
+  }
+
+  const existingInsider = await Insider.findOne(
     { insiderName, ownerId: req.id },
     { _id: 1 }
   );
 
-  if (insiders) {
-    throwError({
+  if (existingInsider) {
+    throw {
       status: STATUS_CODES.CONFLICT,
       message: "This insider name already exists",
-    });
-  }
-
-  let updateFields = {};
-  if (insiderType === INSIDER_TYPE.BAR) {
-    updateFields = { insiderName, hasBar: true, ownerId: req.id };
-  } else if (insiderType === INSIDER_TYPE.LOUNGE) {
-    updateFields = { insiderName, hasLounge: true, ownerId: req.id };
-  } else if (insiderType === INSIDER_TYPE.FEEDBACK) {
-    updateFields = { insiderName, hasFeedback: true, ownerId: req.id };
-  } else {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid insider type",
-    });
+    };
   }
 
   const newInsider = await Insider.findOneAndUpdate(
-    { insiderName },
-    { $set: updateFields },
+    { insiderName, ownerId: req.id },
+    { insiderName, ownerId: req.id },
     { new: true, upsert: true }
   );
-  delete newInsider.createAt;
-  delete newInsider.updatedAt;
-  delete newInsider.ownerId;
-  return newInsider;
+
+  if (!newInsider) {
+    throw {
+      status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+      message: "Failed to create or update insider",
+    };
+  }
+
+  const response = newInsider.toObject();
+  delete response.createdAt;
+  delete response.updatedAt;
+  delete response.ownerId;
+
+  return response;
 };
 
-module.exports.createMenu = async (req) => {
-  const { menuName, menuIcon, insiderId } = req.body;
-  const insiderDetails = await Insider.findOne({
-    ownerId: req.id,
-    _id: insiderId,
-  }).lean();
+module.exports.createInsiderElement = async (req) => {
+  const { insiderId, elementType, name, icon } = req.body;
 
-  if (!insiderDetails) {
-    throwError({
-      status: STATUS_CODES.NOT_ACCEPTABLE,
-      message: "No such Insider exists for this owner",
-    });
-  }
-  if (insiderDetails.insiderType === INSIDER_TYPE.BAR) {
-    const existingBarDetails = await Bar.findOne(
-      { name: menuName, insiderId: insiderDetails._id },
-      { _id: 1 }
-    );
-    if (existingBarDetails) {
-      throwError({
-        status: STATUS_CODES.CONFLICT,
-        message: "This menu name already exists",
-      });
-    }
-    const barDetails = await Bar.create({
-      name: menuName,
-      icon: menuIcon,
-      insiderId,
-    });
-    return barDetails;
-  }
-  throwError({ status: STATUS_CODES.BAD_REQUEST, message: "Not Authorised " });
-};
-
-module.exports.getItemsOfMenu = async (req) => {
-  const { insiderType, id } = req.query;
-  if (insiderType === INSIDER_TYPE.BAR) {
-    const barDetails = await Bar.findById(id).sort({ updatedAt: -1 });
-    console.log({ barDetails });
-    return barDetails;
-  }
-  throwError({
-    status: STATUS_CODES.BAD_REQUEST,
-    message: "This is not a valid Request",
-  });
-};
-
-module.exports.getMenuOfInsider = async (req) => {
-  const { insiderId } = req.query;
-  const insiderDetails = await Insider.findById(insiderId);
-  if (insiderDetails.insiderType === INSIDER_TYPE.BAR) {
-    const menuList = await Bar.find({ insiderId });
-    return menuList;
-  }
-  throwError({ status: STATUS_CODES.BAD_REQUEST, message: "Invalid Request" });
-};
-
-module.exports.createItemsOfMenu = async (req) => {
-  const { type, description, quantity, image, price, barId, itemName } =
-    req.body;
-  const barDetails = await Bar.findById(barId);
-  if (!barDetails) {
+  if (!insiderId || !elementType || !name || !icon) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No such Menu exists",
+      message: "InsiderId, elementType, name, and icon are required",
     });
   }
-  barDetails.items.push({
-    price,
-    description: "hello",
-    type,
-    image,
-    quantity,
-    itemName,
+  const newElement = await InsiderElement.create({
+    insiderId,
+    elementType,
+    name,
+    icon,
   });
 
-  await barDetails.save();
-  return barDetails;
+  return newElement;
+};
+
+module.exports.getInsiderElements = async (insiderId) => {
+  try {
+    if (!insiderId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "InsiderId is required",
+      });
+    }
+    const elements = await InsiderElement.find({ insiderId }).lean();
+    return elements;
+  } catch (error) {
+    throw {
+      status: error.status || STATUS_CODES.INTERNAL_SERVER_ERROR,
+      message: error.message || "Failed to fetch insider elements",
+    };
+  }
+};
+
+module.exports.createMenuItem = async (req) => {
+  const {
+    itemName,
+    price,
+    quantity,
+    description,
+    type,
+    image,
+    insiderElementId,
+  } = req.body;
+
+  if (
+    !itemName ||
+    !price ||
+    !quantity ||
+    !description ||
+    !type ||
+    !image ||
+    !insiderElementId
+  ) {
+    throw { status: 400, message: "All fields are required" };
+  }
+
+  const insiderElement = await InsiderElement.findById(insiderElementId);
+  if (!insiderElement) {
+    throw { status: 404, message: "Insider Element not found" };
+  }
+
+  const newItem = await MenuItem.create({
+    itemName,
+    price,
+    quantity,
+    description,
+    type,
+    image,
+    insiderElementId: insiderElementId,
+  });
+  return newItem;
+};
+
+module.exports.getCreatedItems = async (req) => {
+  try {
+    const { insiderElementId } = req.query;
+    if (!insiderElementId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "InsiderElementId is required",
+      });
+    }
+
+    const createdItems = await MenuItem.find({ insiderElementId }).lean();
+    return createdItems;
+  } catch (error) {
+    throw {
+      status: error.status || STATUS_CODES.INTERNAL_SERVER_ERROR,
+      message: error.message || "Failed to fetch created items",
+    };
+  }
 };
 
 module.exports.createEvent = async (req) => {
   const { locationName, eventName, date, from, to, insiders, ageLimit } =
     req.body;
-    
+
   const ownerId = req.id;
   const insiderIds = [];
 
   const insidersList = insiders.map((insiderDetails) => {
     insiderIds.push(insiderDetails.insiderId);
-    const obj = {
+    return {
       insiderId: insiderDetails.insiderId,
       isBar: insiderDetails.isBar,
       isLounge: insiderDetails.isLounge,
       isFeedback: insiderDetails.isFeedback,
     };
-    return obj;
   });
 
   const existingInsiders = await Insider.find({
@@ -154,39 +175,17 @@ module.exports.createEvent = async (req) => {
     });
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return res.status(400).send("Invalid date format. Use YYYY-MM-DD.");
-  }
+  const dateTimeFrom = new Date(from);
+  const dateTimeTo = new Date(to);
 
-  if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(from)) {
-    return res.status(400).send("Invalid time format. Use h:mm AM/PM.");
-  }
-
-  if (!/^\d{1,2}:\d{2} [APMapm]{2}$/.test(to)) {
-    return res.status(400).send("Invalid time format. Use h:mm AM/PM.");
-  }
-
-  const dateTimeTO = `${date} ${to}`;
-  const dateTimeFrom = `${date} ${from}`;
-
-  const dateTimeToVal = new Date(dateTimeTO);
-  const dateTimeFromVal = new Date(dateTimeFrom);
-
-  if (isNaN(dateTimeToVal.getTime())) {
+  if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "The time format is inavalid",
+      message: "The time format is invalid",
     });
   }
 
-  if (isNaN(dateTimeFromVal.getTime())) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "The time format is inavalid",
-    });
-  }
-
-  if (dateTimeFromVal > dateTimeToVal) {
+  if (dateTimeFrom > dateTimeTo) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Invalid time selection",
@@ -197,8 +196,8 @@ module.exports.createEvent = async (req) => {
     locationName,
     eventName,
     date: new Date(date),
-    from: dateTimeFromVal,
-    to: dateTimeToVal,
+    from: dateTimeFrom,
+    to: dateTimeTo,
     ownerId,
   });
 
@@ -213,8 +212,8 @@ module.exports.createEvent = async (req) => {
     locationName,
     eventName,
     date: new Date(date),
-    from: dateTimeFromVal,
-    to: dateTimeToVal,
+    from: dateTimeFrom,
+    to: dateTimeTo,
     ageLimit,
     ownerId,
     insiders: insidersList,
