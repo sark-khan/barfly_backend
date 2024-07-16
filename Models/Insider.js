@@ -6,9 +6,6 @@ const insiderSchema = new Schema(
   {
     insiderName: { type: String, required: true},
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    hasBar: { type: Boolean, default: false },
-    hasLounge: { type: Boolean, default: false },
-    hasFeedback: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
