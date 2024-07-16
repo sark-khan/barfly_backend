@@ -1,5 +1,5 @@
 const User = require("../../Models/User");
-const { STATUS_CODES } = require("../../Utils/globalConstants");
+const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
   hashPassword,
   comparePassword,
@@ -11,7 +11,6 @@ const Otp = require("../../Models/Otp");
 const { createMail } = require("../../Utils/mailer");
 
 module.exports.register = async (req) => {
-  console.log("reachede hrer");
   const userExist = await User.findOne({ email: req.body.email }).lean();
   if (userExist) {
     throwError({
@@ -20,7 +19,6 @@ module.exports.register = async (req) => {
     });
   }
   const otpDetails = await Otp.findOne({ email: req.body.email });
-  console.log({ otpDetails });
   if (otpDetails.otp != req.body.otp) {
     throwError({
       status: STATUS_CODES.NOT_ACCEPTABLE,
@@ -50,7 +48,6 @@ module.exports.register = async (req) => {
     productType: req.body.productType,
   });
   delete newUser.password;
-  console.log({ newUser });
   await newUser.save();
   return newUser;
 };
@@ -77,24 +74,35 @@ module.exports.login = async (req) => {
     },
     userProjection
   ).lean();
-  if (!user)
+
+  if (!user) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User does not exist",
     });
+  }
 
-  const isPasswordValid = await comparePassword(password, user.password);
-  if (!isPasswordValid)
+  if (user.role !== ROLES.CUSTOMER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invalid passowrd",
+      message: "Only Customers can log in",
     });
+  }
+
+  const isPasswordValid = await comparePassword(password, user.password);
+  if (!isPasswordValid) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "Invalid password",
+    });
+  }
 
   const token = getJwtToken(user);
   delete user.password;
 
   return { user, token };
 };
+
 module.exports.sendOtp = async (req) => {
   const { email, contactNumber } = req.body;
   const userDetails = await User.findOne(
@@ -107,7 +115,6 @@ module.exports.sendOtp = async (req) => {
       message: "This email/contact Number is alredy Registered",
     });
   }
-  console.log("reached erher", email);
   const otp = generateOTP(5);
   await Otp.findOneAndUpdate(
     { email },

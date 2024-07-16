@@ -10,8 +10,11 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 
 
-app.use("/api/auth", require("./Controller/Authentication/controller"));
-app.use("/api/owner", require("./Controller/Insider/controller"));
+app.use("/auth/owner-api", require("./OwnerServices/Authentication/controller"));
+app.use("/api/owner", require("./OwnerServices/Insider/controller"));
+app.use("/api/customer", require("./CustomerServices/CustomerEvents/controller"));
+app.use("/auth/customer-api", require("./CustomerServices/Authentication/controller"));
+
 
 const port = process.env.PORT;
 
