@@ -6,6 +6,7 @@ const {
   addFavouriteEvents,
   getFavouriteEvents,
   removeFavouriteEvents,
+  visitorCount,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 
@@ -22,9 +23,6 @@ router.use((req, res, next) => {
 router.get("/get-events", async (req, res) => {
   try {
     const response = await getEvents();
-    if (!response.length) {
-      return res.status(STATUS_CODES.OK).json({ message: "No events found" });
-    }
     return res.status(STATUS_CODES.OK).json({
       message: "Events successfully fetched",
       data: response,
@@ -36,10 +34,10 @@ router.get("/get-events", async (req, res) => {
 
 router.post("/add-favourite-events", async (req, res) => {
   try {
-    const response = await addFavouriteEvents(req);
+    await addFavouriteEvents(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Favourite event added", data: response });
+      .json({ message: "Favourite event added" });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }
@@ -59,11 +57,20 @@ router.get("/get-favourite-events", async (req, res) => {
 
 router.put("/remove-favourite-events", async (req, res) => {
   try {
-    const { userFavourites, updatedEvents } = await removeFavouriteEvents(req);
+    await removeFavouriteEvents(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Favourite events removed successfully",
-      userFavourites,
-      updatedEvents,
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.post("/visitor-count", async (req, res) => {
+  try {
+    await visitorCount(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "",
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
