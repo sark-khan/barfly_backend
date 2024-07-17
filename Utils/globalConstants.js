@@ -19,7 +19,7 @@ const ROLES = {
 };
 
 const PRODUCT_TYPE = {
-  MENU: "Menu",
+  BAR: "Bar",
   RESTAURANT: "Restaurant",
   FOODTRUCK: "Foodtruck",
   CLUB: "Club",
@@ -41,6 +41,10 @@ const DRINKS_SIZE = {
   LARGE: "Large",
 };
 
+const REDIS_KEYS = {
+  LIVE_ENTITY: "LIVE_ENTITY",
+};
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -48,4 +52,5 @@ module.exports = {
   INSIDER_TYPE,
   DRINKS_SIZE,
   FOOD_TYPE,
+  REDIS_KEYS,
 };

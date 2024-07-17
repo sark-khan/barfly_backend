@@ -22,7 +22,11 @@ const eventSchema = new Schema(
     ],
     ageLimit: { type: Number, required: true },
     ownerId: { type: mongoose.Types.ObjectId, ref: "User", required: true },
-    visitor: { type: Number, default: 0 },
+    entityId: {
+      type: mongoose.Types.ObjectId,
+      ref: "EntityDetails",
+      required: true,
+    },
   },
   { timestamps: true }
 );

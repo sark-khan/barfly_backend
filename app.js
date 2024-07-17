@@ -1,5 +1,7 @@
 const express = require("express");
 require("./db");
+require("./redis")
+require("./cron")
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");

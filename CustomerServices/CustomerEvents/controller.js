@@ -2,11 +2,11 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
-  getEvents,
   addFavouriteEvents,
   getFavouriteEvents,
   removeFavouriteEvents,
   visitorCount,
+  getEntities,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 
@@ -20,14 +20,15 @@ router.use((req, res, next) => {
   return next();
 });
 
-router.get("/get-events", async (req, res) => {
+router.get("/get-entities", async (req, res) => {
   try {
-    const response = await getEvents();
+    const response = await getEntities();
     return res.status(STATUS_CODES.OK).json({
       message: "Events successfully fetched",
       data: response,
     });
   } catch (error) {
+    console.error("Error occured while getting Entiities", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });

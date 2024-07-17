@@ -44,8 +44,8 @@ module.exports.register = async (req) => {
     city: req.body.city,
     street: req.body.street,
     zipcode: req.body.zipcode,
-    productName: req.body.productName,
-    productType: req.body.productType,
+    entityName: req.body.entityName,
+    entityType: req.body.entityType,
   });
   delete newUser.password;
   await newUser.save();
@@ -61,8 +61,8 @@ module.exports.login = async (req) => {
     email: 1,
     contactNumber: 1,
     password: 1,
-    productName: 1,
-    productType: 1,
+    entityName: 1,
+    entityType: 1,
   };
 
   const user = await User.findOne(

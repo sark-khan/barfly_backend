@@ -1,46 +1,51 @@
 const Event = require("../../Models/Event");
-const UserFavourites = require("../../Models/UserFavourites");
-const STATUS_CODES = require("../../Utils/globalConstants");
+const Product = require("../../Models/EntityDetails");
+// const UserFavourites = require("../../Models/UserFavourites");
+const { STATUS_CODES, REDIS_KEYS } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
-const mongoose = require("mongoose");
+const { appClient } = require("../../redis");
+const EntityDetails = require("../../Models/EntityDetails");
+const  mongoose  = require("mongoose");
 
-module.exports.getEvents = async (req) => {
-  const currentDateTime = new Date();
-
-  const events = await Event.find(
-    { to: { $gte: currentDateTime } },
-    {
-      ageLimit: 0,
-      ownerId: 0,
-      insiders: 0,
-      createdAt: 0,
-      updatedAt: 0,
-    },
-    {
-      lean: true,
-      sort: { visitor: -1 },
-    }
+module.exports.getEntities = async (req) => {
+  // const currentDateTime = new Date();
+  const todayEventsEntities = JSON.parse(
+    await appClient.get(REDIS_KEYS.LIVE_ENTITY)
   );
-  if (!events.length)
-    throwError({ status: STATUS_CODES.NOT_FOUND, message: "No Event found" });
 
-  const { ongoingEvents, upcomingEvents } = events.reduce(
-    (acc, event) => {
-      const isActive =
-        event.from <= currentDateTime && currentDateTime <= event.to;
-      if (isActive) {
-        acc.ongoingEvents.push(event);
+  // const en,tityIds = ongoingEventsEntities.map((ongoingEventsEntity) => {
+  //   return ongoingEventsEntity._id;
+  // });
+  const now = new Date();
+  const { ongoingEventsEntites, enitityIds, upcomingEventsEntities } = todayEventsEntities.reduce(
+    (acc, entity) => {
+      console.log({ii:entity._id});
+      acc.enitityIds.push(mongoose.Types.ObjectId(entity._id));
+      const event = entity.event;
+      console.log({event});
+      const now = new Date();
+      if (new Date(event.from) < now && new Date(event.to)> now) {
+        console.log("reacgd grerere");
+        acc.ongoingEventsEntites.add(entity);
       } else {
-        acc.upcomingEvents.push(event);
+        acc.upcomingEventsEntities.add(entity);
       }
       return acc;
     },
     {
-      ongoingEvents: [],
-      upcomingEvents: [],
+      ongoingEventsEntites: new Set(),
+      enitityIds: [],
+      upcomingEventsEntities: new Set(),
     }
   );
-  return { ongoingEvents, upcomingEvents };
+  // console.log({ongoingEventsEntites, enitityIds, upcomingEventsEntities});
+  const remainingEntities = await EntityDetails.find(
+    { _id: { $nin:  enitityIds  } },
+    { city: 1, entityName: 1, entityType: 1 },
+    { lean: true }
+  );
+
+  return { ongoingEventsEntites:Array.from(ongoingEventsEntites), upcomingEventsEntities:Array.from(upcomingEventsEntities), remainingEntities };
 };
 
 module.exports.addFavouriteEvents = async (req) => {

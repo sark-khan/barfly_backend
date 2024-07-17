@@ -9,11 +9,6 @@ const userSchema = new Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   contactNumber: { type: String, required: true },
-  city: { type: String},
-  street: { type: String},
-  zipcode: { type: String},
-  productName: { type: String},
-  productType: { type: String, enum: PRODUCT_TYPE },
 },{ timestamps: true });
 
 userSchema.pre("save", async function (next) {
