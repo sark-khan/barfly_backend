@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../Utils/globalConstants");
-const { register, login, sendOtp, reSendOtp } = require("./service");
-// const verifyToken = require("../../Utils/verifyToken");
+const { register, login, sendOtp, reSendOtp } = require("./services");
 
 router.post("/login", async (req, res) => {
   try {
@@ -17,11 +16,8 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// router.use(verifyToken);
-
 router.post("/register", async (req, res) => {
   try {
-    console.log("reached erhe");
     const response = await register(req);
     return res
       .status(STATUS_CODES.OK)

@@ -1,5 +1,5 @@
 const User = require("../../Models/User");
-const { STATUS_CODES } = require("../../Utils/globalConstants");
+const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
   hashPassword,
   comparePassword,
@@ -9,6 +9,7 @@ const {
 const throwError = require("../../Utils/throwError");
 const Otp = require("../../Models/Otp");
 const { createMail } = require("../../Utils/mailer");
+const EntityDetails = require("../../Models/EntityDetails");
 
 module.exports.register = async (req) => {
   console.log("reachede hrer");
@@ -36,22 +37,27 @@ module.exports.register = async (req) => {
     });
   }
   const hashedPassword = hashPassword(req.body.password);
-  const newUser = new User({
+  const newUser = await User.create({
     role: req.body.role,
     firstName: req.body.firstName,
     lastName: req.body.lastName,
     email: req.body.email,
     password: hashedPassword,
     contactNumber: req.body.contactNumber,
+  });
+
+  const newEntityDetails = new EntityDetails({
     city: req.body.city,
     street: req.body.street,
     zipcode: req.body.zipcode,
-    productName: req.body.productName,
-    productType: req.body.productType,
+    entityName: req.body.entityName,
+    entityType: req.body.entityType,
+    owner: newUser._id
   });
-  delete newUser.password;
+
+  await newEntityDetails.save();
   console.log({ newUser });
-  await newUser.save();
+  delete newUser.password;
   return newUser;
 };
 
@@ -64,8 +70,8 @@ module.exports.login = async (req) => {
     email: 1,
     contactNumber: 1,
     password: 1,
-    productName: 1,
-    productType: 1,
+    entityName: 1,
+    entityType: 1,
   };
 
   const user = await User.findOne(
@@ -82,6 +88,13 @@ module.exports.login = async (req) => {
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User does not exist",
     });
+
+  if (user.role !== ROLES.STORE_OWNER) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "Only owners can log in",
+    });
+  }
 
   const isPasswordValid = await comparePassword(password, user.password);
   if (!isPasswordValid)
@@ -128,7 +141,7 @@ module.exports.sendOtp = async (req) => {
 module.exports.reSendOtp = async (req) => {
   const { email } = req.body;
   const otp = generateOTP(5);
-  const otpDetails = Otp.findOne({ email });
+  const otpDetails = await Otp.findOne({ email });
   if (!otpDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
