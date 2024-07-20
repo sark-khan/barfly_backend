@@ -20,8 +20,8 @@ const verifyToken = (req, res, next) => {
     req.role = decoded.role;
     req.email = decoded.email;
     req.contactNumber = decoded.contactNumber;
-    req.productName = decoded.productName;
-    req.productType = decoded.productType;
+    req.entityName = decoded.entityName;
+    req.entityType = decoded.entityType;
     next();
   });
 };

@@ -31,8 +31,8 @@ const getJwtToken = (user) => {
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
-    productName: user.productName,
-    productType: user.productType,
+    entityName: user.entityName,
+    entityType: user.entityType,
   };
   return jwt.sign(payload, SECRET_KEY);
 };
