@@ -3,10 +3,11 @@ const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
   addFavouriteEvents,
-  getFavouriteEvents,
+  getFavouriteEntity,
   removeFavouriteEvents,
   visitorCount,
   getEntities,
+  searchEntity
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 
@@ -22,7 +23,7 @@ router.use((req, res, next) => {
 
 router.get("/get-entities", async (req, res) => {
   try {
-    const response = await getEntities();
+    const response = await getEntities(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Events successfully fetched",
       entityEvents: response,
@@ -33,7 +34,7 @@ router.get("/get-entities", async (req, res) => {
   }
 });
 
-router.post("/add-favourite-events", async (req, res) => {
+router.post("/add-favourite-entity", async (req, res) => {
   try {
     await addFavouriteEvents(req);
     return res
@@ -44,9 +45,9 @@ router.post("/add-favourite-events", async (req, res) => {
   }
 });
 
-router.get("/get-favourite-events", async (req, res) => {
+router.get("/get-favourite-entity", async (req, res) => {
   try {
-    const response = await getFavouriteEvents(req);
+    const response = await getFavouriteEntity(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Favourite events successfully fetched",
       data: response,
@@ -72,6 +73,18 @@ router.post("/visitor-count", async (req, res) => {
     await visitorCount(req);
     return res.status(STATUS_CODES.OK).json({
       message: "",
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/search-entity", async (req, res) => {
+  try {
+    const response = await searchEntity(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Favourite events successfully fetched",
+      data: response,
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
