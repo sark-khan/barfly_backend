@@ -43,6 +43,7 @@ const DRINKS_SIZE = {
 
 const REDIS_KEYS = {
   LIVE_ENTITY: "LIVE_ENTITY",
+  FAVOURITE_ENTITIES: "FAVOURITE_ENTITIES"
 };
 
 module.exports = {
