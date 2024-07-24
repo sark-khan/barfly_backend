@@ -1,6 +1,8 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { appClient } = require("../redis");
 const SECRET_KEY = "BARFLY@WEBMOB456";
+const Event = require("../Models/Event");
 
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 8);
@@ -37,4 +39,79 @@ const getJwtToken = (user) => {
   return jwt.sign(payload, SECRET_KEY);
 };
 
-module.exports = { hashPassword, comparePassword, getJwtToken,generateOTP, SECRET_KEY };
+const performEndOfDayTask = async () => {
+  try {
+    const today = new Date();
+    today.setUTCDate(today.getUTCDate());
+    const startOfDay = new Date(today);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(today);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    const pipeline = [
+      {
+        $match: {
+          $and: [
+            { from: { $gte: startOfDay } },
+            { to: { $lte: endOfDay } },
+            { entityId: { $exists: true } },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "entitydetails",
+          localField: "entityId",
+          foreignField: "_id",
+          as: "entityDetails",
+        },
+      },
+      {
+        $unwind: "$entityDetails",
+      },
+      {
+        $project: {
+          _id: "$entityId",
+          entityDetails: {
+            _id: 1,
+            city: 1,
+            street: 1,
+            entityName: 1,
+            entityType: 1,
+          },
+          event: {
+            _id: "$_id",
+            locationName: "$locationName",
+            eventName: "$eventName",
+            date: "$date",
+            from: "$from",
+            to: "$to",
+            insiders: "$insiders",
+            ageLimit: "$ageLimit",
+            ownerId: "$ownerId",
+          },
+        },
+      },
+    ];
+
+    const entityDataList = await Event.aggregate(pipeline).exec();
+
+    if (entityDataList.length) {
+      await appClient
+        .set("LIVE_ENTITY", JSON.stringify(entityDataList))
+        .catch((error) => console.error(error));
+    }
+  } catch (error) {
+    console.error("Error performing end of day task:", error);
+  }
+};
+
+module.exports = {
+  hashPassword,
+  comparePassword,
+  getJwtToken,
+  generateOTP,
+  SECRET_KEY,
+  performEndOfDayTask,
+};

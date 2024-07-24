@@ -5,47 +5,71 @@ const { STATUS_CODES, REDIS_KEYS } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const { appClient } = require("../../redis");
 const EntityDetails = require("../../Models/EntityDetails");
-const  mongoose  = require("mongoose");
+const mongoose = require("mongoose");
 
 module.exports.getEntities = async (req) => {
   // const currentDateTime = new Date();
-  const todayEventsEntities = JSON.parse(
-    await appClient.get(REDIS_KEYS.LIVE_ENTITY)
-  );
+  // let todayEventsEntities = JSON.parse(
+  //   await appClient.get(REDIS_KEYS.LIVE_ENTITY)
+  // );
 
-  // const en,tityIds = ongoingEventsEntities.map((ongoingEventsEntity) => {
-  //   return ongoingEventsEntity._id;
-  // });
+  // if (!todayEventsEntities) {
+  //   todayEventsEntities = [];
+  // }
+
   const now = new Date();
-  const { ongoingEventsEntites, enitityIds, upcomingEventsEntities } = todayEventsEntities.reduce(
-    (acc, entity) => {
-      console.log({ii:entity._id});
-      acc.enitityIds.push(mongoose.Types.ObjectId(entity._id));
-      const event = entity.event;
-      console.log({event});
-      const now = new Date();
-      if (new Date(event.from) < now && new Date(event.to)> now) {
-        console.log("reacgd grerere");
-        acc.ongoingEventsEntites.add(entity);
-      } else {
-        acc.upcomingEventsEntities.add(entity);
-      }
-      return acc;
-    },
+
+  const currentRunningEvents = await Event.find(
     {
-      ongoingEventsEntites: new Set(),
-      enitityIds: [],
-      upcomingEventsEntities: new Set(),
-    }
+      $and: [
+        { from: { $lte: now } },
+        { to: { $gte: now } },
+        { entityId: { $exists: true } },
+      ],
+    },
+    { entityId: 1 }
   );
-  // console.log({ongoingEventsEntites, enitityIds, upcomingEventsEntities});
+  const entityIds = currentRunningEvents.map((entityId) => entityId.entityId);
+  const currentRunningEntitiesDetails = await EntityDetails.find(
+    {
+      _id: { $in: entityIds },
+    },
+    { city: 1, entityName: 1, entityType: 1 },
+    { lean: true }
+  );
+  // const { ongoingEventsEntites, enitityIds, upcomingEventsEntities } =
+  //   todayEventsEntities.reduce(
+  //     (acc, entity) => {
+  //       acc.enitityIds.push(mongoose.Types.ObjectId(entity._id));
+  //       const event = entity.event;
+  //       if (new Date(event.from) < now && new Date(event.to) > now) {
+  //         console.log("reacgd grerere");
+  //         acc.ongoingEventsEntites.add(entity.entityDetails);
+  //       } else if (!acc.ongoingEventsEntites.has(entity.entityDetails)) {
+  //         console.log({
+  //           hh: acc.ongoingEventsEntites,
+  //         });
+  //         acc.upcomingEventsEntities.add(entity.entityDetails);
+  //       }
+  //       return acc;
+  //     },
+  //     {
+  //       ongoingEventsEntites: new Set(),
+  //       enitityIds: [],
+  //       upcomingEventsEntities: new Set(),
+  //     }
+  //   );
+
   const remainingEntities = await EntityDetails.find(
-    { _id: { $nin:  enitityIds  } },
+    { _id: { $nin: entityIds } },
     { city: 1, entityName: 1, entityType: 1 },
     { lean: true }
   );
 
-  return { ongoingEventsEntites:Array.from(ongoingEventsEntites), upcomingEventsEntities:Array.from(upcomingEventsEntities), remainingEntities };
+  return {
+    ongoingEventEntities: currentRunningEntitiesDetails,
+    remainingEntities,
+  };
 };
 
 module.exports.addFavouriteEvents = async (req) => {

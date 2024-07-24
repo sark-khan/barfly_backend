@@ -25,7 +25,7 @@ router.get("/get-entities", async (req, res) => {
     const response = await getEntities();
     return res.status(STATUS_CODES.OK).json({
       message: "Events successfully fetched",
-      data: response,
+      entityEvents: response,
     });
   } catch (error) {
     console.error("Error occured while getting Entiities", error);

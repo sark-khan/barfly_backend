@@ -14,7 +14,6 @@ const {
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Insider = require("../../Models/Insider");
-const InsiderElement = require("../../Models/InsiderElement");
 
 router.use(verifyToken);
 router.use((req, res, next) => {
