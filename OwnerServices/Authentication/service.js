@@ -52,7 +52,7 @@ module.exports.register = async (req) => {
     zipcode: req.body.zipcode,
     entityName: req.body.entityName,
     entityType: req.body.entityType,
-    owner: newUser._id
+    owner: newUser._id,
   });
 
   await newEntityDetails.save();
@@ -70,19 +70,44 @@ module.exports.login = async (req) => {
     email: 1,
     contactNumber: 1,
     password: 1,
-    entityName: 1,
-    entityType: 1,
   };
 
-  const user = await User.findOne(
+  const userAndEntityDetails = await User.aggregate([
     {
-      $or: [
-        { email: emailOrContactNumber },
-        { contactNumber: emailOrContactNumber },
-      ],
+      $match: {
+        $or: [
+          { email: emailOrContactNumber },
+          { contactNumber: emailOrContactNumber },
+        ],
+      },
     },
-    userProjection
-  ).lean();
+    {
+      $lookup: {
+        from: "entitydetails",
+        localField: "_id",
+        foreignField: "owner",
+        as: "entityDetails",
+      },
+    },
+    {
+      $unwind: {
+        path: "$entityDetails",
+        preserveNullAndEmptyArrays: true, // Use this if entityDetails can be empty
+      },
+    },
+    {
+      $project: {
+        ...userProjection,
+        "entityDetails.entityName": 1,
+        "entityDetails.entityType": 1,
+        "entityDetails._id": 1,
+      },
+    },
+  ]);
+
+  // Accessing the data
+  const user = userAndEntityDetails[0];
+  console.log({ user });
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,

@@ -24,6 +24,7 @@ function generateOTP(length) {
 }
 
 const comparePassword = async (inputPassword, storedPassword) => {
+  console.log({ inputPassword, storedPassword });
   return bcrypt.compare(inputPassword, storedPassword);
 };
 
@@ -33,9 +34,11 @@ const getJwtToken = (user) => {
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
-    entityName: user.entityName,
-    entityType: user.entityType,
+    entityName: user.entityDetails.entityName,
+    entityType: user.entityDetails.entityType,
+    entityId: user.entityDetails._id,
   };
+
   return jwt.sign(payload, SECRET_KEY);
 };
 

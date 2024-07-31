@@ -12,10 +12,10 @@ router.post("/login", async (req, res) => {
       userDetails: response.user,
     });
   } catch (error) {
+    console.error("error while login", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
-
 
 router.post("/register", async (req, res) => {
   try {

@@ -40,7 +40,7 @@ router.post("/send-otp", async (req, res) => {
   }
 });
 
-router.post("/reSend-otp", async (req, res) => {
+router.post("/resend-otp", async (req, res) => {
   try {
     await reSendOtp(req);
     return res

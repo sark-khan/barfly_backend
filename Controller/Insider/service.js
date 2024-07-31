@@ -6,6 +6,7 @@ const MenuItem = require("../../Models/MenuItem");
 const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
+const Counter = require("../../Models/Counter");
 
 module.exports.createInsider = async (req) => {
   const { insiderName } = req.body;
@@ -147,33 +148,42 @@ module.exports.getCreatedItems = async (req) => {
 };
 
 module.exports.createEvent = async (req) => {
-  const { locationName, eventName, date, from, to, insiders, ageLimit } =
-    req.body;
+  const {
+    locationName,
+    eventName,
+    startingDate,
+    endDate,
+    isRepitative,
+    repetitiveDays,
+    from,
+    to,
+    counterIds,
+    ageLimit,
+  } = req.body;
 
   const ownerId = req.id;
-  const insiderIds = [];
 
-  const insidersList = insiders.map((insiderDetails) => {
-    insiderIds.push(insiderDetails.insiderId);
-    return {
-      insiderId: insiderDetails.insiderId,
-      isBar: insiderDetails.isBar,
-      isLounge: insiderDetails.isLounge,
-      isFeedback: insiderDetails.isFeedback,
-    };
-  });
+  // const insidersList = insiders.map((insiderDetails) => {
+  //   insiderIds.push(insiderDetails.insiderId);
+  //   return {
+  //     insiderId: insiderDetails.insiderId,
+  //     isBar: insiderDetails.isBar,
+  //     isLounge: insiderDetails.isLounge,
+  //     isFeedback: insiderDetails.isFeedback,
+  //   };
+  // });
 
-  const existingInsiders = await Insider.find({
-    _id: { $in: insiderIds },
-    ownerId,
-  });
+  // const existingInsiders = await Counter.find({
+  //   _id: { $in: counters },
+  //   ownerId,
+  // });
 
-  if (existingInsiders.length != insiderIds.length) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "Insider does not exist",
-    });
-  }
+  // if (existingInsiders.length != insiderIds.length) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_FOUND,
+  //     message: "Insider does not exist",
+  //   });
+  // }
 
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
@@ -195,10 +205,8 @@ module.exports.createEvent = async (req) => {
   const existingEvent = await Event.findOne({
     locationName,
     eventName,
-    date: new Date(date),
-    from: dateTimeFrom,
-    to: dateTimeTo,
     ownerId,
+    entityId: req.entityId,
   });
 
   if (existingEvent) {
@@ -208,15 +216,22 @@ module.exports.createEvent = async (req) => {
     });
   }
 
+  if (!isRepitative) {
+    repetitiveDays = [];
+  }
+
   const newEvent = new Event({
     locationName,
     eventName,
-    date: new Date(date),
+    isRepitative,
+    repetitiveDays,
+    startingDate: new Date(startingDate),
+    endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
     ownerId,
-    insiders: insidersList,
+    counterIds,
   });
 
   const savedEvent = await newEvent.save();

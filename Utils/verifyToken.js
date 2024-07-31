@@ -21,6 +21,7 @@ const verifyToken = (req, res, next) => {
     req.email = decoded.email;
     req.contactNumber = decoded.contactNumber;
     req.entityName = decoded.entityName;
+    req.entityId= decoded.entityId;
     req.entityType = decoded.entityType;
     next();
   });

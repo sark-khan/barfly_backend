@@ -2,18 +2,18 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
-  createInsider,
   createEvent,
   getUpcomingEvents,
   getDistinctMonthsAndYears,
   getEventsByMonthAndYear,
-  createInsiderElement,
   getInsiderElements,
   createMenuItem,
-  getCreatedItems
+  getCreatedItems,
+  createCounter,
+  createCounterMenuCategory,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
-const Insider = require("../../Models/Insider");
+const Insider = require("../../Models/Counter");
 
 router.use(verifyToken);
 router.use((req, res, next) => {
@@ -25,26 +25,28 @@ router.use((req, res, next) => {
   return next();
 });
 
-router.post("/create-insider", async (req, res) => {
+router.post("/create-counter", async (req, res) => {
   try {
-    const response = await createInsider(req);
+    const response = await createCounter(req);
     return res.status(STATUS_CODES.OK).json({
-      message: `${response.insiderName} created successfully`,
+      message: `${response.counterName} created successfully`,
       data: response,
     });
   } catch (error) {
+    console.error("Error while creating Menu", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
 
-router.post("/create-insider-element", async (req, res) => {
+router.post("/create-counter-menu-category", async (req, res) => {
   try {
-    const response = await createInsiderElement(req);
+    const response = await createCounterMenuCategory(req);
     return res.status(STATUS_CODES.OK).json({
-      message: `Items created successfully`,
+      message: `Counter menu category successfully`,
       data: response,
     });
   } catch (error) {
+    console.error("Error while creating menu category", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
@@ -100,7 +102,6 @@ router.get("/get-menu-items", async (req, res) => {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
-
 
 router.post("/create-event", async (req, res) => {
   try {

@@ -5,19 +5,17 @@ const eventSchema = new Schema(
   {
     locationName: { type: String, required: true },
     eventName: { type: String, required: true },
-    date: { type: Date, required: true },
+    startingDate: { type: Date },
+    endDate: { type: Date },
+    isRepetitive: { type: Boolean, default: false },
+    repetitiveDays: { type: [Number] },
     from: { type: Date, required: true },
     to: { type: Date, required: true },
-    insiders: [
+    counterIds: [
       {
-        insiderId: {
-          type: mongoose.Types.ObjectId,
-          ref: "Insider",
-          required: true,
-        },
-        isBar: { type: Boolean, default: false },
-        isLounge: { type: Boolean, default: false },
-        isFeedback: { type: Boolean, default: false },
+        type: mongoose.Types.ObjectId,
+        ref: "Counter",
+        required: true,
       },
     ],
     ageLimit: { type: Number, required: true },

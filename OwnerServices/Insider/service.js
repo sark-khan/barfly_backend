@@ -1,49 +1,53 @@
 const Bar = require("../../Models/Bar");
-const Insider = require("../../Models/Insider");
+const Insider = require("../../Models/Counter");
 const Event = require("../../Models/Event");
-const InsiderElement = require("../../Models/InsiderElement");
+const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
 const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
 const { appClient } = require("../../redis");
 const EntityDetails = require("../../Models/EntityDetails");
+const Counter = require("../../Models/Counter");
+const Menu = require("../../Models/MenuCategory");
+const MenuCategory = require("../../Models/MenuCategory");
 
-module.exports.createInsider = async (req) => {
-  const { insiderName } = req.body;
-  if (!insiderName) {
+module.exports.createCounter = async (req) => {
+  const { counterName } = req.body;
+  if (!counterName) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "InsiderName is required",
+      message: "Couter name is required",
     };
   }
 
-  const existingInsider = await Insider.findOne(
-    { insiderName, ownerId: req.id },
+  const existingCounter = await Counter.findOne(
+    { counterName, ownerId: req.id },
     { _id: 1 }
   );
 
-  if (existingInsider) {
+  if (existingCounter) {
     throw {
       status: STATUS_CODES.CONFLICT,
-      message: "This insider name already exists",
+      message: "This counter name already exists",
     };
   }
+  console.log({ ss: req.entityId });
 
-  const newInsider = await Insider.findOneAndUpdate(
-    { insiderName, ownerId: req.id },
-    { insiderName, ownerId: req.id },
-    { new: true, upsert: true }
+  const newCounter = await Counter.findOneAndUpdate(
+    { counterName, ownerId: req.id, entityId: req.entityId },
+    { counterName, ownerId: req.id, entityId: req.entityId },
+    { new: true, upsert: true, lean: true }
   );
 
-  if (!newInsider) {
+  if (!newCounter) {
     throw {
       status: STATUS_CODES.INTERNAL_SERVER_ERROR,
       message: "Failed to create or update insider",
     };
   }
 
-  const response = newInsider.toObject();
+  const response = newCounter;
   delete response.createdAt;
   delete response.updatedAt;
   delete response.ownerId;
@@ -51,22 +55,21 @@ module.exports.createInsider = async (req) => {
   return response;
 };
 
-module.exports.createInsiderElement = async (req) => {
-  const { insiderId, elementType, name, icon } = req.body;
+module.exports.createCounterMenuCategory = async (req) => {
+  const { counterId, name, icon } = req.body;
 
-  if (!insiderId || !elementType || !name || !icon) {
+  if (!counterId || !name || !icon) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "InsiderId, elementType, name, and icon are required",
+      message: "CounterId, Name, and Icon are required",
     });
   }
-  const newElement = await InsiderElement.create({
-    insiderId,
-    elementType,
+
+  const newElement = await MenuCategory.create({
+    counterId,
     name,
     icon,
   });
-
   return newElement;
 };
 
@@ -96,7 +99,9 @@ module.exports.createMenuItem = async (req) => {
     description,
     type,
     image,
-    insiderElementId,
+    currency,
+    menuCategoryId,
+    availableQuantity,
   } = req.body;
 
   if (
@@ -106,14 +111,27 @@ module.exports.createMenuItem = async (req) => {
     !description ||
     !type ||
     !image ||
-    !insiderElementId
+    !menuCategoryId
   ) {
     throw { status: 400, message: "All fields are required" };
   }
 
-  const insiderElement = await InsiderElement.findById(insiderElementId);
-  if (!insiderElement) {
-    throw { status: 404, message: "Insider Element not found" };
+  const menuCategory = await MenuCategory.findById(menuCategoryId);
+  if (!menuCategory) {
+    throw {
+      status: STATUS_CODES.NOT_FOUND,
+      message: "Menu Category not found",
+    };
+  }
+  const existingItem = await MenuItem.findOne(
+    { itemName, menuCategoryId },
+    { _id: 1 }
+  );
+  if (existingItem) {
+    throwError({
+      message: "Same item exists in this menu",
+      status: STATUS_CODES.CONFLICT,
+    });
   }
 
   const newItem = await MenuItem.create({
@@ -122,9 +140,12 @@ module.exports.createMenuItem = async (req) => {
     quantity,
     description,
     type,
+    availableQuantity,
+    currency,
     image,
-    insiderElementId: insiderElementId,
+    menuCategoryId: menuCategoryId,
   });
+
   return newItem;
 };
 
@@ -232,24 +253,24 @@ module.exports.createEvent = async (req) => {
   });
 
   const today = new Date();
-      today.setUTCDate(today.getUTCDate());
-      const startOfDay = new Date(today);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-  
-      const endOfDay = new Date(today);
-      endOfDay.setUTCHours(23, 59, 59, 999);
+  today.setUTCDate(today.getUTCDate());
+  const startOfDay = new Date(today);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(today);
+  endOfDay.setUTCHours(23, 59, 59, 999);
   if (dateTimeFrom > startOfDay && dateTimeTo < endOfDay) {
     const entityDetails = await EntityDetails.findById(entityId);
     const liveEntityEvents = JSON.parse(await appClient.get("LIVE_ENTITY"));
-      const updatedData = {
-        _id: entityId,
-        entityDetails: entityDetails,
-        event: newEvent,
-      };
-      liveEntityEvents.push(updatedData);
-    
-    console.log({liveEntityEvents});
-    await appClient.set("LIVE_ENTITY",JSON.stringify(liveEntityEvents));
+    const updatedData = {
+      _id: entityId,
+      entityDetails: entityDetails,
+      event: newEvent,
+    };
+    liveEntityEvents.push(updatedData);
+
+    console.log({ liveEntityEvents });
+    await appClient.set("LIVE_ENTITY", JSON.stringify(liveEntityEvents));
   }
   const savedEvent = await newEvent.save();
   return savedEvent;
