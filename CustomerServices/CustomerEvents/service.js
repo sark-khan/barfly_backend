@@ -6,6 +6,7 @@ const throwError = require("../../Utils/throwError");
 const { appClient } = require("../../redis");
 const EntityDetails = require("../../Models/EntityDetails");
 const mongoose = require("mongoose");
+const Counter = require("../../Models/Counter");
 
 module.exports.getEntities = async (req) => {
   // const currentDateTime = new Date();
@@ -136,4 +137,30 @@ module.exports.visitorCount = async (req) => {
   }
   await Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
   return;
+};
+
+module.exports.counterList = async (req) => {
+  const { entityId } = req.query;
+  const counters = await Counter.find(
+    { entityId },
+    { counterName: 1 },
+    { lean: true }
+  );
+  const counterIds = counters.map((counter) => counter._id);
+  const eventOfThisCounters = await Event.find(
+    { counterIds: { $in: counterIds } },
+    {
+      from: 1,
+      to: 1,
+      startingDate: 1,
+      endDate: 1,
+      isRepetitive: 1,
+      repetitiveDays: 1,
+    },
+    { lean: 1 }
+  );
+  const now= new Date();
+  const ongoingEventCounters= eventOfThisCounters.reduce((acc, eventCounter)=>{
+    // if(eventCounter.starting)
+  },[])
 };

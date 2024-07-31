@@ -74,6 +74,19 @@ router.post("/visitor-count", async (req, res) => {
       message: "",
     });
   } catch (error) {
+    console.error("Error occured while incrementing visitor count", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-counter-list", async (req, res) => {
+  try {
+    
+    return res.status(STATUS_CODES.OK).json({
+      message: "",
+    });
+  } catch (error) {
+    console.error("Error occured while incrementing visitor count", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
