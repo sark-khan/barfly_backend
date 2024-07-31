@@ -16,11 +16,11 @@ app.use(
   require("./Controller/Owner/Authentication/controller")
 );
 app.use("/api/owner", require("./Controller/Owner/controller"));
-app.use("/api/customer", require("./Controller/Customer/controller"));
 app.use(
-  "api/customer/auth",
+  "/api/customer/auth",
   require("./Controller/Customer/Authentication/controller")
 );
+app.use("/api/customer", require("./Controller/Customer/controller"));
 
 const port = process.env.PORT;
 
