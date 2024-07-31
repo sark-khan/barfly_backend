@@ -169,43 +169,22 @@ module.exports.getCreatedItems = async (req) => {
   }
 };
 
+
 module.exports.createEvent = async (req) => {
   const {
     locationName,
     eventName,
-    date,
+    startingDate,
+    endDate,
+    isRepitative,
+    repetitiveDays,
     from,
     to,
-    entityId,
-    insiders,
+    counterIds,
     ageLimit,
   } = req.body;
-  console.log("**********************", entityId);
+
   const ownerId = req.id;
-  const insiderIds = [];
-
-  const insidersList = insiders.map((insiderDetails) => {
-    insiderIds.push(insiderDetails.insiderId);
-    return {
-      insiderId: insiderDetails.insiderId,
-      isBar: insiderDetails.isBar,
-      isLounge: insiderDetails.isLounge,
-      isFeedback: insiderDetails.isFeedback,
-    };
-  });
-
-  const existingInsiders = await Insider.find({
-    _id: { $in: insiderIds },
-    ownerId,
-  });
-
-  if (existingInsiders.length != insiderIds.length) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "Insider does not exist",
-    });
-  }
-
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
 
@@ -226,11 +205,8 @@ module.exports.createEvent = async (req) => {
   const existingEvent = await Event.findOne({
     locationName,
     eventName,
-    date: new Date(date),
-    from: dateTimeFrom,
-    to: dateTimeTo,
     ownerId,
-    entityId,
+    entityId: req.entityId,
   });
 
   if (existingEvent) {
@@ -240,41 +216,28 @@ module.exports.createEvent = async (req) => {
     });
   }
 
+  if (!isRepitative) {
+    repetitiveDays = [];
+  }
+
   const newEvent = new Event({
     locationName,
     eventName,
-    date: new Date(date),
+    isRepitative,
+    repetitiveDays,
+    startingDate: new Date(startingDate),
+    endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
     ownerId,
-    entityId,
-    insiders: insidersList,
+    counterIds,
   });
 
-  const today = new Date();
-  today.setUTCDate(today.getUTCDate());
-  const startOfDay = new Date(today);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(today);
-  endOfDay.setUTCHours(23, 59, 59, 999);
-  if (dateTimeFrom > startOfDay && dateTimeTo < endOfDay) {
-    const entityDetails = await EntityDetails.findById(entityId);
-    const liveEntityEvents = JSON.parse(await appClient.get("LIVE_ENTITY"));
-    const updatedData = {
-      _id: entityId,
-      entityDetails: entityDetails,
-      event: newEvent,
-    };
-    liveEntityEvents.push(updatedData);
-
-    console.log({ liveEntityEvents });
-    await appClient.set("LIVE_ENTITY", JSON.stringify(liveEntityEvents));
-  }
   const savedEvent = await newEvent.save();
   return savedEvent;
 };
+
 
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();

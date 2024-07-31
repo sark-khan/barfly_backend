@@ -1,5 +1,4 @@
 const Event = require("../../Models/Event");
-const Product = require("../../Models/EntityDetails");
 // const UserFavourites = require("../../Models/UserFavourites");
 const { STATUS_CODES, REDIS_KEYS } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");

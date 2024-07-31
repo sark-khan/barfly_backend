@@ -1,15 +1,21 @@
-const User = require("../../Models/User");
-const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
+// const User = require("../../Models/user");
+// const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
   hashPassword,
   comparePassword,
   getJwtToken,
-  generateOTP,
-} = require("../../Utils/commonFunction");
-const throwError = require("../../Utils/throwError");
-const Otp = require("../../Models/Otp");
-const { createMail } = require("../../Utils/mailer");
-const EntityDetails = require("../../Models/EntityDetails");
+  generateOTP
+
+} = require("../../../Utils/commonFunction");
+// const throwError = require("../../Utils/throwError");
+// const Otp = require("../../Models/Otp");
+const { createMail } = require("../../../Utils/mailer");
+// const EntityDetails = require("../../Models/entityDetails");
+const User = require("../../../Models/User");
+const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
+const throwError = require("../../../Utils/throwError");
+const Otp = require("../../../Models/Otp");
+const EntityDetails = require("../../../Models/EntityDetails");
 
 module.exports.register = async (req) => {
   console.log("reachede hrer");
@@ -20,6 +26,7 @@ module.exports.register = async (req) => {
       message: "User already registerd",
     });
   }
+  
   const otpDetails = await Otp.findOne({ email: req.body.email });
   console.log({ otpDetails });
   if (otpDetails.otp != req.body.otp) {

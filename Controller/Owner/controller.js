@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
-  createEvent,
   getUpcomingEvents,
   getDistinctMonthsAndYears,
   getEventsByMonthAndYear,
@@ -13,7 +12,7 @@ const {
   createCounterMenuCategory,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
-const Insider = require("../../Models/Counter");
+
 
 router.use(verifyToken);
 router.use((req, res, next) => {
@@ -51,31 +50,31 @@ router.post("/create-counter-menu-category", async (req, res) => {
   }
 });
 
-router.get("/get-insider", async (req, res) => {
-  try {
-    const insiders = await Insider.find(
-      { ownerId: req.id },
-      { insiderName: 1, updatedAt: 1 }
-    ).sort({ updatedAt: -1 });
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Insiders succesfully fetched", data: insiders });
-  } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
-  }
-});
+// router.get("/get-insider", async (req, res) => {
+//   try {
+//     const insiders = await Insider.find(
+//       { ownerId: req.id },
+//       { insiderName: 1, updatedAt: 1 }
+//     ).sort({ updatedAt: -1 });
+//     return res
+//       .status(STATUS_CODES.OK)
+//       .json({ message: "Insiders succesfully fetched", data: insiders });
+//   } catch (error) {
+//     return res.status(error.status || 400).json({ message: error.message });
+//   }
+// });
 
-router.get("/get-insider-elements", async (req, res) => {
-  try {
-    const response = await getInsiderElements(req.query.insiderId);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Insider elements fetched successfully",
-      data: response,
-    });
-  } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
-  }
-});
+// router.get("/get-insider-elements", async (req, res) => {
+//   try {
+//     const response = await getInsiderElements(req.query.insiderId);
+//     return res.status(STATUS_CODES.OK).json({
+//       message: "Insider elements fetched successfully",
+//       data: response,
+//     });
+//   } catch (error) {
+//     return res.status(error.status || 400).json({ message: error.message });
+//   }
+// });
 
 router.post("/create-menu-items", async (req, res) => {
   try {

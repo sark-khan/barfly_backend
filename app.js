@@ -12,17 +12,14 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 require("./seeder");
 app.use(
-  "/auth/owner-api",
-  require("./OwnerServices/Authentication/controller")
+  "/api/owner/auth",
+  require("./Controller/Owner/Authentication/controller")
 );
-app.use("/api/owner", require("./OwnerServices/Insider/controller"));
+app.use("/api/owner", require("./Controller/Owner/controller"));
+app.use("/api/customer", require("./Controller/Customer/controller"));
 app.use(
-  "/api/customer",
-  require("./CustomerServices/CustomerEvents/controller")
-);
-app.use(
-  "/auth/customer-api",
-  require("./CustomerServices/Authentication/controller")
+  "api/customer/auth",
+  require("./Controller/Customer/Authentication/controller")
 );
 
 const port = process.env.PORT;

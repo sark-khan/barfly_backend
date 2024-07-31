@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { STATUS_CODES } = require("../../Utils/globalConstants");
-const { register, login, sendOtp, reSendOtp } = require("./service");
+const { STATUS_CODES } = require("../../../Utils/globalConstants");
+const { register, login, sendOtp, reSendOtp } = require("./services");
 
 router.post("/login", async (req, res) => {
   try {
@@ -12,7 +12,6 @@ router.post("/login", async (req, res) => {
       userDetails: response.user,
     });
   } catch (error) {
-    console.error("error while login", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
@@ -41,7 +40,7 @@ router.post("/send-otp", async (req, res) => {
   }
 });
 
-router.post("/reSend-otp", async (req, res) => {
+router.post("/resend-otp", async (req, res) => {
   try {
     await reSendOtp(req);
     return res

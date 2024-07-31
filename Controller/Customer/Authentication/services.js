@@ -1,14 +1,15 @@
-const User = require("../../Models/User");
-const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
+// const User = require("../../../Models/User");
+const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
 const {
   hashPassword,
   comparePassword,
   getJwtToken,
   generateOTP,
-} = require("../../Utils/commonFunction");
-const throwError = require("../../Utils/throwError");
-const Otp = require("../../Models/Otp");
-const { createMail } = require("../../Utils/mailer");
+} = require("../../../Utils/commonFunction");
+const throwError = require("../../../Utils/throwError");
+const Otp = require("../../../Models/Otp");
+const { createMail } = require("../../../Utils/mailer");
+const User = require("../../../Models/User");
 
 module.exports.register = async (req) => {
   const userExist = await User.findOne({ email: req.body.email }).lean();
