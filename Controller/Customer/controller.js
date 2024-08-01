@@ -7,6 +7,9 @@ const {
   removeFavouriteEvents,
   visitorCount,
   getEntities,
+  counterList,
+  getMenuSubCategory,
+  getMenuItems,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 
@@ -81,12 +84,39 @@ router.post("/visitor-count", async (req, res) => {
 
 router.get("/get-counter-list", async (req, res) => {
   try {
-    
+    const counterLists = await counterList(req);
     return res.status(STATUS_CODES.OK).json({
-      message: "",
+      message: "Counter List fetched",
+      counterLists,
     });
   } catch (error) {
-    console.error("Error occured while incrementing visitor count", error);
+    console.error("Error occured while get counter list", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-counter-menu-category", async (req, res) => {
+  try {
+    const menuLists = await getMenuSubCategory(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Menu Categories Fetched",
+      menuLists,
+    });
+  } catch (error) {
+    console.error("Error occured while getting counter category", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-menu-category-items", async (req, res) => {
+  try {
+    const menuItems = await getMenuItems(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Menu Categories Fetched",
+      menuItems,
+    });
+  } catch (error) {
+    console.error("Error occured while getting menu items", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });

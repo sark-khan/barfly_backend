@@ -5,6 +5,7 @@ const { register, login, sendOtp, reSendOtp } = require("./services");
 
 router.post("/login", async (req, res) => {
   try {
+    console.log("dsdsd");
     const response = await login(req);
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",

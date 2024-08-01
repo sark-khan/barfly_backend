@@ -1,5 +1,4 @@
-// const User = require("../../Models/user");
-// const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
+
 const {
   hashPassword,
   comparePassword,
@@ -7,10 +6,9 @@ const {
   generateOTP
 
 } = require("../../../Utils/commonFunction");
-// const throwError = require("../../Utils/throwError");
-// const Otp = require("../../Models/Otp");
+
 const { createMail } = require("../../../Utils/mailer");
-// const EntityDetails = require("../../Models/entityDetails");
+
 const User = require("../../../Models/User");
 const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
 const throwError = require("../../../Utils/throwError");
@@ -18,7 +16,6 @@ const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
 
 module.exports.register = async (req) => {
-  console.log("reachede hrer");
   const userExist = await User.findOne({ email: req.body.email }).lean();
   if (userExist) {
     throwError({

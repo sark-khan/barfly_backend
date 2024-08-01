@@ -6,17 +6,10 @@ const { appClient } = require("../../redis");
 const EntityDetails = require("../../Models/EntityDetails");
 const mongoose = require("mongoose");
 const Counter = require("../../Models/Counter");
+const MenuCategory = require("../../Models/MenuCategory");
+const MenuItem = require("../../Models/MenuItem");
 
 module.exports.getEntities = async (req) => {
-  // const currentDateTime = new Date();
-  // let todayEventsEntities = JSON.parse(
-  //   await appClient.get(REDIS_KEYS.LIVE_ENTITY)
-  // );
-
-  // if (!todayEventsEntities) {
-  //   todayEventsEntities = [];
-  // }
-
   const now = new Date();
 
   const currentRunningEvents = await Event.find(
@@ -29,46 +22,32 @@ module.exports.getEntities = async (req) => {
     },
     { entityId: 1 }
   );
-  const entityIds = currentRunningEvents.map((entityId) => entityId.entityId);
+
+  const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+
   const currentRunningEntitiesDetails = await EntityDetails.find(
     {
       _id: { $in: entityIds },
     },
-    { city: 1, entityName: 1, entityType: 1 },
-    { lean: true }
+    { city: 1, entityName: 1, entityType: 1 }
+  ).lean();
+
+  const entityNamesSet = new Set(
+    currentRunningEntitiesDetails.map((entity) => entity.entityName)
   );
-  // const { ongoingEventsEntites, enitityIds, upcomingEventsEntities } =
-  //   todayEventsEntities.reduce(
-  //     (acc, entity) => {
-  //       acc.enitityIds.push(mongoose.Types.ObjectId(entity._id));
-  //       const event = entity.event;
-  //       if (new Date(event.from) < now && new Date(event.to) > now) {
-  //         console.log("reacgd grerere");
-  //         acc.ongoingEventsEntites.add(entity.entityDetails);
-  //       } else if (!acc.ongoingEventsEntites.has(entity.entityDetails)) {
-  //         console.log({
-  //           hh: acc.ongoingEventsEntites,
-  //         });
-  //         acc.upcomingEventsEntities.add(entity.entityDetails);
-  //       }
-  //       return acc;
-  //     },
-  //     {
-  //       ongoingEventsEntites: new Set(),
-  //       enitityIds: [],
-  //       upcomingEventsEntities: new Set(),
-  //     }
-  //   );
 
   const remainingEntities = await EntityDetails.find(
     { _id: { $nin: entityIds } },
-    { city: 1, entityName: 1, entityType: 1 },
-    { lean: true }
+    { city: 1, entityName: 1, entityType: 1, street: 1 }
+  ).lean();
+
+  const uniqueRemainingEntities = remainingEntities.filter(
+    (entity) => !entityNamesSet.has(entity.entityName)
   );
 
   return {
     ongoingEventEntities: currentRunningEntitiesDetails,
-    remainingEntities,
+    remainingEntities: uniqueRemainingEntities,
   };
 };
 
@@ -143,11 +122,11 @@ module.exports.counterList = async (req) => {
   const counters = await Counter.find(
     { entityId },
     { counterName: 1 },
-    { lean: true }
+    { sort: { _id: -1 }, lean: true }
   );
   const counterIds = counters.map((counter) => counter._id);
   const eventOfThisCounters = await Event.find(
-    { counterIds: { $in: counterIds } },
+    { counterId: { $in: counterIds } },
     {
       from: 1,
       to: 1,
@@ -158,8 +137,51 @@ module.exports.counterList = async (req) => {
     },
     { lean: 1 }
   );
-  const now= new Date();
-  const ongoingEventCounters= eventOfThisCounters.reduce((acc, eventCounter)=>{
-    // if(eventCounter.starting)
-  },[])
+
+  const now = new Date();
+  const day = now.getDay();
+
+  const counterList = counters.map((counter) => {
+    const relatedEvents = eventOfThisCounters.filter((event) =>
+      event.counterId.equals(counter._id)
+    );
+
+    if (relatedEvents.length > 0) {
+      const isLive = relatedEvents.some((event) => {
+        if (event.isRepetitive) {
+          return (
+            event.repetitiveDays.includes(day) &&
+            event.from < now &&
+            event.to > now
+          );
+        } else {
+          return event.from < now && event.to > now;
+        }
+      });
+      return {
+        ...counter,
+        isLive: isLive,
+      };
+    } else {
+      return {
+        ...counter,
+        isLive: false,
+      };
+    }
+  });
+
+  console.log({ counterList });
+  return counterList;
+};
+
+module.exports.getMenuSubCategory = async (req) => {
+  const { counterId } = req.query;
+  const counterSubCategory = await MenuCategory.find({ counterId });
+  return counterSubCategory;
+};
+
+module.exports.getMenuItems = async (req) => {
+  const { menuId } = req.query;
+  const menuItems = await MenuItem.find({ menuId });
+  return menuItems;
 };
