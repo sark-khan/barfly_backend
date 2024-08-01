@@ -41,9 +41,8 @@ const getJwtToken = (user, isUser = false) => {
       entityName: user.entityDetails.entityName,
       entityType: user.entityDetails.entityType,
       entityId: user.entityDetails._id,
-    };
+    }
   }
-
   return jwt.sign(payload, SECRET_KEY);
 };
 

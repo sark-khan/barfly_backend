@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
 const { register, sendOtp, reSendOtp } = require("./service");
-// const { login } = require("./service");
+const { login } = require("./service");
 
 router.post("/login", async (req, res) => {
   try {
