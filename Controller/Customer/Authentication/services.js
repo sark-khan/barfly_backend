@@ -98,7 +98,7 @@ module.exports.login = async (req) => {
     });
   }
 
-  const token = getJwtToken(user);
+  const token = getJwtToken(user, true);
   delete user.password;
 
   return { user, token };

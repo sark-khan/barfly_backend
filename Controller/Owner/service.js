@@ -56,7 +56,7 @@ module.exports.createCounter = async (req) => {
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
-  const { counterId, name, icon } = req.body;
+  const { counterId, name, icon, } = req.body;
 
   if (!counterId || !name || !icon) {
     throwError({
@@ -69,6 +69,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     counterId,
     name,
     icon,
+    entityId: req.entityId
   });
   return newElement;
 };

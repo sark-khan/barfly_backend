@@ -28,17 +28,21 @@ const comparePassword = async (inputPassword, storedPassword) => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
 
-const getJwtToken = (user) => {
-  const payload = {
+const getJwtToken = (user, isUser = false) => {
+  let payload = {
     id: user._id,
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
-    entityName: user.entityDetails.entityName,
-    entityType: user.entityDetails.entityType,
-    entityId: user.entityDetails._id,
   };
-
+  if (!isUser) {
+    payload = {
+      ...payload,
+      entityName: user.entityDetails.entityName,
+      entityType: user.entityDetails.entityType,
+      entityId: user.entityDetails._id,
+    }
+  }
   return jwt.sign(payload, SECRET_KEY);
 };
 

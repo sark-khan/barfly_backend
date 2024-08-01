@@ -45,6 +45,13 @@ const REDIS_KEYS = {
   LIVE_ENTITY: "LIVE_ENTITY",
 };
 
+const ORDER_STATUS = {
+  IN_PROGRESS: "InProgress",
+  READY: "Ready",
+  COMPLETED: "Completed",
+  WAITING: "Waiting"
+}
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -53,4 +60,5 @@ module.exports = {
   DRINKS_SIZE,
   FOOD_TYPE,
   REDIS_KEYS,
+  ORDER_STATUS
 };

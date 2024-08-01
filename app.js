@@ -10,6 +10,8 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
+const orderController = require("./Controller/orderController")
+
 require("./seeder");
 app.use(
   "/api/owner/auth",
@@ -18,9 +20,11 @@ app.use(
 app.use("/api/owner", require("./Controller/Owner/controller"));
 app.use("/api/customer", require("./Controller/Customer/controller"));
 app.use(
-  "api/customer/auth",
+  "/api/customer/auth",
   require("./Controller/Customer/Authentication/controller")
 );
+
+app.use("/api/orders", orderController)
 
 const port = process.env.PORT;
 
