@@ -17,6 +17,7 @@ app.use(
   "/api/owner/auth",
   require("./Controller/Owner/Authentication/controller")
 );
+app.use("/survey", require("./Controller/Owner/Feedback/controller"));
 app.use("/api/owner", require("./Controller/Owner/controller"));
 app.use(
   "/api/customer/auth",
