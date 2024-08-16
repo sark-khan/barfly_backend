@@ -10,7 +10,8 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
-const orderController = require("./Controller/orderController")
+const orderController = require("./Controller/orderController");
+const MenuItem = require("./Models/MenuItem");
 
 require("./seeder");
 app.use(
@@ -25,6 +26,16 @@ app.use(
 app.use("/api/customer", require("./Controller/Customer/controller"));
 
 app.use("/api/orders", orderController)
+
+app.post("/api/update-menu-items",async (req, res)=>{
+  try {
+    const getMenuitems= await MenuItem.updateMany({}, {$set:{entityId: "6697c502d0c2812e4e1aa554"}});
+    return res.status(200).json(getMenuitems);
+  } catch (error) {
+    console.log("error occured in update-menu");
+    return res.status(500).json({error});
+  }
+} )
 
 const port = process.env.PORT;
 

@@ -8,9 +8,23 @@ const mongoose = require("mongoose");
 const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
+const FavouriteEntity = require("../../Models/FavouriteEntity");
 
 module.exports.getEntities = async (req) => {
   const now = new Date();
+
+  const favouritesList = await FavouriteEntity.find(
+    { userId: req.id, isFavourite: true },
+    { _id: 1, entityId: 1 },
+    { lean: true }
+  );
+
+  console.log({ favouritesList });
+  const favouritesIdsSet = new Set();
+  favouritesList.forEach((id) => {
+    favouritesIdsSet.add(id.entityId.toString());
+  });
+  console.log({ favouritesIdsSet });
 
   const currentRunningEvents = await Event.find(
     {
@@ -24,66 +38,128 @@ module.exports.getEntities = async (req) => {
   );
 
   const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+  const query = {
+    _id: { $in: entityIds },
+  };
 
-  const currentRunningEntitiesDetails = await EntityDetails.find(
-    {
-      _id: { $in: entityIds },
-    },
-    { city: 1, entityName: 1, entityType: 1 }
-  ).lean();
+  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
+    query.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  }
 
+  const currentRunningEntitiesDetails1 = await EntityDetails.find(query, {
+    city: 1,
+    entityName: 1,
+    entityType: 1,
+  }).lean();
+  const query2 = {
+    _id: { $nin: entityIds },
+  };
+
+  const currentRunningEntitiesDetails = currentRunningEntitiesDetails1.map(
+    (entity) => {
+      if (favouritesIdsSet.has(entity._id)) {
+        entity.isFavouriteEntity = true;
+      } else {
+        entity.isFavouriteEntity = false;
+      }
+      return entity;
+    }
+  );
+
+  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
+    console.log("eched hrere");
+    query2.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  }
   const entityNamesSet = new Set(
     currentRunningEntitiesDetails.map((entity) => entity.entityName)
   );
 
-  const remainingEntities = await EntityDetails.find(
-    { _id: { $nin: entityIds } },
-    { city: 1, entityName: 1, entityType: 1, street: 1 }
-  ).lean();
+  const remainingEntities = await EntityDetails.find(query2, {
+    city: 1,
+    entityName: 1,
+    entityType: 1,
+    street: 1,
+  }).lean();
 
-  const uniqueRemainingEntities = remainingEntities.filter(
+  const uniqueRemainingEntities1 = remainingEntities.filter(
     (entity) => !entityNamesSet.has(entity.entityName)
   );
 
+  console.log({ uniqueRemainingEntities1 });
+
+  const uniqueRemainingEntities = uniqueRemainingEntities1.map((entity) => {
+    console.log({ entity: entity._id });
+    if (favouritesIdsSet.has(entity._id.toString())) {
+      console.log({ dd: "dsjdkskdsdksd" });
+      entity.isFavouriteEntity = true;
+    } else {
+      entity.isFavouriteEntity = false;
+    }
+    console.log({ entity });
+    return entity;
+  });
+
+  let currentRunningEntitiesDetailsResponse = [];
+  let uniqueRemainingEntitiesResponse = [];
+  console.log("qwerrtt",{re: req.query})
+  if (req.query.isFavouriteEntities == "true") {
+    console.log("sssdsdsdsadsadsadsadsadsa?>???????????");
+    currentRunningEntitiesDetailsResponse =
+      currentRunningEntitiesDetails.filter((entity) => {
+        return entity.isFavouriteEntity;
+      });
+    uniqueRemainingEntitiesResponse = uniqueRemainingEntities.filter(
+      (entity) => {
+        return entity.isFavouriteEntity;
+      }
+    );
+  }
+  console.log({
+    currentRunningEntitiesDetailsResponse,
+    uniqueRemainingEntitiesResponse,
+  });
+  // const currentRunningEntitiesDetailsResponse= currentRunningEntitiesDetails.map((entity)=>{
+
+  // })
+
   return {
-    ongoingEventEntities: currentRunningEntitiesDetails,
-    remainingEntities: uniqueRemainingEntities,
+    ongoingEventEntities: req.query.isFavouriteEntities=="true"
+      ? currentRunningEntitiesDetailsResponse
+      : currentRunningEntitiesDetails,
+    remainingEntities: req.query.isFavouriteEntities== "true"
+      ? uniqueRemainingEntitiesResponse
+      : uniqueRemainingEntities,
   };
 };
 
-module.exports.addFavouriteEvents = async (req) => {
+module.exports.addFavouriteEntity = async (req) => {
   const userId = req.id;
-  const { eventId } = req.body;
+  const { entityId, isFavourite } = req.body;
 
-  const eventExists = await Event.findById(eventId);
-  if (!eventExists) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "No such event found",
-    });
-  }
-
-  await UserFavourites.updateOne(
-    { userId },
-    { $addToSet: { favouritesEvents: eventId } },
+  await FavouriteEntity.updateOne(
+    { userId, entityId },
+    {
+      isFavourite,
+    },
     { upsert: true }
   );
+  return;
 };
 
 module.exports.getFavouriteEvents = async (req) => {
   const userId = req.id;
-  const userFavourites = await UserFavourites.findOne({ userId }).populate(
-    "favouritesEvents"
+  const userFavourites = await FavouriteEntity.findOne({ userId }).populate(
+    "entityId"
   );
 
-  if (!userFavourites) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "No favourite events found for the user",
-    });
-  }
+  // if (!userFavourites) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_FOUND,
+  //     message: "No favourite events found for the user",
+  //   });
+  // }
 
-  return userFavourites.favouritesEvents;
+  return userFavourites;
 };
 
 module.exports.removeFavouriteEvents = async (req) => {
@@ -181,7 +257,7 @@ module.exports.getMenuSubCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  const { menuId } = req.query;
-  const menuItems = await MenuItem.find({ menuId });
+  const { menuCategoryId } = req.query;
+  const menuItems = await MenuItem.find({ menuCategoryId });
   return menuItems;
 };

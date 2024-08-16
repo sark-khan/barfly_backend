@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
-  addFavouriteEvents,
+  addFavouriteEntity,
   getFavouriteEvents,
   removeFavouriteEvents,
   visitorCount,
@@ -25,7 +25,7 @@ router.use((req, res, next) => {
 
 router.get("/get-entities", async (req, res) => {
   try {
-    const response = await getEntities();
+    const response = await getEntities(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Events successfully fetched",
       entityEvents: response,
@@ -36,9 +36,9 @@ router.get("/get-entities", async (req, res) => {
   }
 });
 
-router.post("/add-favourite-events", async (req, res) => {
+router.post("/add-favourite-entity", async (req, res) => {
   try {
-    await addFavouriteEvents(req);
+    await addFavouriteEntity(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Favourite event added" });
@@ -47,28 +47,38 @@ router.post("/add-favourite-events", async (req, res) => {
   }
 });
 
-router.get("/get-favourite-events", async (req, res) => {
-  try {
-    const response = await getFavouriteEvents(req);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Favourite events successfully fetched",
-      data: response,
-    });
-  } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
-  }
-});
+// router.get("/get-favourite-entity", async (req, res) => {
+//   try {
+//     const response = await getFavouriteEvents(req);
+//     return res.status(STATUS_CODES.OK).json({
+//       message: "Favourite events successfully fetched",
+//       data: response,
+//     });
+//   } catch (error) {
+//     return res.status(error.status || 400).json({ message: error.message });
+//   }
+// });
 
-router.put("/remove-favourite-events", async (req, res) => {
+router.get("/counter-list-items", async (req, res) => {
   try {
-    await removeFavouriteEvents(req);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Favourite events removed successfully",
-    });
+    await addFavouriteEntity(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Favourite event added" });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
+// router.put("/remove-favourite-events", async (req, res) => {
+//   try {
+//     await removeFavouriteEvents(req);
+//     return res.status(STATUS_CODES.OK).json({
+//       message: "Favourite events removed successfully",
+//     });
+//   } catch (error) {
+//     return res.status(error.status || 400).json({ message: error.message });
+//   }
+// });
 
 router.post("/visitor-count", async (req, res) => {
   try {

@@ -56,7 +56,7 @@ module.exports.createCounter = async (req) => {
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
-  const { counterId, name, icon, } = req.body;
+  const { counterId, name, icon } = req.body;
 
   if (!counterId || !name || !icon) {
     throwError({
@@ -69,7 +69,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     counterId,
     name,
     icon,
-    entityId: req.entityId
+    entityId: req.entityId,
   });
   return newElement;
 };
@@ -170,7 +170,6 @@ module.exports.getCreatedItems = async (req) => {
   }
 };
 
-
 module.exports.createEvent = async (req) => {
   const {
     locationName,
@@ -239,7 +238,6 @@ module.exports.createEvent = async (req) => {
   return savedEvent;
 };
 
-
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
   const ownerId = req.id;
@@ -294,4 +292,38 @@ module.exports.getEventsByMonthAndYear = async (month, year) => {
   }).sort({ date: 1 });
 
   return events;
+};
+
+module.exports.getMenuCategory = async (req) => {
+  const { counterId } = req.query;
+  const menuCategories = await MenuCategory.find(
+    { counterId, entityId: req.entityId },
+    { entityId: 0, createdAt: 0, updatedAt: 0 },
+    { sort: { _id: -1 }, lean: true }
+  );
+
+  return menuCategories;
+};
+
+module.exports.getMenuCategoryItems = async (req) => {
+  const { menuCategoryId } = req.query;
+  const menuItems = await MenuItem.find(
+    { menuCategoryId },
+    { menuCategoryId: 0 },
+    {
+      sort: { updatedAt: -1 },
+      lean: true,
+    }
+  );
+
+  return menuItems;
+};
+
+module.exports.getCounterMenuQuantites = async (req) => {
+  const counterListQuantity = await MenuItem.find(
+    { entityId: req.entityId },
+    { itemName: 1, availableQuantity: 1 },
+    { lean: true, sort: { _id: -1 } }
+  );
+  return counterListQuantity;
 };
