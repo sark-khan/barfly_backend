@@ -11,6 +11,7 @@ const EntityDetails = require("../../Models/EntityDetails");
 const Counter = require("../../Models/Counter");
 const Menu = require("../../Models/MenuCategory");
 const MenuCategory = require("../../Models/MenuCategory");
+const ItemDetails = require("../../Models/ItemDetails");
 
 module.exports.createCounter = async (req) => {
   const { counterName } = req.body;
@@ -103,6 +104,7 @@ module.exports.createMenuItem = async (req) => {
     currency,
     menuCategoryId,
     availableQuantity,
+    counterId,
   } = req.body;
 
   if (
@@ -137,17 +139,27 @@ module.exports.createMenuItem = async (req) => {
 
   const newItem = await MenuItem.create({
     itemName,
-    price,
+    // price,
     quantity,
     description,
     type,
-    availableQuantity,
-    currency,
+    // availableQuantity,
+    // currency,
     image,
-    menuCategoryId: menuCategoryId,
+    // menuCategoryId: menuCategoryId,
   });
 
-  return newItem;
+  const itemDetails = await ItemDetails.create({
+    price,
+    availableQuantity,
+    currency,
+    menuCategoryId,
+    entityId: req.entityId,
+    counterId: counterId,
+    itemId: newItem._id,
+  });
+
+  return itemDetails;
 };
 
 module.exports.getCreatedItems = async (req) => {
@@ -307,23 +319,96 @@ module.exports.getMenuCategory = async (req) => {
 
 module.exports.getMenuCategoryItems = async (req) => {
   const { menuCategoryId } = req.query;
-  const menuItems = await MenuItem.find(
-    { menuCategoryId },
+  const menuItems = await ItemDetails.find(
+    { menuCategoryId, entityId: req.entityId },
     { menuCategoryId: 0 },
     {
       sort: { updatedAt: -1 },
       lean: true,
     }
-  );
+  ).populate("itemId");
 
-  return menuItems;
+  const menuItemsResp = menuItems.reduce((acc, menuItem) => {
+    const itemDetails = menuItem.itemId;
+    delete menuItem.itemId;
+    acc.push({
+      ...menuItem,
+      ...itemDetails,
+    });
+    return acc;
+  }, []);
+  // const itemDetails= menuItems.itemId;
+  // delete menuItems
+
+  return menuItemsResp;
 };
 
 module.exports.getCounterMenuQuantites = async (req) => {
-  const counterListQuantity = await MenuItem.find(
+  const { itemId } = req.query;
+  const itemDetails = await ItemDetails.find(
+    { entityId: req.entityId, itemId },
+    { counterId: 1, availableQuantity: 1 },
+    { lean: 1 }
+  );
+  console.log({ itemDetails });
+  if (!itemDetails.length) {
+    throwError({
+      message: "This item does not belong to this entity",
+      status: 404,
+    });
+  }
+  const counterListOfEntity = await Counter.find(
     { entityId: req.entityId },
-    { itemName: 1, availableQuantity: 1 },
-    { lean: true, sort: { _id: -1 } }
+    { counterName: 1, _id: 1 },
+    { sort: { _id: -1 }, lean: 1 }
+  );
+  const counterListQuantity = counterListOfEntity.reduce(
+    (acc, counterDetails) => {
+      const id = counterDetails._id.toString();
+      const length = acc.length;
+      itemDetails.forEach((itemDetail) => {
+        if (itemDetail.counterId.toString() === id) {
+          acc.push({
+            counterName: counterDetails.counterName,
+            availableQuantity: itemDetail.availableQuantity,
+            _id: counterDetails._id,
+          });
+          return;
+        }
+      });
+      if (length == acc.length) {
+        acc.push({
+          counterName: counterDetails.counterName,
+          availableQuantity: 0,
+          _id: counterDetails._id,
+        });
+      }
+      return acc;
+    },
+    []
   );
   return counterListQuantity;
+};
+
+module.exports.updateCounterSettings = async (req) => {
+  const { isTableService, isSelfPickUp, counterId } = req.body;
+
+  const counter = await Counter.updateOne(
+    { _id: counterId },
+    { $set: { isTableService, isSelfPickUp } }
+  );
+  if (counter.matchedCount == 0) {
+    throwError({ message: "No Such counter exists", status: 404 });
+  }
+  return counter;
+};
+
+module.exports.getCounterSettings = async (req) => {
+  const { counterId } = req.query;
+  const counterSettings = await Counter.findOne(
+    { _id: counterId },
+    { counterName: 1, isTableService: 1, isSelfPickUp: 1, totalTables: 1 },
+    { lean: 1 }
+  );
+  return counterSettings;
 };

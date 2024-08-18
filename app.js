@@ -12,6 +12,7 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 const orderController = require("./Controller/orderController");
 const MenuItem = require("./Models/MenuItem");
+const Counter = require("./Models/Counter");
 
 require("./seeder");
 app.use(
@@ -25,17 +26,20 @@ app.use(
 );
 app.use("/api/customer", require("./Controller/Customer/controller"));
 
-app.use("/api/orders", orderController)
+app.use("/api/orders", orderController);
 
-app.post("/api/update-menu-items",async (req, res)=>{
+app.post("/api/update-menu-items", async (req, res) => {
   try {
-    const getMenuitems= await MenuItem.updateMany({}, {$set:{entityId: "6697c502d0c2812e4e1aa554"}});
+    const getMenuitems = await Counter.updateMany(
+      {},
+      { $set: { isTableService: false, isSelfPickUp: true, totalTables: 0 } }
+    );
     return res.status(200).json(getMenuitems);
   } catch (error) {
     console.log("error occured in update-menu");
-    return res.status(500).json({error});
+    return res.status(500).json({ error });
   }
-} )
+});
 
 const port = process.env.PORT;
 

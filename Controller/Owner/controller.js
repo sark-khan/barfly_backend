@@ -13,6 +13,8 @@ const {
   getMenuCategory,
   getMenuCategoryItems,
   getCounterMenuQuantites,
+  updateCounterSettings,
+  getCounterSettings,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -202,5 +204,32 @@ router.get("/get-counter-list-quantity", async (req, res) => {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
+
+
+router.post("/update-counter-settings", async (req, res) => {
+  try {
+    const counterSettings = await updateCounterSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Counter List quantity fetcched successfully",
+      counterSettings,
+    });
+  } catch (error) {
+    console.error("Error occured while fetching counter list quantity", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-counter-settings", async(req, res)=>{
+  try {
+    const counterSettings = await getCounterSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Counter List quantity fetcched successfully",
+      counterSettings,
+    });
+  } catch (error) {
+    console.error("Error occured while fetching counter list quantity", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+})
 
 module.exports = router;

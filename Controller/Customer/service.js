@@ -258,6 +258,26 @@ module.exports.getMenuSubCategory = async (req) => {
 
 module.exports.getMenuItems = async (req) => {
   const { menuCategoryId } = req.query;
-  const menuItems = await MenuItem.find({ menuCategoryId });
-  return menuItems;
+  const menuItems = await ItemDetails.find(
+    { menuCategoryId },
+    { menuCategoryId: 0 },
+    {
+      sort: { updatedAt: -1 },
+      lean: true,
+    }
+  ).populate("itemId");
+
+  const menuItemsResp= menuItems.reduce((acc, menuItem)=>{
+    const itemDetails= menuItem.itemId;
+    delete menuItem.itemId;
+    acc.push({
+      ...menuItem,
+      ...itemDetails
+    })
+    return acc;
+  },[]) 
+  // const itemDetails= menuItems.itemId;
+  // delete menuItems
+
+  return menuItemsResp;
 };

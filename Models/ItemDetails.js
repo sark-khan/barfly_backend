@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const InsiderElement = require("./MenuCategory");
-const { FOOD_TYPE } = require("../Utils/globalConstants");
 
 const Schema = mongoose.Schema;
 
@@ -23,8 +21,13 @@ const itemSchema = new Schema(
       ref: "Counter",
       required: true,
     },
+    itemId:{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MenuItem",
+      required: true,
+    },
 },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("MenuItem", itemSchema);
+module.exports = mongoose.model("ItemDetails", itemSchema);
