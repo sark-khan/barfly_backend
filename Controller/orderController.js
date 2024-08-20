@@ -16,7 +16,6 @@ router.post("/create-order", async (req, res) => {
         await session.withTransaction(async () => {
             response = await createOrder(req, session)
         });
-
         return res.status(STATUS_CODES.OK).json({ message: "Order create Successfully.", response });
     } catch (error) {
         console.error("Error while adding order", error);

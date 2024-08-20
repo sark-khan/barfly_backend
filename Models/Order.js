@@ -11,7 +11,8 @@ const orderSchme = new Schema(
         counterId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "Counter", required: true },
         entityId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "EntityDetails" },
         tokenNumber: { type: Number, required: true },
-        userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "User" }
+        userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "User" },
+        totalAmount: { type: Number, required: true }
     },
     { timestamps: true }
 );

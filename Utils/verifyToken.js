@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { SECRET_KEY } = require("../Utils/commonFunction");
-const { STATUS_CODES } = require("../Utils/globalConstants");
+const { STATUS_CODES, ROLES } = require("../Utils/globalConstants");
 
 const verifyToken = (req, res, next) => {
   const token = req.headers["token"];
@@ -21,8 +21,9 @@ const verifyToken = (req, res, next) => {
     req.email = decoded.email;
     req.contactNumber = decoded.contactNumber;
     req.entityName = decoded.entityName;
-    req.entityId= decoded.entityId;
+    req.entityId = decoded.entityId;
     req.entityType = decoded.entityType;
+    req.isAdmin = decoded.role == ROLES.ADMIN
     next();
   });
 };
