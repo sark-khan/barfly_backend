@@ -7,7 +7,6 @@ const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 
 const createOrder = async (req, session) => {
-
     const { items } = req.body;
     const itemsIds = items?.map(doc => doc.itemId);
     if (!itemsIds) return;
@@ -27,6 +26,7 @@ const createOrder = async (req, session) => {
     let entityId;
     let msg = ""
     const promises = []
+    let amount = 0;
     items.forEach(doc => {
         const menuItem = itemNameMapper[`${doc.itemId}`]
         if (menuItem) {
@@ -37,6 +37,8 @@ const createOrder = async (req, session) => {
                 msg += `${menuItem.itemName} , `;
             }
             const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
+            amount += (+doc.quantity * +menuItem.price)
+
             promises.push(MenuItem.findOneAndUpdate({ _id: doc.itemId }, { $set: { availableQuantity: remainingQuantity } }, { session }));
         }
     })
@@ -58,8 +60,8 @@ const createOrder = async (req, session) => {
         entityId,
         tokenNumber,
         userId: req.id,
+        totalAmount: amount
     }], { session })
-
 }
 
 const updateStatusOfOrder = async (req) => {
@@ -77,14 +79,22 @@ const updateStatusOfOrder = async (req) => {
 
 const getEntityOrders = async (req) => {
     const { entityId, body: { status, pageNo = 1, pageLimit = 10 } } = req;
-    if (req.role == ROLES.CUSTOMER) {
-        query.userId = req.id;
+    const query = {}
+    if (!req.isAdmin) {
+        if (req.role == ROLES.CUSTOMER) {
+            query.userId = req.id;
+        }
+        else {
+            query.entityId = entityId;
+        }
+        if (status) {
+            query.status = status
+        }
     }
     else {
-        query.entityId = entityId;
-    }
-    if (status) {
-        query.status = status
+        if (req.body.entityId) {
+            query.entityId = req.body.entityId
+        }
     }
     const skip = +(pageNo - 1) * +pageLimit;
     const [data, totalCount] = await Promise.all([
