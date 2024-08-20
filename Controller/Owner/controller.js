@@ -29,7 +29,7 @@ router.use((req, res, next) => {
   return next();
 });
 
-router.post("/create-counter", async (req, res) => {
+router.post("/create-counter-with-settings", async (req, res) => {
   try {
     const response = await createCounter(req);
     return res.status(STATUS_CODES.OK).json({
@@ -154,11 +154,11 @@ router.get("/get-upcoming-events", async (req, res) => {
 router.get("/get-past-events-months", async (req, res) => {
   try {
     const response = await getDistinctMonthsAndYears(req);
-    if (!response.length) {
-      return res
-        .status(STATUS_CODES.OK)
-        .json({ message: "No past events found" });
-    }
+    // if (!response.length) {
+    //   return res
+    //     .status(STATUS_CODES.OK)
+    //     .json({ message: "No past events found" });
+    // }
     return res.status(STATUS_CODES.OK).json({
       message: "Past event months and years successfully fetched",
       data: response,

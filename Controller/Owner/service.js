@@ -14,7 +14,7 @@ const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
 
 module.exports.createCounter = async (req) => {
-  const { counterName } = req.body;
+  const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
   if (!counterName) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
@@ -33,11 +33,10 @@ module.exports.createCounter = async (req) => {
       message: "This counter name already exists",
     };
   }
-  console.log({ ss: req.entityId });
 
   const newCounter = await Counter.findOneAndUpdate(
     { counterName, ownerId: req.id, entityId: req.entityId },
-    { counterName, ownerId: req.id, entityId: req.entityId },
+    { counterName, ownerId: req.id, entityId: req.entityId, isTableService, isSelfPickUp,totalTables },
     { new: true, upsert: true, lean: true }
   );
 
@@ -47,7 +46,14 @@ module.exports.createCounter = async (req) => {
       message: "Failed to create or update insider",
     };
   }
-
+  // await this.updateCounterSettings({
+  //   body: {
+  //     isTableService,
+  //     isSelfPickUp,
+  //     counterId: newCounter._id,
+  //     totalTables,
+  //   },
+  // });
   const response = newCounter;
   delete response.createdAt;
   delete response.updatedAt;
