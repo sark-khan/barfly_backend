@@ -5,7 +5,6 @@ const {
   getUpcomingEvents,
   getDistinctMonthsAndYears,
   getEventsByMonthAndYear,
-  getInsiderElements,
   createMenuItem,
   getCreatedItems,
   createCounter,
@@ -15,6 +14,7 @@ const {
   getCounterMenuQuantites,
   updateCounterSettings,
   getCounterSettings,
+  createEvent,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -137,11 +137,11 @@ router.post("/create-event", async (req, res) => {
 router.get("/get-upcoming-events", async (req, res) => {
   try {
     const response = await getUpcomingEvents(req);
-    if (!response.length) {
-      return res
-        .status(STATUS_CODES.OK)
-        .json({ message: "No upcoming events found" });
-    }
+    // if (!response.length) {
+    //   return res
+    //     .status(STATUS_CODES.OK)
+    //     .json({ message: "No upcoming events found" });
+    // }
     return res.status(STATUS_CODES.OK).json({
       message: "Upcoming events successfully fetched",
       data: response,
@@ -210,7 +210,7 @@ router.post("/update-counter-settings", async (req, res) => {
   try {
     const counterSettings = await updateCounterSettings(req);
     return res.status(STATUS_CODES.OK).json({
-      message: "Counter List quantity fetcched successfully",
+      message: "Counter Settings Updated",
       counterSettings,
     });
   } catch (error) {

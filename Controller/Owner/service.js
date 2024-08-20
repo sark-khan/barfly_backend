@@ -391,11 +391,11 @@ module.exports.getCounterMenuQuantites = async (req) => {
 };
 
 module.exports.updateCounterSettings = async (req) => {
-  const { isTableService, isSelfPickUp, counterId } = req.body;
+  const { isTableService, isSelfPickUp, counterId, totalTables } = req.body;
 
   const counter = await Counter.updateOne(
     { _id: counterId },
-    { $set: { isTableService, isSelfPickUp } }
+    { $set: { isTableService, isSelfPickUp, totalTables } }
   );
   if (counter.matchedCount == 0) {
     throwError({ message: "No Such counter exists", status: 404 });

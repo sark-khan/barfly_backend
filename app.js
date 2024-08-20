@@ -13,7 +13,13 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 const orderController = require("./Controller/orderController");
 const MenuItem = require("./Models/MenuItem");
 const Counter = require("./Models/Counter");
-
+const multer = require("multer");
+const {
+  uploadBufferToS3,
+  generatePresignedUrl,
+} = require("./Controller/aws-service");
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 require("./seeder");
 app.use(
   "/api/owner/auth",
@@ -38,6 +44,36 @@ app.post("/api/update-menu-items", async (req, res) => {
     return res.status(200).json(getMenuitems);
   } catch (error) {
     console.log("error occured in update-menu");
+    return res.status(500).json({ error });
+  }
+});
+
+app.post("/api/upload-file", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).send("No file uploaded.");
+    }
+    const fileBuffer = req.file.buffer;
+    const fileName = "coca-cola.png";
+
+    const data = await uploadBufferToS3(fileBuffer, fileName);
+    return res.status(200).json({
+      message: "Uploaded successfully",
+      location: data.Location,
+    });
+  } catch (error) {
+    console.log("error occured in update-menu", error);
+    return res.status(500).json({ error });
+  }
+});
+
+app.get("/api/download-file", async (req, res) => {
+  try {
+    const { fileName } = req.query;
+    const fileStream = generatePresignedUrl(fileName);
+    return res.status(200).json({ fileStream });
+  } catch (error) {
+    console.log("error occured in update-menu", error);
     return res.status(500).json({ error });
   }
 });
