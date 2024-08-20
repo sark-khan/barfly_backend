@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 
 const router = express.Router({ caseSensitive: true });
 
-const { createOrder, updateStatusOfOrder, getEntityOrders, getOrderGroupByYears } = require("../CustomerServices/orderService");
+const { createOrder, updateStatusOfOrder, getEntityOrders, getOrderGroupByYears, getLiveOrdersUsers, particularOrderDetails } = require("../CustomerServices/orderService");
 const { STATUS_CODES } = require("../Utils/globalConstants");
 const verifyToken = require("../Utils/verifyToken");
 
@@ -53,10 +53,10 @@ router.post("/get-entity-orders", async (req, res) => {
 });
 
 
-router.post("/get-users-orders-group-by-years", async (req, res) => {
+router.get("/get-users-orders-group-by-years", async (req, res) => {
     try {
-        const data = await getOrderGroupByYears(req)
-        return res.status(STATUS_CODES.OK).json({ message: "Orders fetched successfully.", data });
+        const previosuOrdersList = await getOrderGroupByYears(req)
+        return res.status(STATUS_CODES.OK).json({ message: "Orders fetched successfully.", previosuOrdersList });
     } catch (error) {
         console.error("Error while fetching orders", error);
         return res
@@ -64,5 +64,29 @@ router.post("/get-users-orders-group-by-years", async (req, res) => {
             .json({ message: error.message || "Error while fetching orders" });
     }
 });
+
+router.get("/get-live-orders-user", async (req, res) => {
+    try {
+        const liveOrders = await getLiveOrdersUsers(req);
+        return res.status(STATUS_CODES.OK).json({ message: "Orders fetched successfully.", liveOrders });
+    } catch (error) {
+        console.error("Error while fetching orders", error);
+        return res
+            .status(error.status || STATUS_CODES.SERVER_ERROR)
+            .json({ message: error.message || "Error while fetching orders" });
+    }
+});
+
+router.get("/get-live-order-details", async(req,res)=>{
+    try {
+        const liveOrders = await particularOrderDetails(req);
+        return res.status(STATUS_CODES.OK).json({ message: "Orders fetched successfully.", liveOrders });
+    } catch (error) {
+        console.error("Error while fetching orders", error);
+        return res
+            .status(error.status || STATUS_CODES.SERVER_ERROR)
+            .json({ message: error.message || "Error while fetching orders" });
+    }
+})
 
 module.exports = router;

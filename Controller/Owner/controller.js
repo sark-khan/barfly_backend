@@ -10,9 +10,14 @@ const {
   getCreatedItems,
   createCounter,
   createCounterMenuCategory,
+  getMenuCategory,
+  getMenuCategoryItems,
+  getCounterMenuQuantites,
+  updateCounterSettings,
+  getCounterSettings,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
-
+const Counter = require("../../Models/Counter");
 
 router.use(verifyToken);
 router.use((req, res, next) => {
@@ -50,31 +55,46 @@ router.post("/create-counter-menu-category", async (req, res) => {
   }
 });
 
-// router.get("/get-insider", async (req, res) => {
-//   try {
-//     const insiders = await Insider.find(
-//       { ownerId: req.id },
-//       { insiderName: 1, updatedAt: 1 }
-//     ).sort({ updatedAt: -1 });
-//     return res
-//       .status(STATUS_CODES.OK)
-//       .json({ message: "Insiders succesfully fetched", data: insiders });
-//   } catch (error) {
-//     return res.status(error.status || 400).json({ message: error.message });
-//   }
-// });
+router.get("/get-counter", async (req, res) => {
+  try {
+    const counter = await Counter.find(
+      { ownerId: req.id },
+      { counterName: 1, updatedAt: 1 }
+    ).sort({ updatedAt: -1 });
+    console.log({ counter });
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Counter succesfully fetched", counter });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
 
-// router.get("/get-insider-elements", async (req, res) => {
-//   try {
-//     const response = await getInsiderElements(req.query.insiderId);
-//     return res.status(STATUS_CODES.OK).json({
-//       message: "Insider elements fetched successfully",
-//       data: response,
-//     });
-//   } catch (error) {
-//     return res.status(error.status || 400).json({ message: error.message });
-//   }
-// });
+router.get("/get-menu-category", async (req, res) => {
+  try {
+    const menuCategory = await getMenuCategory(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: `Menu category fetched successfully`,
+      menuCategory,
+    });
+  } catch (error) {
+    console.error("Error while fetching menu category", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-menu-category-items", async (req, res) => {
+  try {
+    const menuCategoryItems = await getMenuCategoryItems(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: `Menu Items fetched successfully`,
+      menuCategoryItems,
+    });
+  } catch (error) {
+    console.error("Error while fetching menu items", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
 
 router.post("/create-menu-items", async (req, res) => {
   try {
@@ -171,5 +191,45 @@ router.get("/get-past-events-by-month", async (req, res) => {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
+
+router.get("/get-counter-list-quantity", async (req, res) => {
+  try {
+    const counterListQuantity = await getCounterMenuQuantites(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Counter List quantity fetcched successfully",
+      counterListQuantity,
+    });
+  } catch (error) {
+    console.error("Error occured while fetching counter list quantity", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+
+router.post("/update-counter-settings", async (req, res) => {
+  try {
+    const counterSettings = await updateCounterSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Counter List quantity fetcched successfully",
+      counterSettings,
+    });
+  } catch (error) {
+    console.error("Error occured while fetching counter list quantity", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-counter-settings", async(req, res)=>{
+  try {
+    const counterSettings = await getCounterSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Counter List quantity fetcched successfully",
+      counterSettings,
+    });
+  } catch (error) {
+    console.error("Error occured while fetching counter list quantity", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+})
 
 module.exports = router;

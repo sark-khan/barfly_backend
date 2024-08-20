@@ -7,7 +7,7 @@ const orderSchme = new Schema(
     {
         status: { type: String, required: true, enum: Object.values(ORDER_STATUS) },
         items: { type: [{ itemId: { type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }, quantity: { type: Number } }] },
-        menuCategoryId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "CounterMenuCategory", required: true },
+        // menuCategoryId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "CounterMenuCategory", required: true },
         counterId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "Counter", required: true },
         entityId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "EntityDetails" },
         tokenNumber: { type: Number, required: true },
