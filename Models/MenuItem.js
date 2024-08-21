@@ -7,23 +7,10 @@ const Schema = mongoose.Schema;
 const itemSchema = new Schema(
   {
     itemName: { type: String, required: true },
-    // price: { type: Number, required: true },
     quantity: { type: String, required: true },
-    // availableQuantity: { type: Number, required: true },
-    // currency: { type: String, required: true },
     description: { type: String, required: true },
     type: { type: String, enum: FOOD_TYPE, required: true },
     image: { type: String, required: true },
-    // menuCategoryId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "CounterMenuCategory",
-    //   required: true,
-    // },
-    // entityId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "EntityDetails",
-    //   required: true,
-    // },
   },
   { timestamps: true }
 );

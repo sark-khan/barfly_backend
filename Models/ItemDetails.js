@@ -9,7 +9,7 @@ const itemSchema = new Schema(
     currency: { type: String, required: true },
     menuCategoryId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "CounterMenuCategory"
+      ref: "CounterMenuCategory",
     },
     entityId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -21,12 +21,12 @@ const itemSchema = new Schema(
       ref: "Counter",
       required: true,
     },
-    itemId:{
+    itemId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MenuItem",
       required: true,
     },
-},
+  },
   { timestamps: true }
 );
 
