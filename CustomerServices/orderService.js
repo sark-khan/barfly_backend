@@ -13,70 +13,6 @@
 // const mongoose = require("mongoose");
 
 // const createOrder = async (req, session) => {
-// <<<<<<< HEAD
-//     const { items } = req.body;
-//     const itemsIds = items?.map(doc => doc.itemId);
-//     if (!itemsIds) return;
-//     const menuItems = await MenuItem.find({ _id: { $in: itemsIds } })
-//         .populate({
-//             path: 'menuCategoryId',
-//         }).lean();
-//     if (!menuItems.length) {
-//         throwError({ status: STATUS_CODES.BAD_REQUEST, message: "No Such Item exists." })
-//     }
-//     const itemNameMapper = {};
-//     menuItems.forEach(item => {
-//         itemNameMapper[`${item._id}`] = item;
-//     })
-//     let menuCategoryId;
-//     let counterId;
-//     let entityId;
-//     let msg = ""
-//     const promises = []
-//     let amount = 0;
-//     items.forEach(doc => {
-//         const menuItem = itemNameMapper[`${doc.itemId}`]
-//         if (menuItem) {
-//             entityId = menuItem?.menuCategoryId?.entityId;
-//             menuCategoryId = menuItem?.menuCategoryId._id;
-//             counterId = menuItem?.menuCategoryId?.counterId;
-//             if (menuItem.availableQuantity < doc.quantity) {
-//                 msg += `${menuItem.itemName} , `;
-//             }
-//             const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
-//             amount += (+doc.quantity * +menuItem.price)
-
-//             promises.push(MenuItem.findOneAndUpdate({ _id: doc.itemId }, { $set: { availableQuantity: remainingQuantity } }, { session }));
-//         }
-//     })
-//     if (msg) {
-//         throwError({ status: STATUS_CODES.BAD_REQUEST, message: msg + "this items have not valid stocks." })
-//     }
-
-//     const lastOrder = await Order.findOne(
-//         { entityId },
-//         { tokenNumber: 1 },
-//         { sort: { createdAt: -1 } }
-//     );
-//     console.log({ lastOrder });
-//     let tokenNumber = 1;
-//     if (lastOrder) {
-//         tokenNumber = lastOrder.tokenNumber + 1;
-//     }
-//     await Promise.all(promises);
-//     return Order.create(
-//         [
-//             {
-//                 status: ORDER_STATUS.WAITING,
-//                 items,
-//                 counterId,
-//                 entityId,
-//                 tokenNumber,
-//                 userId: req.id,
-//                 totalAmount: amount
-//             }], { session });
-// }
-// =======
 //   const { items } = req.body;
 //   const { userId } = req;
 //   const itemsIds = items?.map((doc) => doc.itemId);
@@ -154,7 +90,6 @@
 //     { session }
 //   );
 // };
-// >>>>>>> 1e0452d7d08c92469247fc0cdaa9984d683c72f2
 
 // const updateStatusOfOrder = async (req) => {
 //     const { orderId, status } = req.body;
@@ -180,127 +115,6 @@
 // };
 
 // const getEntityOrders = async (req) => {
-// <<<<<<< HEAD
-//     const { entityId, body: { status, pageNo = 1, pageLimit = 10 } } = req;
-//     const query = {}
-//     if (!req.isAdmin) {
-//         if (req.role == ROLES.CUSTOMER) {
-//             query.userId = req.id;
-//         }
-//         else {
-//             query.entityId = entityId;
-//         }
-//         if (status) {
-//             query.status = status
-//         }
-//     }
-//     else {
-//         if (req.body.entityId) {
-//             query.entityId = req.body.entityId
-//         }
-//     }
-//     const skip = +(pageNo - 1) * +pageLimit;
-//     const [data, totalCount] = await Promise.all([
-//         Order.find(query, { items: 1, status: 1, tokenNumber: 1 })
-//             .populate({ path: "items.itemId", select: "itemName quantity description type currency image" })
-//             .sort({ tokenNumber: -1 })
-//             .skip(skip)
-//             .limit(pageLimit),
-//         Order.countDocuments(query)
-//     ]);
-//     return { data, totalCount }
-// }
-
-// const getLiveOrdersUsers = async (req) => {
-//     const userId = req.id;
-//     const liveOrders = await Order.aggregate([
-//         {
-//             $match: {
-//                 userId: mongoose.Types.ObjectId(userId),
-//                 status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-//             },
-//         },
-//         {
-//             $lookup: {
-//                 from: "entitydetails",
-//                 localField: "entityId",
-//                 foreignField: "_id",
-//                 as: "entityDetails",
-//             },
-//         },
-//         {
-//             $unwind: {
-//                 path: "$entityDetails",
-//                 preserveNullAndEmptyArrays: true,
-//             },
-//         },
-//         {
-//             $group: {
-//                 _id: "$entityId", // Group by `entityId`
-//                 entityDetails: { $first: "$entityDetails" }, // Take the first occurrence of entityDetails for each group
-//                 orders: {
-//                     $push: {
-//                         _id: "$_id",
-//                         status: "$status",
-//                         items: "$items",
-//                         tokenNumber: "$tokenNumber",
-//                         updatedAt: "$updatedAt",
-//                     },
-//                 },
-//                 orderCount: { $sum: 1 }, // Count the number of orders in each group
-//             },
-//         },
-//         {
-//             $project: {
-//                 _id: 1,
-//                 entityDetails: 1, // Include `entityDetails` (contains entityName, etc.)
-//                 orders: 1, // Include the grouped orders
-//                 orderCount: 1, // Include the order count
-//             },
-//         },
-//         {
-//             $limit: 5, // Optional: Limit the results for inspection
-//         },
-//     ]);
-//     return liveOrders;
-// };
-
-// const particularOrderDetails = async (req) => {
-//     const { entityId } = req.query;
-//     const orderDetails = await Order.find(
-//         {
-//             userId: req.id,
-//             status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-//             entityId,
-//         },
-//         null,
-//         { lean: 1, sort: { tokenNumber: -1 } }
-//     ).populate({
-//         path: 'items.itemId',  // Path to the field in the items array to populate
-//         select: 'itemName description type currency image', // Optional: specify the fields you want to include
-//     })
-//     return orderDetails;
-// };
-
-// const getOrderGroupByYears = async (req) => {
-//     const userId = req.id;
-//     const entityIds = (await Order.find({ userId }, { entityId: 1 }).lean()).map(
-//         (doc) => doc.entityId
-//     );
-//     const entities = await EntityDetails.find(
-//         { _id: { $in: entityIds } },
-//         { entityName: 1, entityType: 1 }
-//     ).lean();
-//     const entityMapper = {};
-//     entities.forEach((doc) => {
-//         entityMapper[`${doc._id}`] = doc;
-//     });
-//     const ordersByYearAndEntity = await Order.aggregate([
-//         {
-//             // Stage 1: Match documents by userId
-//             $match: {
-//                 userId: new mongoose.Types.ObjectId(userId),
-// =======
 //   const {
 //     entityId,
 //     body: { status, pageNo = 1, pageLimit = 10 },
@@ -486,7 +300,6 @@
 //                   0,
 //                 ],
 //               },
-// >>>>>>> 1e0452d7d08c92469247fc0cdaa9984d683c72f2
 //             },
 //         },
 //         {

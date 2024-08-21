@@ -36,7 +36,14 @@ module.exports.createCounter = async (req) => {
 
   const newCounter = await Counter.findOneAndUpdate(
     { counterName, ownerId: req.id, entityId: req.entityId },
-    { counterName, ownerId: req.id, entityId: req.entityId, isTableService, isSelfPickUp,totalTables },
+    {
+      counterName,
+      ownerId: req.id,
+      entityId: req.entityId,
+      isTableService,
+      isSelfPickUp,
+      totalTables,
+    },
     { new: true, upsert: true, lean: true }
   );
 
@@ -110,7 +117,6 @@ module.exports.createMenuItem = async (req) => {
     currency,
     menuCategoryId,
     availableQuantity,
-    counterId,
   } = req.body;
 
   if (
@@ -120,7 +126,8 @@ module.exports.createMenuItem = async (req) => {
     !description ||
     !type ||
     !image ||
-    !menuCategoryId
+    !menuCategoryId ||
+    !availableQuantity
   ) {
     throw { status: 400, message: "All fields are required" };
   }
@@ -145,14 +152,13 @@ module.exports.createMenuItem = async (req) => {
 
   const newItem = await MenuItem.create({
     itemName,
-    // price,
     quantity,
     description,
     type,
-    // availableQuantity,
-    // currency,
     image,
-    // menuCategoryId: menuCategoryId,
+  });
+  const counterId = await MenuCategory.findById(menuCategoryId, {
+    counterId: 1,
   });
 
   const itemDetails = await ItemDetails.create({
@@ -161,7 +167,7 @@ module.exports.createMenuItem = async (req) => {
     currency,
     menuCategoryId,
     entityId: req.entityId,
-    counterId: counterId,
+    counterId: counterId.id,
     itemId: newItem._id,
   });
 
