@@ -2,6 +2,8 @@ const MenuItem = require("../Models/MenuItem");
 const EntityDetails = require("../Models/EntityDetails");
 const Counter = require("../Models/Counter");
 const Order = require("../Models/Order");
+const ItemDetails = require("../Models/ItemDetails");
+
 const {
   STATUS_CODES,
   ORDER_STATUS,
@@ -12,11 +14,17 @@ const mongoose = require("mongoose");
 
 const createOrder = async (req, session) => {
   const { items } = req.body;
+  const { userId } = req;
   const itemsIds = items?.map((doc) => doc.itemId);
-  if (!itemsIds) return;
-  const menuItems = await MenuItem.find({ _id: { $in: itemsIds } })
+  if (!itemsIds) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Please add Atlease one item in your order.",
+    });
+  }
+  const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
     .populate({
-      path: "menuCategoryId",
+      path: "itemId",
     })
     .lean();
   if (!menuItems.length) {
@@ -29,23 +37,20 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     itemNameMapper[`${item._id}`] = item;
   });
-  let menuCategoryId;
-  let counterId;
-  let entityId;
-  let msg = "";
   const promises = [];
+  let msg = "";
+  let entityId;
   items.forEach((doc) => {
     const menuItem = itemNameMapper[`${doc.itemId}`];
-    if (menuItem) {
-      entityId = menuItem?.menuCategoryId?.entityId;
-      menuCategoryId = menuItem?.menuCategoryId._id;
-      counterId = menuItem?.menuCategoryId?.counterId;
+    if (menuItem && menuItem.itemId?._id) {
       if (menuItem.availableQuantity < doc.quantity) {
-        msg += `${menuItem.itemName} , `;
+        msg += `${menuItem.itemId.itemName} , `;
       }
+      if (!entityId) entityId = menuItem.entityId;
       const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
+      doc.entityId = menuItem.entityId;
       promises.push(
-        MenuItem.findOneAndUpdate(
+        ItemDetails.findOneAndUpdate(
           { _id: doc.itemId },
           { $set: { availableQuantity: remainingQuantity } },
           { session }
@@ -59,6 +64,7 @@ const createOrder = async (req, session) => {
       message: msg + "this items have not valid stocks.",
     });
   }
+  console.log({ msg, items });
   const lastOrder = await Order.findOne(
     { entityId },
     { tokenNumber: 1 },
@@ -69,16 +75,16 @@ const createOrder = async (req, session) => {
   if (lastOrder) {
     tokenNumber = lastOrder.tokenNumber + 1;
   }
+  console.log({ len: promises.length, promises });
   await Promise.all(promises);
   return Order.create(
     [
       {
         status: ORDER_STATUS.WAITING,
         items,
-        counterId,
-        entityId,
         tokenNumber,
-        userId: req.id,
+        userId,
+        entityId,
       },
     ],
     { session }
@@ -113,6 +119,7 @@ const getEntityOrders = async (req) => {
     entityId,
     body: { status, pageNo = 1, pageLimit = 10 },
   } = req;
+  const query = {};
   if (req.role == ROLES.CUSTOMER) {
     query.userId = req.id;
   } else {
@@ -126,7 +133,11 @@ const getEntityOrders = async (req) => {
     Order.find(query, { items: 1, status: 1, tokenNumber: 1 })
       .populate({
         path: "items.itemId",
-        select: "itemName quantity description type currency image",
+        select: "currency itemId",
+        populate: {
+          path: "itemId",
+          select: "itemName quantity description type image",
+        },
       })
       .sort({ tokenNumber: -1 })
       .skip(skip)
@@ -137,13 +148,20 @@ const getEntityOrders = async (req) => {
 };
 
 const getLiveOrdersUsers = async (req) => {
-  const userId = req.id;
-  const liveOrders = await Order.aggregate([
+  const {
+    userId,
+    query: { pageNo = 1, pageLimit = 10 },
+  } = req;
+  const skip = +(pageNo - 1) * +pageLimit;
+  let liveOrders = await Order.aggregate([
     {
       $match: {
         userId: mongoose.Types.ObjectId(userId),
         status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
       },
+    },
+    {
+      $sort: { updatedAt: -1 },
     },
     {
       $lookup: {
@@ -172,7 +190,18 @@ const getLiveOrdersUsers = async (req) => {
             updatedAt: "$updatedAt",
           },
         },
+        latestUpdatedAt: { $first: "$updatedAt" },
         orderCount: { $sum: 1 }, // Count the number of orders in each group
+      },
+    },
+    {
+      $addFields: {
+        orders: {
+          $sortArray: {
+            input: "$orders",
+            sortBy: { tokenNumber: -1 },
+          },
+        },
       },
     },
     {
@@ -184,31 +213,37 @@ const getLiveOrdersUsers = async (req) => {
       },
     },
     {
-      $limit: 5, // Optional: Limit the results for inspection
+      $sort: { latestUpdatedAt: -1 },
     },
   ]);
   return liveOrders;
 };
 
 const particularOrderDetails = async (req) => {
-  const { entityId } = req.query;
-  const orderDetails = await Order.find(
-    {
-      userId: req.id,
-      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-      entityId,
-    },
-    null,
-    { lean: 1,sort:{tokenNumber:-1} }
-  ).populate({
-    path: 'items.itemId',  // Path to the field in the items array to populate
-    select: 'itemName description type currency image', // Optional: specify the fields you want to include
+  const {
+    query: { entityId },
+    userId,
+  } = req;
+  const orderDetails = await Order.find({
+    userId,
+    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    entityId,
   })
+    .populate({
+      path: "items.itemId",
+      select: "currency itemId",
+      populate: {
+        path: "itemId",
+        select: "itemName quantity description type image",
+      },
+    })
+    .sort({ tokenNumber: -1 })
+    .lean();
   return orderDetails;
 };
 
 const getOrderGroupByYears = async (req) => {
-  const userId = req.id;
+  const { userId } = req;
   const entityIds = (await Order.find({ userId }, { entityId: 1 }).lean()).map(
     (doc) => doc.entityId
   );
@@ -236,7 +271,7 @@ const getOrderGroupByYears = async (req) => {
     {
       // Stage 3: Lookup the itemId to join with the MenuItem collection to get itemDetails
       $lookup: {
-        from: "menuitems", // Replace with the actual collection name for MenuItem
+        from: "itemdetails", // Replace with the actual collection name for MenuItem
         localField: "items.itemId",
         foreignField: "_id",
         as: "itemDetails",
