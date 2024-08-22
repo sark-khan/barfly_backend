@@ -9,6 +9,7 @@ const {
 } = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
+const ItemDetails = require("../Models/ItemDetails");
 
 const createOrder = async (req, session) => {
   const { items } = req.body;
@@ -113,6 +114,7 @@ const getEntityOrders = async (req) => {
     entityId,
     body: { status, pageNo = 1, pageLimit = 10 },
   } = req;
+  const query = {};
   if (req.role == ROLES.CUSTOMER) {
     query.userId = req.id;
   } else {
@@ -199,19 +201,28 @@ const particularOrderDetails = async (req) => {
       entityId,
     },
     null,
-    { lean: 1,sort:{tokenNumber:-1} }
+    { lean: 1, sort: { tokenNumber: -1 } }
   ).populate({
-    path: 'items.itemId',  // Path to the field in the items array to populate
-    select: 'itemName description type currency image', // Optional: specify the fields you want to include
-  })
+    path: "items.itemId", // Path to the field in the items array to populate
+    select: "itemName description type currency image", // Optional: specify the fields you want to include
+  });
   return orderDetails;
 };
 
 const getOrderGroupByYears = async (req) => {
   const userId = req.id;
-  const entityIds = (await Order.find({ userId }, { entityId: 1 }).lean()).map(
-    (doc) => doc.entityId
-  );
+  const menuItemsIds = [];
+  const entityIds = [];
+  let allOrders = await Order.find(
+    { userId },
+    { entityId: 1, items: 1, tokenNumber: 1, updatedAt: 1 }
+  ).lean();
+  allOrders.forEach((doc) => {
+    entityIds.push(doc.entityId);
+    doc.items.forEach((item) => {
+      menuItemsIds.push(item.itemId);
+    });
+  });
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
     { entityName: 1, entityType: 1 }
@@ -220,163 +231,101 @@ const getOrderGroupByYears = async (req) => {
   entities.forEach((doc) => {
     entityMapper[`${doc._id}`] = doc;
   });
-  const ordersByYearAndEntity = await Order.aggregate([
-    {
-      // Stage 1: Match documents by userId
-      $match: {
-        userId: new mongoose.Types.ObjectId(userId),
-      },
-    },
-    {
-      // Stage 2: Add a field for the year based on the order's creation date
-      $addFields: {
-        year: { $year: "$createdAt" },
-      },
-    },
-    {
-      // Stage 3: Lookup the itemId to join with the MenuItem collection to get itemDetails
-      $lookup: {
-        from: "menuitems", // Replace with the actual collection name for MenuItem
-        localField: "items.itemId",
-        foreignField: "_id",
-        as: "itemDetails",
-      },
-    },
-    {
-      // Stage 4: Add entityId to each item and project specific fields from itemDetails
-      $addFields: {
-        items: {
-          $map: {
-            input: "$items",
-            as: "item",
-            in: {
-              _id: "$$item._id",
-              itemId: "$$item.itemId",
-              quantity: "$$item.quantity",
-              itemDetails: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$itemDetails",
-                      as: "detail",
-                      cond: { $eq: ["$$detail._id", "$$item.itemId"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      // Stage 5: Project specific fields from itemDetails into items
-      $addFields: {
-        items: {
-          $map: {
-            input: "$items",
-            as: "item",
-            in: {
-              _id: "$$item._id",
-              itemId: "$$item.itemId",
-              quantity: "$$item.quantity",
-              itemDetails: {
-                _id: "$$item.itemDetails._id",
-                itemName: "$$item.itemDetails.itemName",
-                description: "$$item.itemDetails.description",
-                type: "$$item.itemDetails.type",
-                currency: "$$item.itemDetails.currency",
-                image: "$$item.itemDetails.image",
-                entityId: "$$item.itemDetails.entityId", // Ensure entityId is added to itemDetails
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      // Stage 6: Group by year and entityId, accumulating orders
-      $group: {
-        _id: {
-          year: "$year",
-          entityId: "$entityId", // Include entityId in the group
-        },
-        orders: {
-          $push: {
-            _id: "$_id",
-            status: "$status",
-            tokenNumber: "$tokenNumber",
-            items: "$items",
-            entityId: "$entityId", // Include entityId in the order
-          },
-        },
-      },
-    },
-    {
-      // Stage 7: Ensure orders are sorted by tokenNumber in descending order
-      $addFields: {
-        orders: {
-          $map: {
-            input: "$orders",
-            as: "order",
-            in: {
-              _id: "$$order._id",
-              status: "$$order.status",
-              tokenNumber: "$$order.tokenNumber",
-              items: {
-                $map: {
-                  input: "$$order.items",
-                  as: "item",
-                  in: {
-                    _id: "$$item._id",
-                    itemId: "$$item.itemId",
-                    quantity: "$$item.quantity",
-                    entityId: "$$item.entityId", // Access entityId from itemDetails
-                    itemDetails: {
-                      _id: "$$item.itemDetails._id",
-                      itemName: "$$item.itemDetails.itemName",
-                      description: "$$item.itemDetails.description",
-                      type: "$$item.itemDetails.type",
-                      currency: "$$item.itemDetails.currency",
-                      image: "$$item.itemDetails.image",
-                      entityId: "$$item.itemDetails.entityId",
-                    },
-                  },
-                },
-              },
-              entityId: "$$order.entityId", // Include entityId in the order
-            },
-          },
-        },
-      },
-    },
-    {
-      // Stage 8: Group by year and accumulate entities
-      $group: {
-        _id: "$_id.year",
-        entities: {
-          $push: {
-            entityId: "$_id.entityId",
-            orders: "$orders",
-          },
-        },
-      },
-    },
-    {
-      // Stage 9: Sort by year in descending order
-      $sort: { _id: -1 },
-    },
-  ]);
-  ordersByYearAndEntity.forEach((doc) => {
-    if (doc.entities?.length) {
-      doc.entities.forEach((entity) => {
-        entity.entityDetails = entityMapper[entity.entityId];
-        delete entity.entityId;
-      });
-    }
+  const allItemDetails = await ItemDetails.find({ _id: menuItemsIds })
+    .populate({
+      path: "itemId",
+    })
+    .lean();
+  console.log({ allItemDetails });
+  const itemDetailsMapper = {};
+  allItemDetails.forEach((doc) => {
+    itemDetailsMapper[`${doc._id}`] = {
+      price: doc.price,
+      currency: doc.currency,
+      itemName: doc.itemId.itemName,
+      image: doc.itemId.image,
+      type: doc.itemId.type,
+      description: doc.itemId.description,
+      quantityLable: doc.itemId.quantity,
+    };
   });
-  return ordersByYearAndEntity;
+  allOrders = allOrders.map((doc) => {
+    const data = { ...doc };
+    data.items = doc.items.map((item) => {
+      return { quantity: item.quantity, ...itemDetailsMapper[item.itemId] };
+    });
+    data.year = new Date(doc.updatedAt).getFullYear();
+    return data;
+  });
+
+  const mapper = {};
+  allOrders.forEach((doc) => {
+    if (!mapper[doc.year]) {
+      mapper[doc.year] = {};
+    }
+    if (!mapper[doc.year][doc.entityId._id]) {
+      mapper[doc.year][doc.entityId._id] = {
+        entityDetails: entityMapper[doc.entityId._id],
+        orders: [],
+      };
+    }
+    mapper[doc.year][doc.entityId._id].orders.push(doc);
+  });
+  console.log({ mapper });
+  return mapper;
+};
+const getOrderGroupByYearsForEntity = async (req) => {
+  let { entityId } = req;
+  if (req.query.entityId) {
+    entityId = req.body.entityId;
+  }
+  const menuItemsIds = [];
+  const entityIds = [];
+  let allOrders = await Order.find(
+    { entityId },
+    { items: 1, tokenNumber: 1, updatedAt: 1 }
+  ).lean();
+  allOrders.forEach((doc) => {
+    doc.items.forEach((item) => {
+      menuItemsIds.push(item.itemId);
+    });
+  });
+  const allItemDetails = await ItemDetails.find({ _id: menuItemsIds })
+    .populate({
+      path: "itemId",
+    })
+    .lean();
+  console.log({ allItemDetails });
+  const itemDetailsMapper = {};
+  allItemDetails.forEach((doc) => {
+    itemDetailsMapper[`${doc._id}`] = {
+      price: doc.price,
+      currency: doc.currency,
+      itemName: doc.itemId.itemName,
+      image: doc.itemId.image,
+      type: doc.itemId.type,
+      description: doc.itemId.description,
+      quantityLable: doc.itemId.quantity,
+    };
+  });
+  allOrders = allOrders.map((doc) => {
+    const data = { ...doc };
+    data.items = doc.items.map((item) => {
+      return { quantity: item.quantity, ...itemDetailsMapper[item.itemId] };
+    });
+    data.year = new Date(doc.updatedAt).getFullYear();
+    return data;
+  });
+
+  const mapper = {};
+  allOrders.forEach((doc) => {
+    if (!mapper[doc.year]) {
+      mapper[doc.year] = { orders: [] };
+    }
+    mapper[doc.year].orders.push(doc);
+  });
+  console.log({ mapper });
+  return mapper;
 };
 module.exports = {
   createOrder,
@@ -385,4 +334,5 @@ module.exports = {
   getOrderGroupByYears,
   getLiveOrdersUsers,
   particularOrderDetails,
+  getOrderGroupByYearsForEntity,
 };
