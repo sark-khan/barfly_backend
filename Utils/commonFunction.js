@@ -28,6 +28,19 @@ const comparePassword = async (inputPassword, storedPassword) => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
 
+const  shiftArrayRight=(arr)=>{
+  // Check if the array is not empty
+  if (arr.length === 0) return arr;
+
+  // Remove the last element and store it
+  const lastElement = arr.pop();
+
+  // Insert the last element at the beginning of the array
+  arr.unshift(lastElement);
+
+  return arr;
+}
+
 const getJwtToken = (user, isUser = false) => {
   let payload = {
     id: user._id,
@@ -121,4 +134,5 @@ module.exports = {
   generateOTP,
   SECRET_KEY,
   performEndOfDayTask,
+  shiftArrayRight
 };

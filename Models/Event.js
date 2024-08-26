@@ -3,7 +3,6 @@ const Schema = mongoose.Schema;
 
 const eventSchema = new Schema(
   {
-    locationName: { type: String, required: true },
     eventName: { type: String, required: true },
     startingDate: { type: Date },
     endDate: { type: Date },

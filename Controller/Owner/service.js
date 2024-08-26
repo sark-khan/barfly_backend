@@ -12,6 +12,8 @@ const Counter = require("../../Models/Counter");
 const Menu = require("../../Models/MenuCategory");
 const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
+const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
+const { shiftArrayRight } = require("../../Utils/commonFunction");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -113,25 +115,37 @@ module.exports.createMenuItem = async (req) => {
     quantity,
     description,
     type,
-    image,
+    file,
     currency,
     menuCategoryId,
     availableQuantity,
   } = req.body;
 
-  if (
-    !itemName ||
-    !price ||
-    !quantity ||
-    !description ||
-    !type ||
-    !image ||
-    !menuCategoryId ||
-    !availableQuantity
-  ) {
-    throw { status: 400, message: "All fields are required" };
-  }
+  console.log({ itemName });
 
+  // if (
+  //   !itemName ||
+  //   !price ||
+  //   !quantity ||
+  //   !description ||
+  //   !type ||
+  //   !file ||
+  //   !menuCategoryId ||
+  //   !availableQuantity
+  // ) {
+  //   throw { status: 400, message: "All fields are required" };
+  // }
+
+  const fileBuffer = req.file.buffer;
+  console.log({ ss: req.file });
+  const fileName = req.file.originalname;
+  const data = await uploadBufferToS3(fileBuffer, fileName);
+  if (!data.Location) {
+    throwError({
+      message: "Error occured while uplaoding the file",
+      status: STATUS_CODES.SERVER_ERROR,
+    });
+  }
   const menuCategory = await MenuCategory.findById(menuCategoryId);
   if (!menuCategory) {
     throw {
@@ -155,7 +169,7 @@ module.exports.createMenuItem = async (req) => {
     quantity,
     description,
     type,
-    image,
+    image: fileName.replace(" ", "_"),
   });
   const counterId = await MenuCategory.findById(menuCategoryId, {
     counterId: 1,
@@ -172,6 +186,32 @@ module.exports.createMenuItem = async (req) => {
   });
 
   return itemDetails;
+};
+
+module.exports.updateMenuItem = async (req) => {
+  const {
+    itemId,
+    itemName,
+    price,
+    quantity,
+    description,
+    type,
+    image,
+    currency,
+    availableQuantity,
+  } = req.body;
+
+  const itemDetails = await ItemDetails.findOneAndUpdate(
+    { _id: itemId }, // Filter
+    { $set: { availableQuantity, currency, price } }, // Update
+    { new: true } // Options: return the updated document
+  );
+  console.log({ itemDetails });
+
+  await MenuItem.updateOne(
+    { _id: itemDetails.itemId },
+    { $set: { itemName, quantity, description, type, image } }
+  );
 };
 
 module.exports.getCreatedItems = async (req) => {
@@ -194,9 +234,20 @@ module.exports.getCreatedItems = async (req) => {
   }
 };
 
+module.exports.getParticularItemDetail = async (req) => {
+  const { menuItemId } = req.query;
+  const itemDetails = await ItemDetails.findById(menuItemId).populate({
+    path: "itemId",
+  });
+  if (itemDetails) {
+    itemDetails.itemId.image = generatePresignedUrl(itemDetails.itemId.image);
+  }
+  // const itemDetails=
+  return itemDetails;
+};
+
 module.exports.createEvent = async (req) => {
   const {
-    locationName,
     eventName,
     startingDate,
     endDate,
@@ -227,7 +278,6 @@ module.exports.createEvent = async (req) => {
   }
 
   const existingEvent = await Event.findOne({
-    locationName,
     eventName,
     ownerId,
     entityId: req.entityId,
@@ -242,10 +292,11 @@ module.exports.createEvent = async (req) => {
 
   if (!isRepitative) {
     repetitiveDays = [];
+  } else {
+    repetitiveDays = shiftArrayRight(repetitiveDays);
   }
 
   const newEvent = new Event({
-    locationName,
     eventName,
     isRepitative,
     repetitiveDays,
@@ -342,10 +393,12 @@ module.exports.getMenuCategoryItems = async (req) => {
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     const itemDetails = menuItem.itemId;
+    console.log({ menuItem });
     delete menuItem.itemId;
+    itemDetails.image = generatePresignedUrl(itemDetails.image);
     acc.push({
-      ...menuItem,
       ...itemDetails,
+      ...menuItem,
     });
     return acc;
   }, []);

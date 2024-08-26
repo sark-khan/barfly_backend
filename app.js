@@ -11,7 +11,6 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 const orderController = require("./Controller/orderController");
-const MenuItem = require("./Models/MenuItem");
 const Counter = require("./Models/Counter");
 const multer = require("multer");
 const {

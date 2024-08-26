@@ -15,10 +15,14 @@ const {
   updateCounterSettings,
   getCounterSettings,
   createEvent,
+  getParticularItemDetail,
+  updateMenuItem,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
-
+const multer = require("multer");
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 router.use(verifyToken);
 router.use((req, res, next) => {
   if (req.role != ROLES.STORE_OWNER) {
@@ -96,8 +100,11 @@ router.get("/get-menu-category-items", async (req, res) => {
   }
 });
 
-router.post("/create-menu-items", async (req, res) => {
+router.post("/create-menu-items", upload.single("file"),async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).send("No file uploaded.");
+    }
     const newItem = await createMenuItem(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Item created successfully",
@@ -116,6 +123,28 @@ router.get("/get-menu-items", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({
       message: "Items fetch succesfully",
       data: response,
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-menu-particular-item", async (req, res) => {
+  try {
+    const response = await getParticularItemDetail(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Items fetch succesfully",
+      particularItemDetails: response,
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+router.post("/update-menu-item", async (req, res) => {
+  try {
+    await updateMenuItem(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Items updated succesfully",
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
@@ -205,7 +234,6 @@ router.get("/get-counter-list-quantity", async (req, res) => {
   }
 });
 
-
 router.post("/update-counter-settings", async (req, res) => {
   try {
     const counterSettings = await updateCounterSettings(req);
@@ -219,7 +247,7 @@ router.post("/update-counter-settings", async (req, res) => {
   }
 });
 
-router.get("/get-counter-settings", async(req, res)=>{
+router.get("/get-counter-settings", async (req, res) => {
   try {
     const counterSettings = await getCounterSettings(req);
     return res.status(STATUS_CODES.OK).json({
@@ -230,6 +258,6 @@ router.get("/get-counter-settings", async(req, res)=>{
     console.error("Error occured while fetching counter list quantity", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
-})
+});
 
 module.exports = router;
