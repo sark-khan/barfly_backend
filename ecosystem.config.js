@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       script: "npm start",
-      watch: ".",
+      watch: true,
+      autorestart: true,
       name: "BARFLY",
       log_date_format: "YYYY-MM-DD HH:mm:ss.SSS",
       ignore_watch: ["uploads"],

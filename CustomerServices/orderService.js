@@ -12,6 +12,7 @@ const {
 } = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
+const ItemDetails = require("../Models/ItemDetails");
 
 const createOrder = async (req, session) => {
   const { items, eventId } = req.body;
@@ -422,7 +423,83 @@ const getOrderGroupByYears = async (req) => {
       });
     }
   });
-  return ordersByYearAndEntity;
+  allOrders = allOrders.map((doc) => {
+    const data = { ...doc };
+    data.items = doc.items.map((item) => {
+      return { quantity: item.quantity, ...itemDetailsMapper[item.itemId] };
+    });
+    data.year = new Date(doc.updatedAt).getFullYear();
+    return data;
+  });
+
+  const mapper = {};
+  allOrders.forEach((doc) => {
+    if (!mapper[doc.year]) {
+      mapper[doc.year] = {};
+    }
+    if (!mapper[doc.year][doc.entityId._id]) {
+      mapper[doc.year][doc.entityId._id] = {
+        entityDetails: entityMapper[doc.entityId._id],
+        orders: [],
+      };
+    }
+    mapper[doc.year][doc.entityId._id].orders.push(doc);
+  });
+  console.log({ mapper });
+  return mapper;
+};
+const getOrderGroupByYearsForEntity = async (req) => {
+  let { entityId } = req;
+  if (req.query.entityId) {
+    entityId = req.body.entityId;
+  }
+  const menuItemsIds = [];
+  const entityIds = [];
+  let allOrders = await Order.find(
+    { entityId },
+    { items: 1, tokenNumber: 1, updatedAt: 1 }
+  ).lean();
+  allOrders.forEach((doc) => {
+    doc.items.forEach((item) => {
+      menuItemsIds.push(item.itemId);
+    });
+  });
+  const allItemDetails = await ItemDetails.find({ _id: menuItemsIds })
+    .populate({
+      path: "itemId",
+    })
+    .lean();
+  console.log({ allItemDetails });
+  const itemDetailsMapper = {};
+  allItemDetails.forEach((doc) => {
+    itemDetailsMapper[`${doc._id}`] = {
+      price: doc.price,
+      currency: doc.currency,
+      itemName: doc.itemId.itemName,
+      image: doc.itemId.image,
+      type: doc.itemId.type,
+      description: doc.itemId.description,
+      quantityLable: doc.itemId.quantity,
+    };
+  });
+  allOrders = allOrders.map((doc) => {
+    const data = { ...doc };
+    data.items = doc.items.map((item) => {
+      return { quantity: item.quantity, ...itemDetailsMapper[item.itemId] };
+    });
+    data.year = new Date(doc.updatedAt).getFullYear();
+    return data;
+  });
+
+  const mapper = {};
+  allOrders.forEach((doc) => {
+    if (!mapper[doc.year]) {
+      mapper[doc.year] = { orders: [] };
+    }
+    mapper[doc.year].orders.push(doc);
+  });
+  console.log({ mapper });
+  return mapper;
 };
 module.exports = {
   createOrder,
@@ -431,4 +508,5 @@ module.exports = {
   getOrderGroupByYears,
   getLiveOrdersUsers,
   particularOrderDetails,
+  getOrderGroupByYearsForEntity,
 };
