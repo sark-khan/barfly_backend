@@ -3,6 +3,7 @@ const EntityDetails = require("../Models/EntityDetails");
 const Counter = require("../Models/Counter");
 const Order = require("../Models/Order");
 const ItemDetails = require("../Models/ItemDetails");
+const Event = require("../Models/Event");
 
 const {
   STATUS_CODES,
@@ -13,7 +14,7 @@ const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 
 const createOrder = async (req, session) => {
-  const { items } = req.body;
+  const { items, eventId } = req.body;
   const { userId } = req;
   const itemsIds = items?.map((doc) => doc.itemId);
   if (!itemsIds) {
@@ -27,6 +28,19 @@ const createOrder = async (req, session) => {
       path: "itemId",
     })
     .lean();
+  const currentTime = new Date();
+  // const eventDetails = await Event.find({
+  //   counterids: { $in: [menuItems[0]?.counterId] },
+  //   from: { $lte: currentTime },
+  //   to: { $gte: currentTime },
+  // });
+
+  // if (eventDetails.length != 1) {
+  //   throwError({
+  //     message: "There is an issue in this Event please contact owner",
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //   });
+  // }
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -64,7 +78,6 @@ const createOrder = async (req, session) => {
       message: msg + "this items have not valid stocks.",
     });
   }
-  console.log({ msg, items });
   const lastOrder = await Order.findOne(
     { entityId },
     { tokenNumber: 1 },
@@ -85,6 +98,7 @@ const createOrder = async (req, session) => {
         tokenNumber,
         userId,
         entityId,
+        eventId
       },
     ],
     { session }
@@ -92,7 +106,7 @@ const createOrder = async (req, session) => {
 };
 
 const updateStatusOfOrder = async (req) => {
-  const { orderId, status, } = req.body;
+  const { orderId, status } = req.body;
   console.log({ orderId, status });
   if (
     status !== ORDER_STATUS.COMPLETED &&
@@ -125,10 +139,6 @@ const getEntityOrders = async (req) => {
   } else {
     query.entityId = entityId;
   }
-  // query.status = { $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING, ORDER_STATUS.READY] };
-  // if (isReady) {
-  //   query.status = status;
-  // }
   const skip = +(pageNo - 1) * +pageLimit;
   const [data, totalCount] = await Promise.all([
     Order.find(query, { items: 1, status: 1, tokenNumber: 1 })

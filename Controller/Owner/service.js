@@ -260,9 +260,10 @@ module.exports.createEvent = async (req) => {
   } = req.body;
 
   const ownerId = req.id;
+  console.log({ from, to, startingDate });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
-
+  console.log({ dateTimeFrom, dateTimeTo });
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -289,17 +290,17 @@ module.exports.createEvent = async (req) => {
       message: "An event with the same details already exists",
     });
   }
-
+  let repetitiveDaysArr = [];
   if (!isRepitative) {
-    repetitiveDays = [];
+    repetitiveDaysArr = [];
   } else {
-    repetitiveDays = shiftArrayRight(repetitiveDays);
+    repetitiveDaysArr = shiftArrayRight(repetitiveDays);
   }
 
   const newEvent = new Event({
     eventName,
     isRepitative,
-    repetitiveDays,
+    repetitiveDays: repetitiveDaysArr,
     startingDate: new Date(startingDate),
     endDate: new Date(endDate),
     from: dateTimeFrom,
@@ -307,6 +308,7 @@ module.exports.createEvent = async (req) => {
     ageLimit,
     ownerId,
     counterIds,
+    entityId: req.entityId,
   });
 
   const savedEvent = await newEvent.save();
@@ -319,7 +321,8 @@ module.exports.getUpcomingEvents = async (req) => {
 
   const upcomingEvents = await Event.find({
     ownerId,
-    date: { $gte: currentDateTime },
+    entityId: req.entityId,
+    from: { $gte: currentDateTime },
   }).sort({ date: 1 });
   return upcomingEvents;
 };
@@ -330,14 +333,15 @@ module.exports.getDistinctMonthsAndYears = async (req) => {
     {
       $match: {
         ownerId: mongoose.Types.ObjectId(ownerId),
-        date: { $lt: new Date() },
+        entityId: mongoose.Types.ObjectId(req.entityId),
+        to: { $lt: new Date() },
       },
     },
     {
       $group: {
         _id: {
-          year: { $year: "$date" },
-          month: { $month: "$date" },
+          year: { $year: "$startingDate" }, // Group by year of 'startingDate'
+          month: { $month: "$startingDate" },
         },
       },
     },
@@ -348,6 +352,46 @@ module.exports.getDistinctMonthsAndYears = async (req) => {
       },
     },
   ]);
+
+  console.log({ distinctMonthsAndYears: distinctMonthsAndYears[0]._id });
+
+  return distinctMonthsAndYears.map((doc) => ({
+    year: doc._id.year,
+    month: doc._id.month,
+  }));
+};
+
+module.exports.getDistinctMonthsOfYear = async (req) => {
+  const ownerId = req.id;
+  const { year } = req.query;
+  const date = new Date();
+  date.setFullYear(year, 0, 1); // Sets year, month (0 for January), and day
+  date.setHours(0, 0, 0, 0);
+  const distinctMonthsAndYears = await Event.aggregate([
+    {
+      $match: {
+        ownerId: mongoose.Types.ObjectId(ownerId),
+        entityId: mongoose.Types.ObjectId(req.entityId),
+        startingDate: { $gte: date },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$startingDate" }, // Group by year of 'startingDate'
+          month: { $month: "$startingDate" },
+        },
+      },
+    },
+    {
+      $sort: {
+        "_id.year": -1,
+        "_id.month": -1,
+      },
+    },
+  ]);
+
+  console.log({ distinctMonthsAndYears: distinctMonthsAndYears[0]._id });
 
   return distinctMonthsAndYears.map((doc) => ({
     year: doc._id.year,
@@ -360,7 +404,7 @@ module.exports.getEventsByMonthAndYear = async (month, year) => {
   const endDate = new Date(year, month, 1);
 
   const events = await Event.find({
-    date: {
+    startingDate: {
       $gte: startDate,
       $lt: endDate,
     },

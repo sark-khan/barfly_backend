@@ -17,6 +17,7 @@ const {
   createEvent,
   getParticularItemDetail,
   updateMenuItem,
+  getDistinctMonthsOfYear,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -100,7 +101,7 @@ router.get("/get-menu-category-items", async (req, res) => {
   }
 });
 
-router.post("/create-menu-items", upload.single("file"),async (req, res) => {
+router.post("/create-menu-items", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).send("No file uploaded.");
@@ -165,32 +166,34 @@ router.post("/create-event", async (req, res) => {
 
 router.get("/get-upcoming-events", async (req, res) => {
   try {
-    const response = await getUpcomingEvents(req);
-    // if (!response.length) {
-    //   return res
-    //     .status(STATUS_CODES.OK)
-    //     .json({ message: "No upcoming events found" });
-    // }
+    const upcomingEvents = await getUpcomingEvents(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Upcoming events successfully fetched",
-      data: response,
+      upcomingEvents,
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
 
-router.get("/get-past-events-months", async (req, res) => {
+router.get("/get-past-events-years", async (req, res) => {
   try {
-    const response = await getDistinctMonthsAndYears(req);
-    // if (!response.length) {
-    //   return res
-    //     .status(STATUS_CODES.OK)
-    //     .json({ message: "No past events found" });
-    // }
+    const pastEventsMonthsYear = await getDistinctMonthsAndYears(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Past event months and years successfully fetched",
-      data: response,
+      pastEventsMonthsYear,
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.get("/get-past-events-year-month", async (req, res) => {
+  try {
+    const pastEventsMonthsYear = await getDistinctMonthsOfYear(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Past event months and years successfully fetched",
+      pastEventsMonthsYear,
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
@@ -220,6 +223,7 @@ router.get("/get-past-events-by-month", async (req, res) => {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
+
 
 router.get("/get-counter-list-quantity", async (req, res) => {
   try {

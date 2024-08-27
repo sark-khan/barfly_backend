@@ -24,6 +24,10 @@ const orderSchme = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "EntityDetails",
     },
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event",
+    },
   },
   { timestamps: true }
 );
