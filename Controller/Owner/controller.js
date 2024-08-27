@@ -224,6 +224,18 @@ router.get("/get-past-events-by-month", async (req, res) => {
   }
 });
 
+router.get("/get-event-details-monthly", async (req, res) => {
+  try {
+    const pastEventsMonthsYear = await getDistinctMonthsOfYear(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Past event months and years successfully fetched",
+      pastEventsMonthsYear,
+    });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
 
 router.get("/get-counter-list-quantity", async (req, res) => {
   try {
