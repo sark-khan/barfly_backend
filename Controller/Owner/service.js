@@ -399,6 +399,25 @@ module.exports.getDistinctMonthsOfYear = async (req) => {
   }));
 };
 
+module.exports.getMonthlyEventDetails = async (req) => {
+  const { month, year } = req.query;
+  const startingOfMonth = new Date();
+  startingOfMonth.setMonth(month);
+  startingOfMonth.setFullYear(year);
+  startingOfMonth.setHours(0, 0, 0, 0);
+
+  const endOfMonth = new Date();
+  endOfMonth.setMonth(month + 1);
+  endOfMonth.setFullYear(year);
+  endOfMonth.setHours(0, 0, 0, 0);
+
+  const singleDayEvents = Event.find({
+    from: { $gte: startingOfMonth },
+    to: { $lt: endOfMonth },
+    entityId: req.entityId,
+  });  
+};
+
 module.exports.getEventsByMonthAndYear = async (month, year) => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 1);
