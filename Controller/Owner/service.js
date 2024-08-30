@@ -14,6 +14,7 @@ const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
 const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const { shiftArrayRight } = require("../../Utils/commonFunction");
+const Order = require("../../Models/Order");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -251,7 +252,7 @@ module.exports.createEvent = async (req) => {
     eventName,
     startingDate,
     endDate,
-    isRepitative,
+    isRepetitive,
     repetitiveDays,
     from,
     to,
@@ -291,7 +292,7 @@ module.exports.createEvent = async (req) => {
     });
   }
   let repetitiveDaysArr = [];
-  if (!isRepitative) {
+  if (!isRepetitive) {
     repetitiveDaysArr = [];
   } else {
     repetitiveDaysArr = shiftArrayRight(repetitiveDays);
@@ -299,7 +300,7 @@ module.exports.createEvent = async (req) => {
 
   const newEvent = new Event({
     eventName,
-    isRepitative,
+    isRepetitive,
     repetitiveDays: repetitiveDaysArr,
     startingDate: new Date(startingDate),
     endDate: new Date(endDate),
@@ -309,6 +310,7 @@ module.exports.createEvent = async (req) => {
     ownerId,
     counterIds,
     entityId: req.entityId,
+    activeUsers: 0,
   });
 
   const savedEvent = await newEvent.save();
@@ -327,9 +329,9 @@ module.exports.getUpcomingEvents = async (req) => {
   return upcomingEvents;
 };
 
-module.exports.getDistinctMonthsAndYears = async (req) => {
+module.exports.getDistinctYears = async (req) => {
   const ownerId = req.id;
-  const distinctMonthsAndYears = await Event.aggregate([
+  const distinctYears = await Event.aggregate([
     {
       $match: {
         ownerId: mongoose.Types.ObjectId(ownerId),
@@ -339,26 +341,76 @@ module.exports.getDistinctMonthsAndYears = async (req) => {
     },
     {
       $group: {
-        _id: {
-          year: { $year: "$startingDate" }, // Group by year of 'startingDate'
-          month: { $month: "$startingDate" },
-        },
+        _id: null, // Group all documents together
+        years: { $addToSet: { $year: "$startingDate" } }, // Collect distinct years in an array
       },
     },
     {
+      $unwind: "$years", // Flatten the array of years
+    },
+    {
       $sort: {
-        "_id.year": -1,
-        "_id.month": -1,
+        years: -1, // Sort by year in descending order
+      },
+    },
+    {
+      $project: {
+        _id: 0, // Exclude the _id field
+        year: "$years", // Project the year field
       },
     },
   ]);
 
-  console.log({ distinctMonthsAndYears: distinctMonthsAndYears[0]._id });
+  // {"message":"Past event months and years successfully fetched","pastEventsMonthsYear":[{"_id":{"year":2024}}]}
 
-  return distinctMonthsAndYears.map((doc) => ({
-    year: doc._id.year,
-    month: doc._id.month,
-  }));
+  return distinctYears;
+};
+
+module.exports.getOngoingEventDetails = async (req) => {
+  const currentTime = new Date();
+  const events = await Event.find(
+    {
+      from: { $lte: currentTime },
+      to: { $gte: currentTime },
+      entityId: req.entityId,
+    },
+    null,
+    { sort: { from: -1 }, lean: 1 }
+  );
+  const eventIds = new Map();
+  const ongoingEvents = events?.filter((event) => {
+    if (event.isRepetitive == true) {
+      const day = currentTime.getDay();
+      if (event.repetitiveDays[day] == false) {
+        return false;
+      }
+    }
+    eventIds.set(event._id, {
+      isRepetitive: event.isRepetitive,
+      from: event.from,
+      to: event.to,
+    });
+
+    
+    return true;
+
+  });
+  console.log({ eventIds });
+  const ordersOfEvents = await Order.find({
+    eventId: { $in: Array.from(eventIds.keys()) },
+  });
+  console.log({ ordersOfEvents });
+  const ordersMap = new Map();
+  const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce(
+    (acc, orders) => {
+      // acc[orders.eventId] = {
+      //   totalOrders:
+      // };
+    
+    }
+  );
+
+  return ongoingEvents;
 };
 
 module.exports.getDistinctMonthsOfYear = async (req) => {
@@ -402,20 +454,55 @@ module.exports.getDistinctMonthsOfYear = async (req) => {
 module.exports.getMonthlyEventDetails = async (req) => {
   const { month, year } = req.query;
   const startingOfMonth = new Date();
-  startingOfMonth.setMonth(month);
+  startingOfMonth.setMonth(month - 1);
   startingOfMonth.setFullYear(year);
+  startingOfMonth.setDate(1);
   startingOfMonth.setHours(0, 0, 0, 0);
 
   const endOfMonth = new Date();
-  endOfMonth.setMonth(month + 1);
+  endOfMonth.setMonth(month);
   endOfMonth.setFullYear(year);
+  endOfMonth.setDate(1);
   endOfMonth.setHours(0, 0, 0, 0);
-
-  const singleDayEvents = Event.find({
-    from: { $gte: startingOfMonth },
-    to: { $lt: endOfMonth },
+  console.log({ startingOfMonth, endOfMonth });
+  const eventsForThatMonth = await Event.find({
+    $or: [
+      {
+        from: { $lte: endOfMonth },
+        to: { $gte: startingOfMonth },
+      },
+    ],
     entityId: req.entityId,
-  });  
+  });
+  const eventIds = eventsForThatMonth.map((event) => event._id);
+  const ordersOfThatEvent = await Order.find({
+    eventId: { $in: eventIds },
+  });
+  const eventDetailsMap = eventsForThatMonth.reduce((acc, event) => {
+    acc[event._id] = {
+      id: event._id, // Include the ID in each entry for conversion to an array
+      name: event.eventName,
+      eventDate: event.startingDate,
+      totalOrders: 0,
+      totalAmount: 0,
+      orders: [],
+    };
+    return acc;
+  }, {});
+
+  // Group orders by event ID and calculate totals
+  ordersOfThatEvent.forEach((order) => {
+    if (eventDetailsMap[order.eventId]) {
+      eventDetailsMap[order.eventId].orders.push(order);
+      eventDetailsMap[order.eventId].totalOrders += 1;
+      eventDetailsMap[order.eventId].totalAmount += order.totalAmount || 0;
+    }
+  });
+
+  const monthlyEventDetails = Object.values(eventDetailsMap);
+
+  // Convert the map to an array
+  return monthlyEventDetails;
 };
 
 module.exports.getEventsByMonthAndYear = async (month, year) => {

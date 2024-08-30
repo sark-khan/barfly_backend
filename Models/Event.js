@@ -24,6 +24,7 @@ const eventSchema = new Schema(
       ref: "EntityDetails",
       required: true,
     },
+    activeUsers: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

@@ -101,7 +101,6 @@ module.exports.getEntities = async (req) => {
 
   let currentRunningEntitiesDetailsResponse = [];
   let uniqueRemainingEntitiesResponse = [];
-  console.log("qwerrtt",{re: req.query})
   if (req.query.isFavouriteEntities == "true") {
     console.log("sssdsdsdsadsadsadsadsadsa?>???????????");
     currentRunningEntitiesDetailsResponse =
@@ -123,12 +122,14 @@ module.exports.getEntities = async (req) => {
   // })
 
   return {
-    ongoingEventEntities: req.query.isFavouriteEntities=="true"
-      ? currentRunningEntitiesDetailsResponse
-      : currentRunningEntitiesDetails,
-    remainingEntities: req.query.isFavouriteEntities== "true"
-      ? uniqueRemainingEntitiesResponse
-      : uniqueRemainingEntities,
+    ongoingEventEntities:
+      req.query.isFavouriteEntities == "true"
+        ? currentRunningEntitiesDetailsResponse
+        : currentRunningEntitiesDetails,
+    remainingEntities:
+      req.query.isFavouriteEntities == "true"
+        ? uniqueRemainingEntitiesResponse
+        : uniqueRemainingEntities,
   };
 };
 
@@ -144,6 +145,16 @@ module.exports.addFavouriteEntity = async (req) => {
     { upsert: true }
   );
   return;
+};
+
+module.exports.eventOpened = async (req) => {
+  const { eventId } = req.body;
+  await Event.updateOne({ _id: eventId }, { $inc: { activeUsers: 1 } });
+};
+
+module.exports.eventClsoed = async (req) => {
+  const { eventId } = req.body;
+  await Event.updateOne({ _id: eventId }, { $inc: { activeUsers: -1 } });
 };
 
 module.exports.getFavouriteEvents = async (req) => {
@@ -267,15 +278,15 @@ module.exports.getMenuItems = async (req) => {
     }
   ).populate("itemId");
 
-  const menuItemsResp= menuItems.reduce((acc, menuItem)=>{
-    const itemDetails= menuItem.itemId;
+  const menuItemsResp = menuItems.reduce((acc, menuItem) => {
+    const itemDetails = menuItem.itemId;
     delete menuItem.itemId;
     acc.push({
       ...menuItem,
-      ...itemDetails
-    })
+      ...itemDetails,
+    });
     return acc;
-  },[]) 
+  }, []);
   // const itemDetails= menuItems.itemId;
   // delete menuItems
 

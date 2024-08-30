@@ -10,6 +10,8 @@ const {
   counterList,
   getMenuSubCategory,
   getMenuItems,
+  eventOpened,
+  eventClsoed,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 
@@ -32,6 +34,30 @@ router.get("/get-entities", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while getting Entiities", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.post("/event-opened", async (req, res) => {
+  try {
+    await eventOpened(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Active users increased" });
+  } catch (error) {
+    console.error("Error while event opened api", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.post("/event-closed", async (req, res) => {
+  try {
+    await eventClsoed(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Active users reduced" });
+  } catch (error) {
+    console.error("Error while event opened api", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });

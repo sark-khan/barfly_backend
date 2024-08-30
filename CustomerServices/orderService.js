@@ -29,7 +29,6 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     itemNameMapper[`${item._id}`] = item;
   });
-  let menuCategoryId;
   let counterId;
   let entityId;
   let msg = "";
