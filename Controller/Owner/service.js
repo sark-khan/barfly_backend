@@ -1,20 +1,17 @@
-const Bar = require("../../Models/Bar");
-const Insider = require("../../Models/Counter");
 const Event = require("../../Models/Event");
 const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
 const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
-const { appClient } = require("../../redis");
-const EntityDetails = require("../../Models/EntityDetails");
+
 const Counter = require("../../Models/Counter");
-const Menu = require("../../Models/MenuCategory");
 const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
 const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const { shiftArrayRight } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
+const { start } = require("pm2");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -385,32 +382,48 @@ module.exports.getOngoingEventDetails = async (req) => {
         return false;
       }
     }
-    eventIds.set(event._id, {
+    eventIds.set(event._id.toString(), {
       isRepetitive: event.isRepetitive,
       from: event.from,
       to: event.to,
+      eventName: event.eventName,
+      activeUsers: event.activeUsers
     });
 
-    
     return true;
-
+  });
+  const startingTime = new Date();
+  startingTime.setHours(0, 0, 0, 0);
+  const endingTime = new Date();
+  endingTime.setDate(endingTime.getDate() + 1);
+  endingTime.setHours(0, 0, 0, 0);
+  const ordersOfEvents = await Order.find({
+    eventId: { $in: Array.from(eventIds.keys()) }, // Filters orders by event IDs
+    // createdAt: { $gte: startingTime, $lte: endingTime }, // Filters orders within the specified time range
   });
   console.log({ eventIds });
-  const ordersOfEvents = await Order.find({
-    eventId: { $in: Array.from(eventIds.keys()) },
-  });
   console.log({ ordersOfEvents });
-  const ordersMap = new Map();
   const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce(
     (acc, orders) => {
-      // acc[orders.eventId] = {
-      //   totalOrders:
-      // };
-    
-    }
+      console.log({ ebe: eventIds.get(orders.eventId.toString()) });
+      if (!acc[orders.eventId]) {
+        const eventDetails = eventIds.get(orders.eventId.toString());
+        acc[orders.eventId] = {
+          eventId: orders.eventId,
+          from: eventDetails.from,
+          to: eventDetails.to,
+          eventName: eventDetails.eventName,
+          activeUsers: eventDetails.activeUsers,
+          totalOrders: 0,
+        };
+      }
+      acc[orders.eventId].totalOrders = acc[orders.eventId]?.totalOrders + 1;
+      return acc;
+    },
+    {}
   );
 
-  return ongoingEvents;
+  return ongoingEventDetailsWithOrders;
 };
 
 module.exports.getDistinctMonthsOfYear = async (req) => {
