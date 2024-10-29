@@ -234,6 +234,7 @@ router.get("/get-event-details-monthly", async (req, res) => {
       monthlyEventDetails,
     });
   } catch (error) {
+    console.error("Error occured while fetching the monthly event details")
     return res.status(error.status || 400).json({ message: error.message });
   }
 });

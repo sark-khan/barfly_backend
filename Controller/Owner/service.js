@@ -466,57 +466,77 @@ module.exports.getDistinctMonthsOfYear = async (req) => {
 
 module.exports.getMonthlyEventDetails = async (req) => {
   const { month, year } = req.query;
-  const startingOfMonth = new Date();
-  startingOfMonth.setMonth(month - 1);
-  startingOfMonth.setFullYear(year);
-  startingOfMonth.setDate(1);
-  startingOfMonth.setHours(0, 0, 0, 0);
 
-  const endOfMonth = new Date();
-  endOfMonth.setMonth(month);
-  endOfMonth.setFullYear(year);
-  endOfMonth.setDate(1);
-  endOfMonth.setHours(0, 0, 0, 0);
-  console.log({ startingOfMonth, endOfMonth });
+  // Set start and end of the month
+  const startOfMonth = new Date(year, month - 1, 1);
+  const endOfMonth = new Date(year, month, 0);
+
+  // Fetch events that intersect with the given month
   const eventsForThatMonth = await Event.find({
     $or: [
-      {
-        from: { $lte: endOfMonth },
-        to: { $gte: startingOfMonth },
-      },
+      { from: { $lte: endOfMonth }, to: { $gte: startOfMonth } },
     ],
     entityId: req.entityId,
   });
-  const eventIds = eventsForThatMonth.map((event) => event._id);
-  const ordersOfThatEvent = await Order.find({
-    eventId: { $in: eventIds },
-  });
-  const eventDetailsMap = eventsForThatMonth.reduce((acc, event) => {
-    acc[event._id] = {
-      id: event._id, // Include the ID in each entry for conversion to an array
-      name: event.eventName,
-      eventDate: event.startingDate,
-      totalOrders: 0,
-      totalAmount: 0,
-      orders: [],
-    };
-    return acc;
-  }, {});
 
-  // Group orders by event ID and calculate totals
-  ordersOfThatEvent.forEach((order) => {
-    if (eventDetailsMap[order.eventId]) {
-      eventDetailsMap[order.eventId].orders.push(order);
-      eventDetailsMap[order.eventId].totalOrders += 1;
-      eventDetailsMap[order.eventId].totalAmount += order.totalAmount || 0;
+  const repetitiveEvents = [];
+  const singleDayEvents = [];
+
+  // Separate events based on isRepetitive
+  eventsForThatMonth.forEach((event) => {
+    if (event.isRepetitive) {
+      repetitiveEvents.push(event);
+    } else {
+      singleDayEvents.push(event);
     }
   });
 
-  const monthlyEventDetails = Object.values(eventDetailsMap);
+  // Aggregate orders for single-day events only
+  const singleDayEventIds = singleDayEvents.map((event) => event._id);
+  const ordersOfSingleDayEvents = await Order.aggregate([
+    { $match: { eventId: { $in: singleDayEventIds } } },
+    {
+      $group: {
+        _id: "$eventId",
+        totalOrders: { $sum: 1 },
+        totalAmount: { $sum: "$totalAmount" },
+        orders: { $push: "$$ROOT" },
+      },
+    },
+  ]);
 
-  // Convert the map to an array
-  return monthlyEventDetails;
+  // Map single-day event details with aggregated data
+  const singleDayEventDetails = singleDayEvents.map((event) => {
+    const orderSummary = ordersOfSingleDayEvents.find(
+      (summary) => summary._id.toString() === event._id.toString()
+    ) || { totalOrders: 0, totalAmount: 0, orders: [] };
+
+    return {
+      id: event._id,
+      name: event.eventName,
+      eventDate: event.startingDate,
+      totalOrders: orderSummary.totalOrders,
+      totalAmount: orderSummary.totalAmount,
+      isRepetitive: event.isRepetitive,
+      orders: orderSummary.orders,
+    };
+  });
+
+  // Map repetitive events without aggregation (since no totals are needed)
+  const repetitiveEventDetails = repetitiveEvents.map((event) => ({
+    id: event._id,
+    name: event.eventName,
+    isRepetitive: event.isRepetitive,
+    repetitiveDays: event.repetitiveDays,
+  }));
+
+  // Return the event details
+  return {
+    repetitiveEventDetails,
+    singleDayEventDetails,
+  };
 };
+
 
 module.exports.getEventsByMonthAndYear = async (month, year) => {
   const startDate = new Date(year, month - 1, 1);
