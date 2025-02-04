@@ -8,26 +8,26 @@ const hashPassword = (password) => {
   return bcrypt.hashSync(password, 8);
 };
 
-function generateOTP(length) {
-  // Define the characters to be used in the OTP
-  const characters =
-    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  let otp = "";
+// function generateOTP(length) {
+//   // Define the characters to be used in the OTP
+//   const characters =
+//     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+//   let otp = "";
 
-  // Generate a random OTP of the specified length
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    otp += characters[randomIndex];
-  }
+//   // Generate a random OTP of the specified length
+//   for (let i = 0; i < length; i++) {
+//     const randomIndex = Math.floor(Math.random() * characters.length);
+//     otp += characters[randomIndex];
+//   }
 
-  return otp;
-}
+//   return otp;
+// }
 
 const comparePassword = async (inputPassword, storedPassword) => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
 
-const  shiftArrayRight=(arr)=>{
+const shiftArrayRight = (arr) => {
   // Check if the array is not empty
   if (arr.length === 0) return arr;
 
@@ -38,7 +38,7 @@ const  shiftArrayRight=(arr)=>{
   arr.unshift(lastElement);
 
   return arr;
-}
+};
 
 const getJwtToken = (user, isUser = false) => {
   let payload = {
@@ -53,7 +53,7 @@ const getJwtToken = (user, isUser = false) => {
       entityName: user.entityDetails.entityName,
       entityType: user.entityDetails.entityType,
       entityId: user.entityDetails._id,
-    }
+    };
   }
   return jwt.sign(payload, SECRET_KEY);
 };
@@ -133,5 +133,5 @@ module.exports = {
   generateOTP,
   SECRET_KEY,
   performEndOfDayTask,
-  shiftArrayRight
+  shiftArrayRight,
 };

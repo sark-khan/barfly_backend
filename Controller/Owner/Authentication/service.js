@@ -1,10 +1,8 @@
-
 const {
   hashPassword,
   comparePassword,
   getJwtToken,
-  generateOTP
-
+  generateOTP,
 } = require("../../../Utils/commonFunction");
 
 const { createMail } = require("../../../Utils/mailer");
@@ -23,7 +21,7 @@ module.exports.register = async (req) => {
       message: "User already registerd",
     });
   }
-  
+
   const otpDetails = await Otp.findOne({ email: req.body.email });
   console.log({ otpDetails });
   if (otpDetails.otp != req.body.otp) {
@@ -159,34 +157,34 @@ module.exports.sendOtp = async (req) => {
   console.log({ otp });
   const mail_data = {
     to: email,
-    subject: "BARFLY: Otp for authentication",
-    text: `Please use the below OTP for registering your account on Barfly: \n 
+    subject: "COUNTR: Otp for authentication",
+    text: `Please use the below OTP for registering your account on Countr: \n 
     ${otp}
     `,
   };
   createMail(mail_data);
 };
 
-module.exports.reSendOtp = async (req) => {
-  const { email } = req.body;
-  const otp = generateOTP(5);
-  const otpDetails = await Otp.findOne({ email });
-  if (!otpDetails) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message:
-        "Error processing the Otp Request. Please generate Otp first to regenerate Otp",
-    });
-  }
-  otpDetails.otp = otp;
+// module.exports.reSendOtp = async (req) => {
+//   const { email } = req.body;
+//   const otp = generateOTP(5);
+//   const otpDetails = await Otp.findOne({ email });
+//   if (!otpDetails) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message:
+//         "Error processing the Otp Request. Please generate Otp first to regenerate Otp",
+//     });
+//   }
+//   otpDetails.otp = otp;
 
-  await otpDetails.save();
-  const mail_data = {
-    to: email,
-    subject: "BARFLY: Otp for authentication",
-    text: `Please use the below OTP for registering your account on Barfly: \n 
-    ${otp}
-    `,
-  };
-  await createMail(mail_data);
-};
+//   await otpDetails.save();
+//   const mail_data = {
+//     to: email,
+//     subject: "COUNTR: Otp for authentication",
+//     text: `Please use the below OTP for registering your account on Countr: \n
+//     ${otp}
+//     `,
+//   };
+//   await createMail(mail_data);
+// };

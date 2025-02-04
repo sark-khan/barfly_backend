@@ -4,7 +4,7 @@ module.exports = {
       script: "npm start",
       watch: true,
       autorestart: true,
-      name: "countr",
+      name: "COUNTR",
       log_date_format: "YYYY-MM-DD HH:mm:ss.SSS",
       ignore_watch: ["uploads"],
       env: {

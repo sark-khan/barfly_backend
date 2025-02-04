@@ -1,4 +1,5 @@
 // const User = require("../../../Models/User");
+const crypto = require("crypto");
 const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
 const {
   hashPassword,
@@ -12,43 +13,60 @@ const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 
 module.exports.register = async (req) => {
-  const userExist = await User.findOne({ email: req.body.email }).lean();
+  const {
+    email,
+    otp,
+    role,
+    firstName,
+    lastName,
+    contactNumber,
+    city,
+    street,
+    zipcode,
+    entityName,
+    entityType,
+    password,
+  } = req.body;
+
+  const userExist = await User.findOne({ email }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User already registerd",
     });
   }
-  const otpDetails = await Otp.findOne({ email: req.body.email });
-  if (otpDetails.otp != req.body.otp) {
+
+  const otpDetails = await Otp.findOne({ email });
+  if (otpDetails.otp != otp) {
     throwError({
       status: STATUS_CODES.NOT_ACCEPTABLE,
       message: "Invalid Otp",
     });
   }
+
   const currentTime = new Date();
+
   const timeDifference = currentTime - otpDetails.updatedAt;
+
   if (timeDifference > 5 * 60 * 1000) {
     throwError({
       message: "Otp is expired. Please regenrate it",
       status: STATUS_CODES.NOT_ACCEPTABLE,
     });
   }
-  const hashedPassword = hashPassword(req.body.password);
+  const hashedPassword = hashPassword(password);
   const newUser = new User({
-    role: req.body.role,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    email: req.body.email,
+    role,
+    firstName,
+    lastName,
+    email,
     password: hashedPassword,
-    contactNumber: req.body.contactNumber,
-    city: req.body.city,
-    street: req.body.street,
-    zipcode: req.body.zipcode,
-    entityName: req.body.entityName,
-    entityType: req.body.entityType,
-    language: req.body.language,
-    age: req.body.age
+    contactNumber,
+    city,
+    street,
+    zipcode,
+    entityName,
+    entityType,
   });
   delete newUser.password;
   await newUser.save();
@@ -118,7 +136,7 @@ module.exports.sendOtp = async (req) => {
       message: "This email/contact Number is alredy Registered",
     });
   }
-  const otp = generateOTP(5);
+  const otp = crypto.randomInt(100000, 999999).toString();
   await Otp.findOneAndUpdate(
     { email },
     { otp },
@@ -127,8 +145,8 @@ module.exports.sendOtp = async (req) => {
   console.log({ otp });
   const mail_data = {
     to: email,
-    subject: "BARFLY: Otp for authentication",
-    text: `Please use the below OTP for registering your account on Barfly: \n 
+    subject: "COUNTR: Otp for authentication",
+    text: `Please use the below OTP for registering your account on Countr: \n 
     ${otp}
     `,
   };
@@ -137,7 +155,7 @@ module.exports.sendOtp = async (req) => {
 
 module.exports.reSendOtp = async (req) => {
   const { email } = req.body;
-  const otp = generateOTP(5);
+  const otp = generateOTP(6);
   const otpDetails = Otp.findOne({ email });
   if (!otpDetails) {
     throwError({
@@ -151,8 +169,8 @@ module.exports.reSendOtp = async (req) => {
   await otpDetails.save();
   const mail_data = {
     to: email,
-    subject: "BARFLY: Otp for authentication",
-    text: `Please use the below OTP for registering your account on Barfly: \n 
+    subject: "COUNTR: Otp for authentication",
+    text: `Please use the below OTP for registering your account on Countr: \n 
     ${otp}
     `,
   };
