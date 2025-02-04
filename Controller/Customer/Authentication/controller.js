@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
-const { register, login, sendOtp, reSendOtp, countTag } = require("./services");
+const {
+  register,
+  login,
+  sendOtp,
+  reSendOtp,
+  countRTag,
+} = require("./services");
 
 router.post("/login", async (req, res) => {
   try {
@@ -33,18 +39,18 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/count-tag", async (req, res) => {
+router.post("/countR-tag", async (req, res) => {
   try {
-    await countTag(req);
+    await countRTag(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Count-Tag accepted successfully." });
+      .json({ message: "CountR-Tag accepted successfully." });
   } catch (error) {
-    console.error("Error while creating Count-Tag: ", error);
+    console.error("Error while creating CountR-Tag: ", error);
 
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message || "Error while creating Count-Tag" });
+      .json({ message: error.message || "Error while creating CountR-Tag" });
   }
 });
 

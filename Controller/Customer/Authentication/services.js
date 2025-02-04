@@ -9,7 +9,7 @@ const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
-const CountTags = require("../../../Models/CountTags");
+const CountRTags = require("../../../Models/CountRTags");
 
 module.exports.register = async (req) => {
   const {
@@ -90,8 +90,8 @@ module.exports.login = async (req) => {
   return { user, token };
 };
 
-module.exports.countTag = async (req) => {
-  const { countTag, userId } = req.body;
+module.exports.countRTag = async (req) => {
+  const { countRTag, userId } = req.body;
 
   const user = await User.findById(userId);
   if (!user) {
@@ -101,8 +101,8 @@ module.exports.countTag = async (req) => {
     });
   }
 
-  const countTagExists = await CountTags.findOne({ countTag }).lean();
-  if (countTagExists) {
+  const countRTagExists = await CountRTags.findOne({ countRTag }).lean();
+  if (countRTagExists) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Oops! This username is not available. Please try again.",
@@ -111,9 +111,9 @@ module.exports.countTag = async (req) => {
 
   const obj = {
     userId: user._id,
-    countTag,
+    countRTag,
   };
-  await CountTags.create(obj);
+  await CountRTags.create(obj);
 };
 
 // module.exports.sendOtp = async (req) => {

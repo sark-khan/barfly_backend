@@ -29,7 +29,7 @@ require("./seeder");
 const unProtectedApis = {
   "/api/customer/auth/login": true,
   "/api/customer/auth/register": true,
-  "/api/customer/auth/count-tag": true,
+  "/api/customer/auth/countR-tag": true,
 };
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();

@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const countTagSchema = new Schema(
+const countRTagSchema = new Schema(
   {
-    countTag: { type: String },
+    countRTag: { type: String },
     userId: {
       type: mongoose.Types.ObjectId,
       ref: "User",
@@ -13,4 +13,4 @@ const countTagSchema = new Schema(
   { timestamps: true, minimize: false }
 );
 
-module.exports = mongoose.model("Counttag", countTagSchema, "Counttag");
+module.exports = mongoose.model("Countrtag", countRTagSchema, "Countrtag");
