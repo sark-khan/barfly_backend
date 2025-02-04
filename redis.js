@@ -1,17 +1,25 @@
-// const { createClient } = require("redis");
+const redis = require("redis");
+const redisCredentials = {
+  url: "redis://localhost:6379",
+};
+if (process.env.REDIS_USERNAME)
+  redisCredentials.username = process.env.REDIS_USERNAME;
+if (process.env.REDIS_PASSWORD)
+  redisCredentials.password = process.env.REDIS_PASSWORD;
 
-// const clientKeys = {
-//   url: "redis://localhost:6379"
-// };
-// const appClient = createClient(clientKeys);
+const client = redis.createClient(redisCredentials);
 
-// appClient.on("error", (err) => console.log("Redis client Error", err));
+client.on("error", (err) => {
+  console.error("Redis error: ", err);
+});
 
-// appClient
-//   .connect()
-//   .then(() => console.info("------------------Redis application client connected--------------------"))
-//   .catch((err) => console.error(err));
+client
+  .connect()
+  .then(() => {
+    console.info("-------------REDIS CONNECTED SUCCESSFULLY----------------");
+  })
+  .catch((error) => {
+    console.error("--------------REDIS CONNECTION ERROR-------------");
+  });
 
-// module.exports = {
-//   appClient,
-// };
+module.exports = client;

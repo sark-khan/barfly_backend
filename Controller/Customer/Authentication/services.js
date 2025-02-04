@@ -1,4 +1,8 @@
-const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
+const {
+  STATUS_CODES,
+  ROLES,
+  KEY_TYPE_PREFIXES,
+} = require("../../../Utils/globalConstants");
 const {
   hashPassword,
   comparePassword,
@@ -10,6 +14,7 @@ const Otp = require("../../../Models/Otp");
 const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
+const redisClient = require("./../../../redis");
 
 module.exports.register = async (req) => {
   const {
@@ -114,6 +119,13 @@ module.exports.countRTag = async (req) => {
     countRTag,
   };
   await CountRTags.create(obj);
+};
+
+module.exports.logoutUser = async (req) => {
+  const { userId } = req.body;
+  const user = await User.findById(userId);
+  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+  await redisClient.del(`${prefix}:${user._id}`);
 };
 
 // module.exports.sendOtp = async (req) => {

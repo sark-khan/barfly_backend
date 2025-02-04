@@ -49,8 +49,17 @@ const ORDER_STATUS = {
   IN_PROGRESS: "InProgress",
   READY: "Ready",
   COMPLETED: "Completed",
-  WAITING: "Waiting"
-}
+  WAITING: "Waiting",
+};
+
+const KEY_TYPE_PREFIXES = {
+  USER_TOKEN: "USR:",
+  TEMPORARY_TOKEN: "TMP:TKN:",
+  OTP: "OTP_",
+  LOGIN: "LOGIN",
+  SIGNUP: "SIGNUP",
+  EMAIL_OTP: "EMAIL_OTP_",
+};
 
 module.exports = {
   STATUS_CODES,
@@ -60,5 +69,6 @@ module.exports = {
   DRINKS_SIZE,
   FOOD_TYPE,
   REDIS_KEYS,
-  ORDER_STATUS
+  ORDER_STATUS,
+  KEY_TYPE_PREFIXES,
 };

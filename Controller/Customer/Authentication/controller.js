@@ -7,6 +7,7 @@ const {
   sendOtp,
   reSendOtp,
   countRTag,
+  logoutUser,
 } = require("./services");
 
 router.post("/login", async (req, res) => {
@@ -51,6 +52,20 @@ router.post("/countR-tag", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while creating CountR-Tag" });
+  }
+});
+
+router.post("/logout", async (req, res) => {
+  try {
+    const response = await logoutUser(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "User Logged out sucessfully.", response });
+  } catch (error) {
+    console.error("Error while logging out the user: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while logging out the user" });
   }
 });
 
