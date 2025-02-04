@@ -5,21 +5,24 @@ const Schema = mongoose.Schema;
 const userSchema = new Schema(
   {
     role: { type: String, required: true, enum: ROLES },
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    fullName: { type: String, required: true },
+    email: { type: String, required: true },
     password: { type: String, required: true },
-    contactNumber: { type: String, required: true },
-    language: { type: String, },
-    age: { type: Number, },
+    language: { type: String },
+    dob: { type: String },
+    address: { type: String },
+    city: { type: String },
+    street: { type: String },
+    zipcode: { type: String },
+    country: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, minimize: false }
 );
 
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
-    return next();
-  }
-});
+// userSchema.pre("save", async function (next) {
+//   if (!this.isModified("password")) {
+//     return next();
+//   }
+// });
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model("User", userSchema, "User");

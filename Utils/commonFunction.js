@@ -130,7 +130,7 @@ module.exports = {
   hashPassword,
   comparePassword,
   getJwtToken,
-  generateOTP,
+  // generateOTP,
   SECRET_KEY,
   performEndOfDayTask,
   shiftArrayRight,

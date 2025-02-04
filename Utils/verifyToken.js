@@ -23,10 +23,9 @@ const verifyToken = (req, res, next) => {
     req.entityName = decoded.entityName;
     req.entityId = decoded.entityId;
     req.entityType = decoded.entityType;
-    req.isAdmin = decoded.role == ROLES.ADMIN
+    req.isAdmin = decoded.role == ROLES.ADMIN;
     next();
   });
 };
 
 module.exports = verifyToken;
-

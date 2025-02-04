@@ -15,11 +15,8 @@ const {
   updateFavouriteItem,
   getFavouriteItems,
 } = require("./service");
-const verifyToken = require("../../Utils/verifyToken");
 
-router.use(verifyToken);
 router.use((req, res, next) => {
-  console.log({path:req.path})
   if (req.role != ROLES.CUSTOMER) {
     return res
       .status(STATUS_CODES.NOT_AUTHORIZED)
@@ -121,7 +118,6 @@ router.post("/visitor-count", async (req, res) => {
   }
 });
 
-
 router.post("/add-existing-item", async (req, res) => {
   try {
     await addExisitngItem(req);
@@ -163,7 +159,6 @@ router.get("/get-counter-menu-category", async (req, res) => {
 router.get("/get-menu-category-items", async (req, res) => {
   try {
     const menuItems = await getMenuItems(req);
-    console.log({menuItems})
     return res.status(STATUS_CODES.OK).json({
       message: "Menu Categories Fetched",
       menuItems,
@@ -174,8 +169,7 @@ router.get("/get-menu-category-items", async (req, res) => {
   }
 });
 
-
-router.post("/update-language", async(req,res)=>{
+router.post("/update-language", async (req, res) => {
   try {
     await getMenuItems(req);
     return res.status(STATUS_CODES.OK).json({
@@ -185,10 +179,9 @@ router.post("/update-language", async(req,res)=>{
     console.error("Error occured while updating language", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
-})
+});
 
-
-router.post("/update-favourite-items", async(req,res)=>{
+router.post("/update-favourite-items", async (req, res) => {
   try {
     await updateFavouriteItem(req);
     return res.status(STATUS_CODES.OK).json({
@@ -200,18 +193,17 @@ router.post("/update-favourite-items", async(req,res)=>{
   }
 });
 
-router.get("/get-favourite-items", async(req,res)=>{
+router.get("/get-favourite-items", async (req, res) => {
   try {
-    const menuItems=await getFavouriteItems(req);
+    const menuItems = await getFavouriteItems(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Favourite item fetched successfully",
-      menuItems
+      menuItems,
     });
   } catch (error) {
     console.error("Error occured while fetching favourite items", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
-})
-
+});
 
 module.exports = router;
