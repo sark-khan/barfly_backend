@@ -11,6 +11,12 @@ const itemSchema = new Schema(
     description: { type: String, required: true },
     type: { type: String, enum: FOOD_TYPE, required: true },
     image: { type: String, required: true },
+    price: { type: Number },
+    currency: { type: String },
+    entityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "EntityDetails",
+    },
   },
   { timestamps: true }
 );

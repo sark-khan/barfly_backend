@@ -9,35 +9,45 @@ const {
 } = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
+const ItemDetails = require("../Models/ItemDetails");
 
 const createOrder = async (req, session) => {
   const { items, eventId } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
+  console.log({ itemsIds });
   if (!itemsIds) return;
-  const menuItems = await MenuItem.find({ _id: { $in: itemsIds } })
+  const menuItems = await ItemDetails.find({ itemId: { $in: itemsIds } })
     .populate({
       path: "menuCategoryId",
     })
     .lean();
+  console.log({ menuItems });
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "No Such Item exists.",
     });
   }
+
   const itemNameMapper = {};
   menuItems.forEach((item) => {
-    itemNameMapper[`${item._id}`] = item;
+    itemNameMapper[`${item.itemId}`] = item;
   });
+  console.log({ itemNameMapper });
   let counterId;
   let entityId;
   let msg = "";
   const promises = [];
   let amount = 0;
   items.forEach((doc) => {
+    console.log({ doc })
     const menuItem = itemNameMapper[`${doc.itemId}`];
     if (menuItem) {
+
+      console.log("Reched ehr er")
       entityId = menuItem?.menuCategoryId?.entityId;
+      console.log({ mm: menuItem });
+      console.log({ mm: menuItem.menuCategoryId })
       menuCategoryId = menuItem?.menuCategoryId._id;
       counterId = menuItem?.menuCategoryId?.counterId;
       if (menuItem.availableQuantity < doc.quantity) {
@@ -45,14 +55,6 @@ const createOrder = async (req, session) => {
       }
       const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
       amount += +doc.quantity * +menuItem.price;
-
-      promises.push(
-        MenuItem.findOneAndUpdate(
-          { _id: doc.itemId },
-          { $set: { availableQuantity: remainingQuantity } },
-          { session }
-        )
-      );
     }
   });
   if (msg) {
@@ -71,7 +73,8 @@ const createOrder = async (req, session) => {
   if (lastOrder) {
     tokenNumber = lastOrder.tokenNumber + 1;
   }
-  await Promise.all(promises);
+  // await Promise.all(promises);
+  console.log({ counterId });
   return Order.create(
     [
       {
@@ -224,21 +227,24 @@ const particularOrderDetails = async (req) => {
     query: { entityId },
     userId,
   } = req;
+  console.log({ userId, entityId, token: req.headers.token }
+  )
   const orderDetails = await Order.find({
     userId,
-      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-      entityId,
+    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    entityId,
   })
     .populate({
       path: "items.itemId",
-      select: "currency itemId",
+      select: "currency itemId itemName quantity type image",
       populate: {
-        path: "itemId",
+        path: "items.itemId.itemId",
         select: "itemName quantity description type image",
       },
     })
     .sort({ tokenNumber: -1 })
     .lean();
+  console.log({ order: orderDetails[0].items })
   return orderDetails;
 };
 
@@ -658,9 +664,21 @@ const getOrderGroupByYearsForEntity = async (req) => {
     }
     mapper[doc.year].orders.push(doc);
   });
-  console.log({ mapper });
   return mapper;
 };
+
+const pastTicketYears = async (req) => {
+  const { userId } = req;
+  const orderList = await Order.find({ userId }, { createdAt: 1 }, { sort: { _id: -1 } });
+  const yearList = []
+  orderList.map((orders) => {
+    const year = orders.createdAt.getFullYear()
+    if (!yearList.includes(year)) {
+      yearList.push(year);
+    }
+  })
+  return yearList;
+}
 module.exports = {
   createOrder,
   updateStatusOfOrder,
@@ -669,4 +687,5 @@ module.exports = {
   getLiveOrdersUsers,
   particularOrderDetails,
   getOrderGroupByYearsForEntity,
+  pastTicketYears
 };

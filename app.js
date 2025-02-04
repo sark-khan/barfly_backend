@@ -17,9 +17,18 @@ const {
   uploadBufferToS3,
   generatePresignedUrl,
 } = require("./Controller/aws-service");
+const ItemDetails = require("./Models/ItemDetails");
+const MenuItem = require("./Models/MenuItem");
+const { STATUS_CODES } = require("./Utils/globalConstants");
+const { ownerTrades } = require("./PdfServices/ownerTrades");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 require("./seeder");
+
+app.use((req, res, next) => {
+  console.log({path:req.path});
+  return next();
+});
 app.use(
   "/api/owner/auth",
   require("./Controller/Owner/Authentication/controller")
@@ -77,6 +86,33 @@ app.get("/api/download-file", async (req, res) => {
   }
 });
 
+
+app.post("/update-entity-items", async (req, res) => {
+  try {
+    console.log({ee:req.entityId})
+    const itemsId = await ItemDetails.find({ entityId: req.entityId }).lean();
+    console.log({itemsId})
+    const itemIds = itemsId.map(item => item.itemId);
+    await MenuItem.updateMany({ _id: { $in: itemIds } }, { $set: { entityId: req.entityId } });
+    return res.status(200).json({ message: "Updated all the doc" })
+  }
+  catch (error) {
+    return res.status(200).json({ message: error })
+  }
+})
+
+app.get("/get-trade-pdf", async(req, res)=>{
+  try {
+    res.setHeader("Content-Disposition", 'attachment; filename="trade_confirmation.pdf"');
+    res.setHeader("Content-Type", "application/pdf");
+
+    // Call the ownerTrades function, passing the response object `res`
+    ownerTrades(res);
+  } catch (error) {
+    console.error("Error occured whule creating trade pdf", error);
+    return res.status(STATUS_CODES.BAD_REQUEST).json({message:"Error occured while trade pdf", error});
+  }
+})
 const port = process.env.PORT;
 
 app.listen(port, () => {

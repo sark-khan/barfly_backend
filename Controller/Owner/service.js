@@ -113,7 +113,6 @@ module.exports.createMenuItem = async (req) => {
     quantity,
     description,
     type,
-    file,
     currency,
     menuCategoryId,
     availableQuantity,
@@ -121,22 +120,9 @@ module.exports.createMenuItem = async (req) => {
 
   console.log({ itemName });
 
-  // if (
-  //   !itemName ||
-  //   !price ||
-  //   !quantity ||
-  //   !description ||
-  //   !type ||
-  //   !file ||
-  //   !menuCategoryId ||
-  //   !availableQuantity
-  // ) {
-  //   throw { status: 400, message: "All fields are required" };
-  // }
-
   const fileBuffer = req.file.buffer;
   console.log({ ss: req.file });
-  const fileName = req.file.originalname;
+  const fileName = `${req.entityId}_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
   const data = await uploadBufferToS3(fileBuffer, fileName);
   if (!data.Location) {
     throwError({
@@ -167,7 +153,7 @@ module.exports.createMenuItem = async (req) => {
     quantity,
     description,
     type,
-    image: fileName.replace(" ", "_"),
+    image: fileName,
   });
   const counterId = await MenuCategory.findById(menuCategoryId, {
     counterId: 1,
@@ -185,7 +171,39 @@ module.exports.createMenuItem = async (req) => {
 
   return itemDetails;
 };
+module.exports.createItems = async (req) => {
+  const {
+    itemName,
+    quantity, description,
+    type,
+    price,
+    currency
+  } = req.body;
 
+  const existingItem = await MenuItem.findOne({ itemName }, { _id: 1 })
+  if (existingItem) {
+    return throwError({ status: STATUS_CODES.CONFLICT, message: "Same Item Name already exists" })
+  }
+  const fileBuffer = req.file.buffer;
+  const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
+  const data = await uploadBufferToS3(fileBuffer, fileName);
+  if (!data.Location) {
+    throwError({
+      message: "Error occured while uplaoding the file",
+      status: STATUS_CODES.SERVER_ERROR,
+    });
+  }
+  await MenuItem.create({
+    entityId: req.entityId,
+    itemName,
+    quantity,
+    type,
+    price,
+    currency,
+    description,
+    image: fileName.replace(" ", "_"),
+  })
+}
 module.exports.updateMenuItem = async (req) => {
   const {
     itemId,
@@ -214,16 +232,14 @@ module.exports.updateMenuItem = async (req) => {
 
 module.exports.getCreatedItems = async (req) => {
   try {
-    const { insiderElementId } = req.query;
-    if (!insiderElementId) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "InsiderElementId is required",
-      });
-    }
+    const createdItems = await MenuItem.find({ entityId: req.entityId }).lean();
+    const itemsList = createdItems.map((items) => {
+      items.image = generatePresignedUrl
+        (items.image);
+      return items;
+    })
 
-    const createdItems = await MenuItem.find({ insiderElementId }).lean();
-    return createdItems;
+    return itemsList;
   } catch (error) {
     throw {
       status: error.status || STATUS_CODES.INTERNAL_SERVER_ERROR,
@@ -590,6 +606,50 @@ module.exports.getMenuCategoryItems = async (req) => {
 
   return menuItemsResp;
 };
+
+module.exports.getOrderDetailsOfEvents= async(req)=>{
+
+  const { eventId } = req.query;
+
+    // Fetch orders for the given event
+    const orderDetails = await Order.find({ eventId });
+
+    // Use a plain object to store grouped order details
+    const orderGrouped = {};
+  let totalAmout=0;
+  let totalTicket=0;
+    for (const order of orderDetails) {
+      if (order.items && Array.isArray(order.items)) {
+        for (const item of order.items) {
+          if (!orderGrouped[item.itemId]) {
+            console.log({itemId: item.itemId});
+            const itemDetails = await MenuItem.findById(item.itemId, {
+              price: 1,itemName:1
+            }).lean();
+            console.log({itemDetails});
+            
+            orderGrouped[item.itemId] = {
+              totalAmount: 0,
+              totalTicket: 0,
+              singlePrice: itemDetails ? itemDetails.price : 0,
+              itemName: itemDetails.itemName
+            };
+          }
+
+          
+
+          // Accumulate the total amount and ticket count
+          orderGrouped[item.itemId].totalAmount +=
+            orderGrouped[item.itemId].singlePrice * item.quantity;
+          orderGrouped[item.itemId].totalTicket += 1;
+          totalAmout+=orderGrouped[item.itemId].totalAmount;
+          totalTicket+=1;
+        }
+      }
+    }
+
+    return{ orderGrouped, totalAmout, totalTicket};
+}
 
 module.exports.getCounterMenuQuantites = async (req) => {
   const { itemId } = req.query;

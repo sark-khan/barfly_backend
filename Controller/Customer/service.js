@@ -9,8 +9,13 @@ const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
 const FavouriteEntity = require("../../Models/FavouriteEntity");
+const ItemDetails = require("../../Models/ItemDetails");
+const { generatePresignedUrl } = require("../aws-service");
+const User = require("../../Models/User");
+const FavouriteItem = require("../../Models/FavouriteItem");
 
 module.exports.getEntities = async (req) => {
+  const { limit = 30, skip = 0 } = req.query;
   const now = new Date();
 
   const favouritesList = await FavouriteEntity.find(
@@ -19,12 +24,10 @@ module.exports.getEntities = async (req) => {
     { lean: true }
   );
 
-  console.log({ favouritesList });
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
     favouritesIdsSet.add(id.entityId.toString());
   });
-  console.log({ favouritesIdsSet });
 
   const currentRunningEvents = await Event.find(
     {
@@ -34,8 +37,9 @@ module.exports.getEntities = async (req) => {
         { entityId: { $exists: true } },
       ],
     },
-    { entityId: 1 }
+    { entityId: 1, counterIds: 1 }
   );
+  // console.log({currentRunningEvents});
 
   const entityIds = currentRunningEvents.map((entity) => entity.entityId);
   const query = {
@@ -57,7 +61,7 @@ module.exports.getEntities = async (req) => {
 
   const currentRunningEntitiesDetails = currentRunningEntitiesDetails1.map(
     (entity) => {
-      if (favouritesIdsSet.has(entity._id)) {
+      if (favouritesIdsSet.has(entity._id.toString())) {
         entity.isFavouriteEntity = true;
       } else {
         entity.isFavouriteEntity = false;
@@ -67,42 +71,32 @@ module.exports.getEntities = async (req) => {
   );
 
   if (req.query?.searchTerm && req.query.seacrhTerm != "") {
-    console.log("eched hrere");
     query2.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
   }
-  const entityNamesSet = new Set(
-    currentRunningEntitiesDetails.map((entity) => entity.entityName)
-  );
 
-  const remainingEntities = await EntityDetails.find(query2, {
-    city: 1,
-    entityName: 1,
-    entityType: 1,
-    street: 1,
-  }).lean();
+  const remainingEntities = await EntityDetails.find(
+    query2,
+    {
+      city: 1,
+      entityName: 1,
+      entityType: 1,
+      street: 1,
+    },
+    { limit: limit, skip: skip }
+  ).lean();
 
-  const uniqueRemainingEntities1 = remainingEntities.filter(
-    (entity) => !entityNamesSet.has(entity.entityName)
-  );
-
-  console.log({ uniqueRemainingEntities1 });
-
-  const uniqueRemainingEntities = uniqueRemainingEntities1.map((entity) => {
-    console.log({ entity: entity._id });
+  const uniqueRemainingEntities = remainingEntities.map((entity) => {
     if (favouritesIdsSet.has(entity._id.toString())) {
-      console.log({ dd: "dsjdkskdsdksd" });
       entity.isFavouriteEntity = true;
     } else {
       entity.isFavouriteEntity = false;
     }
-    console.log({ entity });
     return entity;
   });
 
   let currentRunningEntitiesDetailsResponse = [];
   let uniqueRemainingEntitiesResponse = [];
   if (req.query.isFavouriteEntities == "true") {
-    console.log("sssdsdsdsadsadsadsadsadsa?>???????????");
     currentRunningEntitiesDetailsResponse =
       currentRunningEntitiesDetails.filter((entity) => {
         return entity.isFavouriteEntity;
@@ -113,13 +107,6 @@ module.exports.getEntities = async (req) => {
       }
     );
   }
-  console.log({
-    currentRunningEntitiesDetailsResponse,
-    uniqueRemainingEntitiesResponse,
-  });
-  // const currentRunningEntitiesDetailsResponse= currentRunningEntitiesDetails.map((entity)=>{
-
-  // })
 
   return {
     ongoingEventEntities:
@@ -133,9 +120,30 @@ module.exports.getEntities = async (req) => {
   };
 };
 
+// module.exports.getEntitiesList= async(req)=>{
+//   const now = new Date();
+//   const favouritesList = await FavouriteEntity.find(
+//     { userId: req.id, isFavourite: true },
+//     { _id: 1, entityId: 1 },
+//     { lean: true }
+//   );
+
+//   const ongoingEvents= await Event.find({
+//       $and: [
+//         { from: { $lte: now } },
+//         { to: { $gte: now } },
+//         { entityId: { $exists: true } },
+//       ],
+//     },
+//     { entityId: 1 }
+//   );
+//   const
+// }
+
 module.exports.addFavouriteEntity = async (req) => {
   const userId = req.id;
   const { entityId, isFavourite } = req.body;
+  console.log({ entityId, isFavourite });
 
   await FavouriteEntity.updateOne(
     { userId, entityId },
@@ -205,81 +213,155 @@ module.exports.visitorCount = async (req) => {
 };
 
 module.exports.counterList = async (req) => {
-  const { entityId } = req.query;
+  const { entityId, searchTerm } = req.query;
+  const query = { entityId };
+  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
+    query.counterName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  }
   const counters = await Counter.find(
-    { entityId },
+    query,
     { counterName: 1 },
     { sort: { _id: -1 }, lean: true }
   );
-  const counterIds = counters.map((counter) => counter._id);
+  const counterIds = counters.map((counter) =>
+    mongoose.Types.ObjectId(counter._id)
+  );
+
+  const now = new Date();
   const eventOfThisCounters = await Event.find(
-    { counterId: { $in: counterIds } },
     {
-      from: 1,
+      counterIds: { $in: counterIds }, // Match events with counterIds in the given array
+      from: { $lte: now }, // `from` date should be less than or equal to `now`
+      to: { $gte: now }, // `to` date should be greater than or equal to `now`
+    },
+    {
+      from: 1, // Include these fields in the result
       to: 1,
       startingDate: 1,
       endDate: 1,
       isRepetitive: 1,
       repetitiveDays: 1,
-    },
-    { lean: 1 }
-  );
-
-  const now = new Date();
-  const day = now.getDay();
-
-  const counterList = counters.map((counter) => {
-    const relatedEvents = eventOfThisCounters.filter((event) =>
-      event.counterId.equals(counter._id)
-    );
-
-    if (relatedEvents.length > 0) {
-      const isLive = relatedEvents.some((event) => {
-        if (event.isRepetitive) {
-          return (
-            event.repetitiveDays.includes(day) &&
-            event.from < now &&
-            event.to > now
-          );
-        } else {
-          return event.from < now && event.to > now;
-        }
-      });
-      return {
-        ...counter,
-        isLive: isLive,
-      };
-    } else {
-      return {
-        ...counter,
-        isLive: false,
-      };
+      counterIds: 1,
     }
+  ).lean();
+
+  const counterIdsList = new Set();
+  eventOfThisCounters.forEach((event) => {
+    event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
   });
 
-  console.log({ counterList });
+  const counterList = counters.map((counter) => {
+    if (counterIdsList.has(counter._id.toString())) {
+      counter.isLive = true;
+      return counter;
+    }
+    counter.isLive = false;
+    return counter;
+  });
+
   return counterList;
 };
 
 module.exports.getMenuSubCategory = async (req) => {
   const { counterId } = req.query;
-  const counterSubCategory = await MenuCategory.find({ counterId });
+  const query = { counterId };
+  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
+    query.name = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  }
+  const counterSubCategory = await MenuCategory.find(query);
+
   return counterSubCategory;
 };
 
 module.exports.getMenuItems = async (req) => {
   const { menuCategoryId } = req.query;
-  const menuItems = await ItemDetails.find(
-    { menuCategoryId },
-    { menuCategoryId: 0 },
+  // const menuCategoryId = req.query.menuCategoryId; // The menu category ID passed in the request
+  const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+
+  const menuItems = await ItemDetails.aggregate([
+    // Match documents in `ItemDetails` based on `menuCategoryId`
     {
-      sort: { updatedAt: -1 },
-      lean: true,
-    }
-  ).populate("itemId");
+      $match: {
+        menuCategoryId: mongoose.Types.ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
+      },
+    },
+    // Populate `itemId` from `MenuItem` collection
+    {
+      $lookup: {
+        from: "menuitems", // Collection name for `MenuItem`
+        localField: "itemId",
+        foreignField: "_id",
+        as: "item", // Name for the populated field
+      },
+    },
+    // Unwind the `item` array to treat it as a single object
+    {
+      $unwind: "$item",
+    },
+    // Apply regex search for `item.itemName` if `searchTerm` is provided
+    ...(searchTerm
+      ? [
+          {
+            $match: {
+              "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
+            },
+          },
+        ]
+      : []),
+    // Project only the necessary fields
+    {
+      $project: {
+        "item._id":1,
+        "item.itemName": 1,
+        "item.description": 1,
+        "item.type": 1,
+        "item.price": 1,
+        "item.currency": 1,
+        "item.image": 1,
+        "item.quantity": 1,
+        price: 1, // Price from `ItemDetails`
+        availableQuantity: 1,
+        menuCategoryId: 1,
+        counterId: 1,
+        entityId: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        currency: 1,
+      },
+    },
+    // Sort the results by `updatedAt`
+    {
+      $sort: { updatedAt: -1 },
+    },
+  ]);
+  // console.log({ menuItems });
+  if (!menuItems.length) {
+    return [];
+  }
+  console.log({ mj: menuItems[0], id: req.id });
+  const favouriteItemList = await FavouriteItem.find(
+    {
+      userId: req.id,
+      counterId: menuItems[0].counterId,
+      isFavourite: true,
+    },
+    { favouriteItemId: 1 }
+  );
+  let favouriteItemIds = new Set();
+  favouriteItemList.forEach((item) => {
+    favouriteItemIds.add(item.favouriteItemId.toString());
+  });
+  console.log({ favouriteItemList });
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
-    const itemDetails = menuItem.itemId;
+    const itemDetails = menuItem.item;
+    delete menuItem.item;
+    if (favouriteItemIds.has(menuItem._id.toString())) {
+      menuItem.isFavourite = true;
+    } else {
+      menuItem.isFavourite = false;
+    }
+    itemDetails.image = generatePresignedUrl(itemDetails.image);
     delete menuItem.itemId;
     acc.push({
       ...menuItem,
@@ -287,8 +369,158 @@ module.exports.getMenuItems = async (req) => {
     });
     return acc;
   }, []);
-  // const itemDetails= menuItems.itemId;
-  // delete menuItems
+  // console.log({ menuItemsResp });
+  return menuItemsResp;
+};
 
+module.exports.addExistingItemToMenu = async (req) => {
+  const { menuId, itemId } = req.body;
+  const itemDetails = await MenuItem.findById(itemId).lean();
+  const menuCategory = await MenuCategory.findById(menuId).lean();
+  console.log({ menuCategory, itemDetails });
+  const updateSet = {
+    entityId: req.entityId,
+    counterId: menuId,
+    itemId: itemId,
+    price: itemDetails.price,
+    availableQuantity: itemDetails.availableQuantity ?? 10000000000,
+    currency: itemDetails.currency,
+    menuCategoryId: menuCategory._id,
+  };
+  await ItemDetails.updateOne(
+    { _id: itemId },
+    { $set: updateSet },
+    { upsert: true }
+  ).lean();
+};
+
+module.exports.updateLanguage = async (req) => {
+  const { selectedLanguage } = req.body;
+  await User.updateOne(
+    { id: req.id },
+    { $set: { language: selectedLanguage } },
+    { upsert: true }
+  );
+};
+
+module.exports.updateFavouriteItem = async (req) => {
+  const userId = req.id;
+  const { menuId, itemId, isFavourite } = req.body;
+  console.log({ isFavourite });
+  const menuCategory = await MenuCategory.findById(menuId, { counterId: 1 });
+  if (!menuCategory) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "No such menu Exists",
+    });
+  }
+  await FavouriteItem.updateOne(
+    { userId, favouriteItemId: itemId, counterId: menuCategory.counterId },
+    {
+      $set: {
+        isFavourite,
+      },
+    },
+    { upsert: true }
+  );
+  return;
+};
+
+module.exports.getFavouriteItems = async (req) => {
+  const { counterId } = req.query;
+  const favouriteItemList = await FavouriteItem.find(
+    {
+      userId: req.id,
+      counterId: counterId,
+      isFavourite: true,
+    },
+    { favouriteItemId: 1 }
+  );
+
+  const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+
+  // Fetch the list of favourite item IDs
+  const favouriteItemIds = favouriteItemList.map(
+    (item) => item.favouriteItemId
+  );
+  console.log({ favouriteItemIds });
+
+  const menuItems = await ItemDetails.aggregate([
+    // Match documents in `ItemDetails` based on `counterId`
+    {
+      $match: {
+        counterId: mongoose.Types.ObjectId(counterId), // Ensure `counterId` is an ObjectId
+      },
+    },
+    // Populate `itemId` from `MenuItem` collection
+    {
+      $lookup: {
+        from: "menuitems", // Collection name for `MenuItem`
+        localField: "itemId",
+        foreignField: "_id",
+        as: "item", // Name for the populated field
+      },
+    },
+    // Unwind the `item` array to treat it as a single object
+    {
+      $unwind: "$item",
+    },
+    // Match items that are in the `favouriteItemList`
+    {
+      $match: {
+        "item._id": { $in: favouriteItemIds },
+      },
+    },
+    // Apply regex search for `item.itemName` if `searchTerm` is provided
+    ...(searchTerm
+      ? [
+          {
+            $match: {
+              "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
+            },
+          },
+        ]
+      : []),
+    // Project only the necessary fields
+    {
+      $project: {
+        "item._id":1,
+        "item.itemName": 1,
+        "item.description": 1,
+        "item.type": 1,
+        "item.price": 1,
+        "item.currency": 1,
+        "item.image": 1,
+        "item.quantity": 1,
+        price: 1, // Price from `ItemDetails`
+        availableQuantity: 1,
+        counterId: 1,
+        entityId: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        currency: 1,
+      },
+    },
+    // Sort the results by `updatedAt`
+    {
+      $sort: { updatedAt: -1 },
+    },
+  ]);
+
+  console.log({ menuItems });
+
+  const menuItemsResp = menuItems.reduce((acc, menuItem) => {
+    const itemDetails = menuItem.item;
+    delete menuItem.item;
+    itemDetails.image = generatePresignedUrl(itemDetails.image);
+    delete menuItem.itemId;
+    acc.push({
+      ...menuItem,
+      isFavourite: true,
+      ...itemDetails,
+    });
+    return acc;
+  }, []);
+  console.log({ menuItemsResp });
   return menuItemsResp;
 };

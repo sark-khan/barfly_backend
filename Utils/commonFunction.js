@@ -24,7 +24,6 @@ function generateOTP(length) {
 }
 
 const comparePassword = async (inputPassword, storedPassword) => {
-  console.log({ inputPassword, storedPassword });
   return bcrypt.compare(inputPassword, storedPassword);
 };
 

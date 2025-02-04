@@ -47,6 +47,8 @@ module.exports.register = async (req) => {
     zipcode: req.body.zipcode,
     entityName: req.body.entityName,
     entityType: req.body.entityType,
+    language: req.body.language,
+    age: req.body.age
   });
   delete newUser.password;
   await newUser.save();

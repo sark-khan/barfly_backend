@@ -20,10 +20,15 @@ const {
   getMonthlyEventDetails,
   getOngoingEventDetails,
   getDistinctYears,
+  createItems,
+  getOrderDetailsOfEvents
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
 const multer = require("multer");
+const ItemDetails = require("../../Models/ItemDetails");
+const MenuItem = require("../../Models/MenuItem");
+const { addExistingItemToMenu } = require("../Customer/service");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 router.use(verifyToken);
@@ -45,6 +50,18 @@ router.post("/create-counter-with-settings", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while creating Menu", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.post("/add-existing-item-to-menu", async (req, res) => {
+  try {
+    await addExistingItemToMenu(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: `Item added to category successfully`,
+    });
+  } catch (error) {
+    console.error("Error while adding item to category", error);
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
@@ -103,6 +120,19 @@ router.get("/get-menu-category-items", async (req, res) => {
   }
 });
 
+router.get("/get-order-details-of-events", async (req, res) => {
+  try {
+    const orderDetailsOfEvents = await getOrderDetailsOfEvents(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: `Order details fetched successfully`,
+      orderDetailsOfEvents,
+    });
+  } catch (error) {
+    console.error("Error while fetching oreder Details", error);
+    return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
 router.post("/create-menu-items", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -120,17 +150,57 @@ router.post("/create-menu-items", upload.single("file"), async (req, res) => {
   }
 });
 
-router.get("/get-menu-items", async (req, res) => {
+router.post("/create-items", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).send("No file uploaded.");
+    }
+    const newItem = await createItems(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Item created successfully",
+      data: newItem,
+    });
+  } catch (error) {
+    return res
+      .status(error.status || 500)
+      .json({ message: error.message || "Failed to create item" });
+  }
+});
+
+router.get("/get-entity-items", async (req, res) => {
   try {
     const response = await getCreatedItems(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Items fetch succesfully",
-      data: response,
+      entityItems: response,
     });
   } catch (error) {
     return res.status(error.status || 400).json({ message: error.message });
   }
 });
+
+router.get("/update-entity-items", async (req, res) => {
+  try {
+    const itemsId = await ItemDetails.find({ entityId: req.entityId }).lean();
+  console.log("Reached here");
+  console.log({ itemsId });
+
+  // Loop through each item in itemsId and update the corresponding MenuItem
+  for (const item of itemsId) {
+    // Update each MenuItem with the corresponding price from ItemDetails
+    await MenuItem.updateOne(
+      { _id: item.itemId }, // Filter by itemId
+      { $set: { price: item.price, currency: "CHF" } } // Set price and currency
+    );
+  }
+    return res.status(200).json({ message: "Updated all the doc" })
+  }
+  catch (error) {
+    console.log({error})
+    return res.status(200).json({ message: error })
+  }
+
+})
 
 router.get("/get-menu-particular-item", async (req, res) => {
   try {

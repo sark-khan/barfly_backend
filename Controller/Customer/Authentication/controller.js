@@ -7,6 +7,7 @@ router.post("/login", async (req, res) => {
   try {
     console.log("dsdsd");
     const response = await login(req);
+    console.log({response});
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
       token: response.token,
