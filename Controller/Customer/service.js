@@ -1,10 +1,15 @@
+const mongoose = require("mongoose");
+const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
 // const UserFavourites = require("../../Models/UserFavourites");
-const { STATUS_CODES, REDIS_KEYS } = require("../../Utils/globalConstants");
+const {
+  STATUS_CODES,
+  STATUS,
+  EDIT_ACTION,
+} = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
-const { appClient } = require("../../redis");
 const EntityDetails = require("../../Models/EntityDetails");
-const mongoose = require("mongoose");
 const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
@@ -13,6 +18,9 @@ const ItemDetails = require("../../Models/ItemDetails");
 const { generatePresignedUrl } = require("../aws-service");
 const User = require("../../Models/User");
 const FavouriteItem = require("../../Models/FavouriteItem");
+const Cards = require("../../Models/Cards");
+const Otp = require("../../Models/Otp");
+const { createMail } = require("../../Utils/mailer");
 
 module.exports.getEntities = async (req) => {
   const { limit = 30, skip = 0 } = req.query;
@@ -213,7 +221,7 @@ module.exports.visitorCount = async (req) => {
 };
 
 module.exports.counterList = async (req) => {
-  const { entityId, searchTerm } = req.query;
+  const { entityId } = req.query;
   const query = { entityId };
   if (req.query?.searchTerm && req.query.seacrhTerm != "") {
     query.counterName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
@@ -311,7 +319,7 @@ module.exports.getMenuItems = async (req) => {
     // Project only the necessary fields
     {
       $project: {
-        "item._id":1,
+        "item._id": 1,
         "item.itemName": 1,
         "item.description": 1,
         "item.type": 1,
@@ -484,7 +492,7 @@ module.exports.getFavouriteItems = async (req) => {
     // Project only the necessary fields
     {
       $project: {
-        "item._id":1,
+        "item._id": 1,
         "item.itemName": 1,
         "item.description": 1,
         "item.type": 1,
@@ -523,4 +531,262 @@ module.exports.getFavouriteItems = async (req) => {
   }, []);
   console.log({ menuItemsResp });
   return menuItemsResp;
+};
+
+module.exports.addCards = async (req) => {
+  const {
+    userId,
+    body: { cardHolderName, cardNo, cardExpireAt, securityCode, type },
+  } = req;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+
+  const cardObj = {
+    cardHolderName,
+    cardNo,
+    cardExpireAt,
+    securityCode,
+    type,
+    status: STATUS.ACTIVE,
+    userId: user._id,
+  };
+  await Cards.create(cardObj);
+};
+
+module.exports.getUserCards = async (req) => {
+  const { userId } = req;
+  const cardDetails = await Cards.find({ userId, status: STATUS.ACTIVE });
+  return cardDetails;
+};
+
+module.exports.editOrDeleteCards = async (req) => {
+  const {
+    userId,
+    body: {
+      cardId,
+      cardHolderName,
+      cardNo,
+      cardExpireAt,
+      securityCode,
+      action,
+    },
+  } = req;
+
+  let message = "";
+
+  const cardDetails = await Cards.findOne({ userId, cardNo: cardNo });
+
+  if (!cardDetails) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Card not found.",
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT) {
+    if (cardHolderName) cardDetails.cardHolderName = cardHolderName;
+    if (cardNo) cardDetails.cardNo = cardNo;
+    if (cardExpireAt) cardDetails.cardExpireAt = cardExpireAt;
+    if (securityCode) cardDetails.securityCode = securityCode;
+
+    await cardDetails.save();
+    message = "Card details updated successfully.";
+  }
+
+  if (action === EDIT_ACTION.DELETE) {
+    cardDetails.status = STATUS.DELETED;
+    await cardDetails.save();
+    message = "Card deleted successfully.";
+  }
+
+  return message;
+};
+
+module.exports.getUserDetails = async (req) => {
+  const { userId } = req;
+  const userDetails = await User.findOne({ _id: userId });
+  if (!userDetails) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+  return userDetails;
+};
+
+module.exports.updateUserDetails = async (req) => {
+  const {
+    userId,
+    body: {
+      email,
+      newEmail,
+      contactNumber,
+      newContactNumber,
+      newPassword,
+      enteredOtp,
+    },
+  } = req;
+
+  let message = "";
+
+  const user = await User.findOne({ _id: userId });
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+
+  if (email) {
+    if (!enteredOtp && !newEmail) {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
+
+      await Otp.findOneAndUpdate(
+        { email },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      console.log({ otp });
+
+      const mail_data = {
+        to: email,
+        subject: "COUNTR: OTP for Email Update",
+        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+      };
+
+      createMail(mail_data);
+
+      await User.updateOne({ _id: userId }, { emailOtpVerified: false });
+
+      message = "OTP sent to your current email.";
+    } else if (enteredOtp && !user.emailOtpVerified) {
+      const otpRecord = await Otp.findOne({ email });
+
+      if (!otpRecord) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Invalid OTP or OTP expired.",
+        });
+      }
+
+      const { otp, expiresAt } = otpRecord;
+
+      if (otp !== enteredOtp) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Incorrect OTP.",
+        });
+      }
+
+      if (new Date() > expiresAt) {
+        await Otp.deleteOne({ email });
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "OTP expired. Request a new one.",
+        });
+      }
+
+      await Otp.deleteOne({ email });
+
+      await User.updateOne({ _id: userId }, { emailOtpVerified: true });
+
+      message = "OTP verified successfully. You can now enter your new email.";
+    }
+  }
+  if (contactNumber) {
+    if (!enteredOtp && !newContactNumber) {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
+
+      await Otp.findOneAndUpdate(
+        { contactNumber },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      console.log({ otp });
+
+      // const mail_data = {
+      //   to: contactNumber,
+      //   subject: "COUNTR: OTP for Email Update",
+      //   text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+      // };
+
+      // createMail(mail_data);
+
+      // Mark that OTP is sent but not yet verified
+      await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
+
+      message = "OTP sent to your current email.";
+    } else if (enteredOtp && !user.phoneOtpVerified) {
+      const otpRecord = await Otp.findOne({ email });
+
+      if (!otpRecord) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Invalid OTP or OTP expired.",
+        });
+      }
+
+      const { otp, expiresAt } = otpRecord;
+
+      if (otp !== enteredOtp) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Incorrect OTP.",
+        });
+      }
+
+      if (new Date() > expiresAt) {
+        await Otp.deleteOne({ email });
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "OTP expired. Request a new one.",
+        });
+      }
+
+      await Otp.deleteOne({ email });
+
+      await User.updateOne({ _id: userId }, { phoneOtpVerified: true });
+
+      message =
+        "OTP verified successfully. You can now enter your new mobile number.";
+    }
+  }
+  if (newPassword) {
+    const passwordChange = bcrypt.hashSync(newPassword, 10);
+    user.password = passwordChange;
+    await user.save();
+  }
+
+  if (newEmail || newContactNumber) {
+    const otpVerifiedField = newEmail ? "emailOtpVerified" : "phoneOtpVerified";
+    const newValue = newEmail || newContactNumber;
+    const fieldToUpdate = newEmail ? "email" : "contactNumber";
+
+    if (!user[otpVerifiedField]) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: `OTP verification required before updating the ${
+          newEmail ? "email" : "mobile number"
+        }.`,
+      });
+    }
+
+    user[fieldToUpdate] = newValue;
+    user[otpVerifiedField] = false; // Reset after update
+    message = `${newEmail ? "Email" : "Mobile number"} updated successfully.`;
+
+    await user.save();
+  }
+
+  return message;
 };

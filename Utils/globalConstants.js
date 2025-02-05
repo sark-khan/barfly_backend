@@ -61,6 +61,22 @@ const KEY_TYPE_PREFIXES = {
   EMAIL_OTP: "EMAIL_OTP_",
 };
 
+const CARD_TYPE = {
+  CREDIT_CARD: "creditCard",
+  DEBIT_CARD: "debitCard",
+};
+
+const STATUS = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  DELETED: "Deleted",
+};
+
+const EDIT_ACTION = {
+  EDIT: "edit",
+  DELETE: "delete",
+};
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -71,4 +87,7 @@ module.exports = {
   REDIS_KEYS,
   ORDER_STATUS,
   KEY_TYPE_PREFIXES,
+  CARD_TYPE,
+  STATUS,
+  EDIT_ACTION,
 };

@@ -43,6 +43,7 @@ const shiftArrayRight = (arr) => {
 const getJwtToken = (user, isUser = false) => {
   let payload = {
     id: user._id,
+    userId: user._id,
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,

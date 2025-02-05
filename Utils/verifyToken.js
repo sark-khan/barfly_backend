@@ -17,6 +17,7 @@ const verifyToken = (req, res, next) => {
         .json({ message: "Invalid token" });
     }
     req.id = decoded.id;
+    req.userId = decoded.userId;
     req.role = decoded.role;
     req.email = decoded.email;
     req.contactNumber = decoded.contactNumber;

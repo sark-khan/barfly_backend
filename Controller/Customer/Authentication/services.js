@@ -27,6 +27,7 @@ module.exports.register = async (req) => {
     dob,
     country,
     address,
+    contactNumber,
   } = req.body;
 
   const userExist = await User.findOne({ email }).lean();
@@ -49,6 +50,7 @@ module.exports.register = async (req) => {
     dob,
     country,
     address,
+    contactNumber,
   });
 
   delete userObj.password;
@@ -63,6 +65,7 @@ module.exports.login = async (req) => {
     lastName: 1,
     email: 1,
     password: 1,
+    contactNumber: 1,
   };
 
   const user = await User.findOne({ email }, userProjection).lean();
@@ -122,8 +125,8 @@ module.exports.countRTag = async (req) => {
 };
 
 module.exports.logoutUser = async (req) => {
-  const { userId } = req.body;
-  const user = await User.findById(userId);
+  const { userId } = req;
+  const user = await User.findById(userId, { _id: 1 });
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
   await redisClient.del(`${prefix}:${user._id}`);
 };

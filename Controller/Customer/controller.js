@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
 const {
-  addFavouriteEntity,
+  // addFavouriteEntity,
   getFavouriteEvents,
   removeFavouriteEvents,
   visitorCount,
@@ -14,16 +14,21 @@ const {
   eventClsoed,
   updateFavouriteItem,
   getFavouriteItems,
+  getUserCards,
+  editOrDeleteCards,
+  getUserDetails,
+  updateUserDetails,
+  addCards,
 } = require("./service");
 
-router.use((req, res, next) => {
-  if (req.role != ROLES.CUSTOMER) {
-    return res
-      .status(STATUS_CODES.NOT_AUTHORIZED)
-      .json({ message: "Only Customer can perform this action" });
-  }
-  return next();
-});
+// router.use((req, res, next) => {
+//   if (req.role != ROLES.CUSTOMER) {
+//     return res
+//       .status(STATUS_CODES.NOT_AUTHORIZED)
+//       .json({ message: "Only Customer can perform this action" });
+//   }
+//   return next();
+// });
 
 router.get("/get-entities", async (req, res) => {
   try {
@@ -203,6 +208,73 @@ router.get("/get-favourite-items", async (req, res) => {
   } catch (error) {
     console.error("Error occured while fetching favourite items", error);
     return res.status(error.status || 400).json({ message: error.message });
+  }
+});
+
+router.post("/add-card", async (req, res) => {
+  try {
+    await addCards(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: " Card added successfully.",
+    });
+  } catch (error) {
+    console.error("Error occured while adding card details: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error occured while adding card details.",
+    });
+  }
+});
+
+router.get("/get-user-cards", async (req, res) => {
+  try {
+    const cards = await getUserCards(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Cards fetched successfully.",
+      cards,
+    });
+  } catch (error) {
+    console.error("Error occured while getting card details: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error occured while getting card details.",
+    });
+  }
+});
+
+router.post("/edit-card", async (req, res) => {
+  try {
+    const message = await editOrDeleteCards(req);
+    return res.status(STATUS_CODES.OK).json({ message });
+  } catch (error) {
+    console.error("Error while updating details of card: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while updating details of card",
+    });
+  }
+});
+
+router.get("/get-user-details", async (req, res) => {
+  try {
+    const response = await getUserDetails(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "User details fetched successfully.", response });
+  } catch (error) {
+    console.error("Error while fetching user details: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while fetching user details." });
+  }
+});
+
+router.post("/update-user-details", async (req, res) => {
+  try {
+    const message = await updateUserDetails(req);
+    return res.status(STATUS_CODES.OK).json({ message });
+  } catch (error) {
+    console.error("Error while updating user details: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while updating user details." });
   }
 });
 

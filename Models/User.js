@@ -9,12 +9,15 @@ const userSchema = new Schema(
     email: { type: String, required: true },
     password: { type: String, required: true },
     language: { type: String },
+    contactNumber: { type: String },
     dob: { type: String },
     address: { type: String },
     city: { type: String },
     street: { type: String },
     zipcode: { type: String },
     country: { type: String },
+    emailOtpVerified: { type: Boolean, default: false },
+    phoneOtpVerified: { type: Boolean, default: false },
   },
   { timestamps: true, minimize: false }
 );

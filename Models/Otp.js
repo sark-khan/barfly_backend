@@ -1,9 +1,15 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const { ObjectId } = mongoose.Types;
 
-const otpSchema = new Schema({
-  email: { type: String, required: true },
-  otp: { type: String, required: true },
-}, { timestamps: true });
+const otpSchema = new Schema(
+  {
+    userId: { type: ObjectId },
+    email: { type: String, required: true },
+    otp: { type: Number, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("Otp", otpSchema);
