@@ -22,27 +22,26 @@ module.exports.register = async (req) => {
     });
   }
 
-  const otpDetails = await Otp.findOne({ email: req.body.email });
-  console.log({ otpDetails });
-  if (otpDetails.otp != req.body.otp) {
-    throwError({
-      status: STATUS_CODES.NOT_ACCEPTABLE,
-      message: "Invalid Otp",
-    });
-  }
-  const currentTime = new Date();
-  const timeDifference = currentTime - otpDetails.updatedAt;
-  if (timeDifference > 5 * 60 * 1000) {
-    throwError({
-      message: "Otp is expired. Please regenrate it",
-      status: STATUS_CODES.NOT_ACCEPTABLE,
-    });
-  }
+  // const otpDetails = await Otp.findOne({ email: req.body.email });
+  // console.log({ otpDetails });
+  // if (otpDetails.otp != req.body.otp) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_ACCEPTABLE,
+  //     message: "Invalid Otp",
+  //   });
+  // }
+  // const currentTime = new Date();
+  // const timeDifference = currentTime - otpDetails.updatedAt;
+  // if (timeDifference > 5 * 60 * 1000) {
+  //   throwError({
+  //     message: "Otp is expired. Please regenrate it",
+  //     status: STATUS_CODES.NOT_ACCEPTABLE,
+  //   });
+  // }
   const hashedPassword = hashPassword(req.body.password);
   const newUser = await User.create({
     role: req.body.role,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
+    fullName: req.body.fullName,
     email: req.body.email,
     password: hashedPassword,
     contactNumber: req.body.contactNumber,
@@ -64,7 +63,7 @@ module.exports.register = async (req) => {
 };
 
 module.exports.login = async (req) => {
-  const { emailOrContactNumber, password } = req.body;
+  const { email, password } = req.body;
   const userProjection = {
     role: 1,
     firstName: 1,
@@ -78,8 +77,8 @@ module.exports.login = async (req) => {
     {
       $match: {
         $or: [
-          { email: emailOrContactNumber },
-          { contactNumber: emailOrContactNumber },
+          { email: email },
+          { contactNumber: email },
         ],
       },
     },
@@ -115,7 +114,7 @@ module.exports.login = async (req) => {
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User does not exist",
     });
-
+    console.log({userrrr: user})
   if (user.role !== ROLES.STORE_OWNER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,

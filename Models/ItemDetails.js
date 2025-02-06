@@ -1,12 +1,11 @@
 const mongoose = require("mongoose");
+const { FOOD_TYPE } = require("../Utils/globalConstants");
 
 const Schema = mongoose.Schema;
 
 const itemSchema = new Schema(
   {
-    price: { type: Number, required: true },
-    availableQuantity: { type: Number, required: true },
-    currency: { type: String, required: true },
+    availableQuantity: { type: Number,},
     menuCategoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CounterMenuCategory",
@@ -16,14 +15,17 @@ const itemSchema = new Schema(
       ref: "EntityDetails",
       required: true,
     },
+    unit:{type: String, },
+    isVegan:{type:String},
+    itemName: { type: String, required: true },
+    quantity: { type: String, required: true },
+    description: { type: String, required: true },
+    image: { type: String, required: true },
+    price: { type: Number },
+    currency: { type: String },
     counterId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Counter",
-      required: true,
-    },
-    itemId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "MenuItem",
       required: true,
     },
   },

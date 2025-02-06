@@ -112,16 +112,14 @@ module.exports.createMenuItem = async (req) => {
     price,
     quantity,
     description,
-    type,
     currency,
     menuCategoryId,
     availableQuantity,
+    isVegan,
+    unit
   } = req.body;
-
-  console.log({ itemName });
-
+  
   const fileBuffer = req.file.buffer;
-  console.log({ ss: req.file });
   const fileName = `${req.entityId}_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
   const data = await uploadBufferToS3(fileBuffer, fileName);
   if (!data.Location) {
@@ -148,13 +146,13 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  const newItem = await MenuItem.create({
-    itemName,
-    quantity,
-    description,
-    type,
-    image: fileName,
-  });
+  // const newItem = await MenuItem.create({
+  //   itemName,
+  //   quantity,
+  //   description,
+  //   type,
+  //   image: fileName,
+  // });
   const counterId = await MenuCategory.findById(menuCategoryId, {
     counterId: 1,
   });
@@ -167,6 +165,11 @@ module.exports.createMenuItem = async (req) => {
     entityId: req.entityId,
     counterId: counterId.id,
     itemId: newItem._id,
+    image: fileName,
+    isVegan,
+    unit,
+    description,
+    quantity
   });
 
   return itemDetails;
