@@ -1,4 +1,6 @@
 const nodemailer = require("nodemailer");
+const twilio = require("twilio");
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: 465,
@@ -39,4 +41,24 @@ module.exports.createMail = async (mail_data) => {
     console.error("ERROR!!! While sending email", error);
     return false;
   }
+};
+
+const accountSid = process.env.TWILIO_ACC_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+const client = new twilio(accountSid, authToken);
+
+module.exports.sendSMS = async ({ toPhoneNumber, message }) => {
+  client.messages
+    .create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: toPhoneNumber,
+    })
+    .then((message) => {
+      console.log("Message sent successfully: " + message.sid);
+    })
+    .catch((error) => {
+      console.error("Error sending SMS: " + error.message);
+    });
 };

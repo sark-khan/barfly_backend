@@ -5,7 +5,8 @@ const { ObjectId } = mongoose.Types;
 const otpSchema = new Schema(
   {
     userId: { type: ObjectId },
-    email: { type: String, required: true },
+    email: { type: String },
+    contactNumber: { type: String },
     otp: { type: Number, required: true },
     expiresAt: { type: Date, required: true },
   },

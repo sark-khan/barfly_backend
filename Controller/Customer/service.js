@@ -20,10 +20,15 @@ const User = require("../../Models/User");
 const FavouriteItem = require("../../Models/FavouriteItem");
 const Cards = require("../../Models/Cards");
 const Otp = require("../../Models/Otp");
-const { createMail } = require("../../Utils/mailer");
+const { createMail, sendSMS } = require("../../Utils/mailer");
+const {
+  haversineDistance,
+  comparePassword,
+} = require("../../Utils/commonFunction");
+const Location = require("./../../Models/Location");
 
 module.exports.getEntities = async (req) => {
-  const { limit = 30, skip = 0 } = req.query;
+  const { limit = 30, skip = 0, searchTerm } = req.query;
   const now = new Date();
 
   const favouritesList = await FavouriteEntity.find(
@@ -561,7 +566,10 @@ module.exports.addCards = async (req) => {
 
 module.exports.getUserCards = async (req) => {
   const { userId } = req;
-  const cardDetails = await Cards.find({ userId, status: STATUS.ACTIVE });
+  const cardDetails = await Cards.find({
+    userId,
+    status: STATUS.ACTIVE,
+  }).lean();
   return cardDetails;
 };
 
@@ -580,7 +588,11 @@ module.exports.editOrDeleteCards = async (req) => {
 
   let message = "";
 
-  const cardDetails = await Cards.findOne({ userId, cardNo: cardNo });
+  const cardDetails = await Cards.findOne({
+    userId,
+    _id: cardId,
+    status: STATUS.ACTIVE,
+  });
 
   if (!cardDetails) {
     throwError({
@@ -594,16 +606,14 @@ module.exports.editOrDeleteCards = async (req) => {
     if (cardNo) cardDetails.cardNo = cardNo;
     if (cardExpireAt) cardDetails.cardExpireAt = cardExpireAt;
     if (securityCode) cardDetails.securityCode = securityCode;
-
-    await cardDetails.save();
     message = "Card details updated successfully.";
   }
 
   if (action === EDIT_ACTION.DELETE) {
     cardDetails.status = STATUS.DELETED;
-    await cardDetails.save();
     message = "Card deleted successfully.";
   }
+  await cardDetails.save();
 
   return message;
 };
@@ -623,14 +633,7 @@ module.exports.getUserDetails = async (req) => {
 module.exports.updateUserDetails = async (req) => {
   const {
     userId,
-    body: {
-      email,
-      newEmail,
-      contactNumber,
-      newContactNumber,
-      newPassword,
-      enteredOtp,
-    },
+    body: { email, contactNumber, newPassword, enteredOtp },
   } = req;
 
   let message = "";
@@ -644,7 +647,14 @@ module.exports.updateUserDetails = async (req) => {
   }
 
   if (email) {
-    if (!enteredOtp && !newEmail) {
+    if (user.email == email) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message:
+          "You are not allowed to enter the same email. Please try again.",
+      });
+    }
+    if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
 
@@ -666,10 +676,9 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      message = "OTP sent to your current email.";
+      message = "OTP sent to your new email.";
     } else if (enteredOtp && !user.emailOtpVerified) {
       const otpRecord = await Otp.findOne({ email });
-
       if (!otpRecord) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -678,7 +687,6 @@ module.exports.updateUserDetails = async (req) => {
       }
 
       const { otp, expiresAt } = otpRecord;
-
       if (otp !== enteredOtp) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -694,15 +702,35 @@ module.exports.updateUserDetails = async (req) => {
         });
       }
 
+      // OTP is valid, so delete the OTP record
       await Otp.deleteOne({ email });
 
-      await User.updateOne({ _id: userId }, { emailOtpVerified: true });
+      // Update the user's email and mark the email as verified
+      user.emailOtpVerified = true;
+      await user.save();
 
-      message = "OTP verified successfully. You can now enter your new email.";
+      // Update the user's email.
+      user.email = email;
+      await user.save();
+
+      // Reset the email OTP verified flag to false so that future updates require OTP verification.
+      user.emailOtpVerified = false;
+      await user.save();
+
+      message = "Email updated successfully.";
+      return { message, user };
     }
   }
+
   if (contactNumber) {
-    if (!enteredOtp && !newContactNumber) {
+    if (user.contactNumber == contactNumber) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message:
+          "You are not allowed to enter the same mobile number. Please try again.",
+      });
+    }
+    if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
 
@@ -714,21 +742,14 @@ module.exports.updateUserDetails = async (req) => {
 
       console.log({ otp });
 
-      // const mail_data = {
-      //   to: contactNumber,
-      //   subject: "COUNTR: OTP for Email Update",
-      //   text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
-      // };
+      const msg = `Your verification code is: ${otp}`;
+      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
 
-      // createMail(mail_data);
-
-      // Mark that OTP is sent but not yet verified
       await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
 
-      message = "OTP sent to your current email.";
+      message = "OTP sent to your new mobile Number.";
     } else if (enteredOtp && !user.phoneOtpVerified) {
-      const otpRecord = await Otp.findOne({ email });
-
+      const otpRecord = await Otp.findOne({ contactNumber });
       if (!otpRecord) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -737,7 +758,6 @@ module.exports.updateUserDetails = async (req) => {
       }
 
       const { otp, expiresAt } = otpRecord;
-
       if (otp !== enteredOtp) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -746,47 +766,85 @@ module.exports.updateUserDetails = async (req) => {
       }
 
       if (new Date() > expiresAt) {
-        await Otp.deleteOne({ email });
+        await Otp.deleteOne({ contactNumber });
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message: "OTP expired. Request a new one.",
         });
       }
 
-      await Otp.deleteOne({ email });
+      // OTP is valid, so delete the OTP record
+      await Otp.deleteOne({ contactNumber });
 
-      await User.updateOne({ _id: userId }, { phoneOtpVerified: true });
+      // Update the user's email and mark the email as verified
+      user.phoneOtpVerified = true;
+      await user.save();
 
-      message =
-        "OTP verified successfully. You can now enter your new mobile number.";
+      // Update the user's email.
+      user.contactNumber = contactNumber;
+      await user.save();
+
+      // Reset the email OTP verified flag to false so that future updates require OTP verification.
+      user.phoneOtpVerified = false;
+      await user.save();
+
+      message = "Mobile number updated successfully.";
+      return { message, user };
     }
   }
   if (newPassword) {
+    const passwordCompare = await comparePassword(newPassword, user.password);
+    if (passwordCompare) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "We don't accept old password as new password.",
+      });
+    }
     const passwordChange = bcrypt.hashSync(newPassword, 10);
     user.password = passwordChange;
     await user.save();
+    message = "Password updated successfuly.";
+    return { message };
+  }
+};
+
+module.exports.processLocationForUser = async (req) => {
+  const { userId, latitude, longitude, locationEnabled } = req.body;
+  const insideArea =
+    latitude >= 10 && latitude <= 20 && longitude >= 30 && longitude <= 40;
+
+  const referencePoint = { lat: 30.642803, lon: 76.816902 };
+  const distance = await haversineDistance(
+    latitude,
+    longitude,
+    referencePoint.lat,
+    referencePoint.lon
+  );
+  console.log({ distance });
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User not found.",
+    });
+  }
+  if (locationEnabled) {
+    await User.updateOne({ _id: userId }, { $set: { locationEnabled: true } });
+  }
+  let locationSaved = false;
+  if (user.locationEnabled) {
+    await Location.create({
+      userId: user._id,
+      latitude,
+      longitude,
+    });
+    locationSaved = true;
   }
 
-  if (newEmail || newContactNumber) {
-    const otpVerifiedField = newEmail ? "emailOtpVerified" : "phoneOtpVerified";
-    const newValue = newEmail || newContactNumber;
-    const fieldToUpdate = newEmail ? "email" : "contactNumber";
-
-    if (!user[otpVerifiedField]) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: `OTP verification required before updating the ${
-          newEmail ? "email" : "mobile number"
-        }.`,
-      });
-    }
-
-    user[fieldToUpdate] = newValue;
-    user[otpVerifiedField] = false; // Reset after update
-    message = `${newEmail ? "Email" : "Mobile number"} updated successfully.`;
-
-    await user.save();
-  }
-
-  return message;
+  return {
+    insideArea,
+    distanceInKm: distance,
+    locationSaved,
+  };
 };

@@ -32,7 +32,7 @@ const unProtectedApis = {
   "/api/customer/auth/countR-tag": true,
   "/api/customer/entities/get-entities": true,
   "/api/owner/auth/register": true,
-  "/api/owner/auth/login": true
+  "/api/owner/auth/login": true,
 };
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();

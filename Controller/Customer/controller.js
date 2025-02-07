@@ -19,6 +19,8 @@ const {
   getUserDetails,
   updateUserDetails,
   addCards,
+  processLocationForUser,
+  addFavouriteEntity,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -275,6 +277,20 @@ router.post("/update-user-details", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while updating user details." });
+  }
+});
+
+router.post("/location", async (req, res, next) => {
+  try {
+    const result = await processLocationForUser(req);
+    res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Location fetched successfully.", result });
+  } catch (error) {
+    console.error("Error while finding the location: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while finding the location" });
   }
 });
 

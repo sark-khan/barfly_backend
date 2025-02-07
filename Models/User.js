@@ -18,6 +18,7 @@ const userSchema = new Schema(
     country: { type: String },
     emailOtpVerified: { type: Boolean, default: false },
     phoneOtpVerified: { type: Boolean, default: false },
+    locationEnabled: { type: Boolean, default: false },
   },
   { timestamps: true, minimize: false }
 );

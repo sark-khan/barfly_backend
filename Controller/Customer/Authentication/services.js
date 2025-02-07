@@ -84,13 +84,13 @@ module.exports.login = async (req) => {
     });
   }
 
-  // const isPasswordValid = await comparePassword(password, user.password);
-  // if (!isPasswordValid) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_AUTHORIZED,
-  //     message: "Invalid password",
-  //   });
-  // }
+  const isPasswordValid = await comparePassword(password, user.password);
+  if (!isPasswordValid) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "Invalid password",
+    });
+  }
 
   const token = getJwtToken(user, true);
   delete user.password;
