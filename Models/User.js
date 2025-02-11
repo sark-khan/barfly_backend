@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { ROLES, PRODUCT_TYPE } = require("../Utils/globalConstants");
+const { ROLES, PRODUCT_TYPE, STATUS } = require("../Utils/globalConstants");
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema(
@@ -19,14 +19,8 @@ const userSchema = new Schema(
     emailOtpVerified: { type: Boolean, default: false },
     phoneOtpVerified: { type: Boolean, default: false },
     locationEnabled: { type: Boolean, default: false },
+    status: { type: String, enum: Object.values(STATUS) },
   },
   { timestamps: true, minimize: false }
 );
-
-// userSchema.pre("save", async function (next) {
-//   if (!this.isModified("password")) {
-//     return next();
-//   }
-// });
-
 module.exports = mongoose.model("User", userSchema, "User");

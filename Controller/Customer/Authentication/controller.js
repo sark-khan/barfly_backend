@@ -8,6 +8,8 @@ const {
   reSendOtp,
   countRTag,
   logoutUser,
+  checkAndProvideCountRTag,
+  deleteAccount,
 } = require("./services");
 
 router.post("/login", async (req, res) => {
@@ -55,6 +57,22 @@ router.post("/countR-tag", async (req, res) => {
   }
 });
 
+router.get("/check-and-generate-countR-tag", async (req, res) => {
+  try {
+    const countRTag = await checkAndProvideCountRTag(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "CountR-Tag generated successfully.",
+      availableTags: countRTag,
+    });
+  } catch (error) {
+    console.error("Error while generated CountR-Tag: ", error);
+
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while generated CountR-Tag" });
+  }
+});
+
 router.post("/logout", async (req, res) => {
   try {
     const response = await logoutUser(req);
@@ -69,30 +87,18 @@ router.post("/logout", async (req, res) => {
   }
 });
 
-// router.post("/send-otp", async (req, res) => {
-//   try {
-//     await sendOtp(req);
-//     return res
-//       .status(STATUS_CODES.OK)
-//       .json({ message: "Otp Sent Successfully" });
-//   } catch (error) {
-//     return res
-//       .status(error.status || STATUS_CODES.SERVER_ERROR)
-//       .json({ message: error.message || "Error occured while sending otp" });
-//   }
-// });
-
-// router.post("/resend-otp", async (req, res) => {
-//   try {
-//     await reSendOtp(req);
-//     return res
-//       .status(STATUS_CODES.OK)
-//       .json({ message: "Otp re sent Successfully" });
-//   } catch (error) {
-//     return res
-//       .status(error.status || STATUS_CODES.SERVER_ERROR)
-//       .json({ message: error.message || "Error occured while sending otp" });
-//   }
-// });
+router.post("/delete-account", async (req, res) => {
+  try {
+    await deleteAccount(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "User account deleted successfully." });
+  } catch (error) {
+    console.error("Error while deleting the account: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while deleting the account." });
+  }
+});
 
 module.exports = router;

@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
-// const UserFavourites = require("../../Models/UserFavourites");
+const { ObjectId } = mongoose.Types;
 const {
   STATUS_CODES,
   STATUS,
@@ -26,6 +26,7 @@ const {
   comparePassword,
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
+const CountRTags = require("../../Models/CountRTags");
 
 module.exports.getEntities = async (req) => {
   const { limit = 30, skip = 0, searchTerm } = req.query;
@@ -59,8 +60,8 @@ module.exports.getEntities = async (req) => {
     _id: { $in: entityIds },
   };
 
-  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
-    query.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  if (searchTerm) {
+    query.entityName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
   }
 
   const currentRunningEntitiesDetails1 = await EntityDetails.find(query, {
@@ -178,25 +179,16 @@ module.exports.eventClsoed = async (req) => {
   await Event.updateOne({ _id: eventId }, { $inc: { activeUsers: -1 } });
 };
 
-module.exports.getFavouriteEvents = async (req) => {
-  const userId = req.id;
-  const userFavourites = await FavouriteEntity.findOne({ userId }).populate(
-    "entityId"
-  );
-
-  // if (!userFavourites) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_FOUND,
-  //     message: "No favourite events found for the user",
-  //   });
-  // }
-
-  return userFavourites;
+module.exports.getFavouriteEvents = (req) => {
+  const { userId } = req;
+  return FavouriteEntity.findOne({ userId }).populate("entityId");
 };
 
 module.exports.removeFavouriteEvents = async (req) => {
-  const userId = req.id;
-  const { eventId } = req.body;
+  const {
+    userId,
+    body: { eventId },
+  } = req;
 
   const eventExists = await Event.findById(eventId);
   if (!eventExists) {
@@ -221,24 +213,21 @@ module.exports.visitorCount = async (req) => {
       message: "No such event found",
     });
   }
-  await Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
-  return;
+  return Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
 };
 
 module.exports.counterList = async (req) => {
-  const { entityId } = req.query;
+  const { entityId, searchTerm } = req.query;
   const query = { entityId };
-  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
-    query.counterName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+  if (searchTerm) {
+    query.counterName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
   }
   const counters = await Counter.find(
     query,
     { counterName: 1 },
     { sort: { _id: -1 }, lean: true }
   );
-  const counterIds = counters.map((counter) =>
-    mongoose.Types.ObjectId(counter._id)
-  );
+  const counterIds = counters.map((counter) => ObjectId(counter._id));
 
   const now = new Date();
   const eventOfThisCounters = await Event.find(
@@ -276,42 +265,38 @@ module.exports.counterList = async (req) => {
 };
 
 module.exports.getMenuSubCategory = async (req) => {
-  const { counterId } = req.query;
-  const query = { counterId };
-  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
-    query.name = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
-  }
-  const counterSubCategory = await MenuCategory.find(query);
+  const { counterId, searchTerm } = req.query;
 
-  return counterSubCategory;
+  const query = { ...(counterId && { counterId }) };
+  if (searchTerm) {
+    query.name = { $regex: searchTerm, $options: "i" };
+  }
+
+  // Fetch subcategories with lean() for performance optimization
+  return await MenuCategory.find(query).lean();
 };
 
 module.exports.getMenuItems = async (req) => {
   const { menuCategoryId } = req.query;
-  // const menuCategoryId = req.query.menuCategoryId; // The menu category ID passed in the request
   const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
 
   const menuItems = await ItemDetails.aggregate([
-    // Match documents in `ItemDetails` based on `menuCategoryId`
     {
       $match: {
-        menuCategoryId: mongoose.Types.ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
+        menuCategoryId: ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
       },
     },
-    // Populate `itemId` from `MenuItem` collection
     {
       $lookup: {
-        from: "menuitems", // Collection name for `MenuItem`
+        from: "menuitems",
         localField: "itemId",
         foreignField: "_id",
-        as: "item", // Name for the populated field
+        as: "item",
       },
     },
-    // Unwind the `item` array to treat it as a single object
     {
       $unwind: "$item",
     },
-    // Apply regex search for `item.itemName` if `searchTerm` is provided
     ...(searchTerm
       ? [
           {
@@ -321,7 +306,6 @@ module.exports.getMenuItems = async (req) => {
           },
         ]
       : []),
-    // Project only the necessary fields
     {
       $project: {
         "item._id": 1,
@@ -332,7 +316,7 @@ module.exports.getMenuItems = async (req) => {
         "item.currency": 1,
         "item.image": 1,
         "item.quantity": 1,
-        price: 1, // Price from `ItemDetails`
+        price: 1,
         availableQuantity: 1,
         menuCategoryId: 1,
         counterId: 1,
@@ -342,19 +326,16 @@ module.exports.getMenuItems = async (req) => {
         currency: 1,
       },
     },
-    // Sort the results by `updatedAt`
     {
       $sort: { updatedAt: -1 },
     },
   ]);
-  // console.log({ menuItems });
   if (!menuItems.length) {
     return [];
   }
-  console.log({ mj: menuItems[0], id: req.id });
   const favouriteItemList = await FavouriteItem.find(
     {
-      userId: req.id,
+      userId: req.userId,
       counterId: menuItems[0].counterId,
       isFavourite: true,
     },
@@ -382,7 +363,6 @@ module.exports.getMenuItems = async (req) => {
     });
     return acc;
   }, []);
-  // console.log({ menuItemsResp });
   return menuItemsResp;
 };
 
@@ -462,7 +442,7 @@ module.exports.getFavouriteItems = async (req) => {
     // Match documents in `ItemDetails` based on `counterId`
     {
       $match: {
-        counterId: mongoose.Types.ObjectId(counterId), // Ensure `counterId` is an ObjectId
+        counterId: ObjectId(counterId), // Ensure `counterId` is an ObjectId
       },
     },
     // Populate `itemId` from `MenuItem` collection
@@ -620,14 +600,25 @@ module.exports.editOrDeleteCards = async (req) => {
 
 module.exports.getUserDetails = async (req) => {
   const { userId } = req;
-  const userDetails = await User.findOne({ _id: userId });
+  const userDetails = await User.findOne({
+    _id: userId,
+    status: STATUS.ACTIVE,
+  });
+  const couterTag = await CountRTags.findOne(
+    { userId },
+    { countRTag: 1, _id: 0 }
+  );
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "User doesn't exist.",
     });
   }
-  return userDetails;
+
+  return {
+    ...userDetails.toObject(),
+    countRTag: couterTag ? couterTag.countRTag : "",
+  };
 };
 
 module.exports.updateUserDetails = async (req) => {
@@ -638,7 +629,8 @@ module.exports.updateUserDetails = async (req) => {
 
   let message = "";
 
-  const user = await User.findOne({ _id: userId });
+  const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
+  console.log({ user });
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -676,9 +668,10 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      message = "OTP sent to your new email.";
+      return (message = "OTP sent to your new email.");
     } else if (enteredOtp && !user.emailOtpVerified) {
       const otpRecord = await Otp.findOne({ email });
+      console.log({ otpRecord });
       if (!otpRecord) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,

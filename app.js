@@ -33,6 +33,10 @@ const unProtectedApis = {
   "/api/customer/entities/get-entities": true,
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
+  "/api/customer/auth/check-and-generate-countR-tag": true,
+  "/api/customer/entities/get-counter-list": true,
+  "/api/customer/entities/get-counter-menu-category": true,
+  "/api/customer/entities/get-menu-category-items": true,
 };
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();

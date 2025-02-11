@@ -2,6 +2,7 @@ const {
   STATUS_CODES,
   ROLES,
   KEY_TYPE_PREFIXES,
+  STATUS,
 } = require("../../../Utils/globalConstants");
 const {
   hashPassword,
@@ -30,7 +31,7 @@ module.exports.register = async (req) => {
     contactNumber,
   } = req.body;
 
-  const userExist = await User.findOne({ email }).lean();
+  const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -51,6 +52,7 @@ module.exports.register = async (req) => {
     country,
     address,
     contactNumber,
+    status: STATUS.ACTIVE,
   });
 
   delete userObj.password;
@@ -68,7 +70,10 @@ module.exports.login = async (req) => {
     contactNumber: 1,
   };
 
-  const user = await User.findOne({ email }, userProjection).lean();
+  const user = await User.findOne(
+    { email, status: STATUS.ACTIVE },
+    userProjection
+  ).lean();
 
   if (!user) {
     throwError({
@@ -119,9 +124,62 @@ module.exports.countRTag = async (req) => {
 
   const obj = {
     userId: user._id,
-    countRTag,
+    countRTag: `@${countRTag}`,
   };
   await CountRTags.create(obj);
+};
+
+module.exports.checkAndProvideCountRTag = async (req) => {
+  const { userId } = req.query;
+  const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
+
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+    return;
+  }
+
+  let [firstName = "", lastName = ""] = user.fullName.split(" ");
+
+  const isUsernameExists = async (username) => {
+    return CountRTags.exists({ countRTag: username });
+  };
+
+  const generateUniqueUsername = async (baseUsername) => {
+    let uniqueUsername = baseUsername;
+    let attempt = 1;
+
+    while (await isUsernameExists(uniqueUsername)) {
+      let randomNum = Math.floor(100 + Math.random() * 900);
+      uniqueUsername = `${baseUsername}${randomNum}`;
+      attempt++;
+      if (attempt > 10) break;
+    }
+
+    return uniqueUsername;
+  };
+
+  let baseUsernames = [
+    `@${firstName.toLowerCase()}.${lastName.toLowerCase()}`,
+    `@${lastName.toLowerCase()}.${firstName.toLowerCase()}`,
+    `@${firstName.toLowerCase()}.${lastName.toLowerCase()}89`,
+    `@${lastName.toLowerCase()}.${firstName.toLowerCase()}14`,
+  ].filter(Boolean);
+
+  let uniqueUsernames = [];
+  for (let base of baseUsernames) {
+    uniqueUsernames.push(await generateUniqueUsername(base));
+  }
+
+  const existingTags = await CountRTags.distinct("countRTag");
+
+  const availableTags = uniqueUsernames.filter(
+    (tag) => !existingTags.includes(tag)
+  );
+
+  return availableTags;
 };
 
 module.exports.logoutUser = async (req) => {
@@ -131,55 +189,14 @@ module.exports.logoutUser = async (req) => {
   await redisClient.del(`${prefix}:${user._id}`);
 };
 
-// module.exports.sendOtp = async (req) => {
-//   const { email, contactNumber } = req.body;
-//   const userDetails = await User.findOne(
-//     { $or: [{ email }, { contactNumber }] },
-//     { _id: 0 }
-//   );
-//   if (userDetails) {
-//     throwError({
-//       status: STATUS_CODES.CONFLICT,
-//       message: "This email/contact Number is alredy Registered",
-//     });
-//   }
-//   const otp = crypto.randomInt(100000, 999999).toString();
-//   await Otp.findOneAndUpdate(
-//     { email },
-//     { otp },
-//     { upsert: true, new: true, setDefaultsOnInsert: true }
-//   );
-//   console.log({ otp });
-//   const mail_data = {
-//     to: email,
-//     subject: "COUNTR: Otp for authentication",
-//     text: `Please use the below OTP for registering your account on Countr: \n
-//     ${otp}
-//     `,
-//   };
-//   createMail(mail_data);
-// };
-
-// module.exports.reSendOtp = async (req) => {
-//   const { email } = req.body;
-//   const otp = generateOTP(6);
-//   const otpDetails = Otp.findOne({ email });
-//   if (!otpDetails) {
-//     throwError({
-//       status: STATUS_CODES.BAD_REQUEST,
-//       message:
-//         "Error processing the Otp Request. Please generate Otp first to regenerate Otp",
-//     });
-//   }
-//   otpDetails.otp = otp;
-
-//   await otpDetails.save();
-//   const mail_data = {
-//     to: email,
-//     subject: "COUNTR: Otp for authentication",
-//     text: `Please use the below OTP for registering your account on Countr: \n
-//     ${otp}
-//     `,
-//   };
-//   await createMail(mail_data);
-// };
+module.exports.deleteAccount = async (req) => {
+  const { userId } = req;
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+  await User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } });
+};

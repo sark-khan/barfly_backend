@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
+const { ObjectId } = mongoose.Types;
 
 const eventSchema = new Schema(
   {
@@ -12,15 +13,15 @@ const eventSchema = new Schema(
     to: { type: Date, required: true },
     counterIds: [
       {
-        type: mongoose.Types.ObjectId,
+        type: ObjectId,
         ref: "Counter",
         required: true,
       },
     ],
     ageLimit: { type: Number, required: true },
-    ownerId: { type: mongoose.Types.ObjectId, ref: "User", required: true },
+    ownerId: { type: ObjectId, ref: "User", required: true },
     entityId: {
-      type: mongoose.Types.ObjectId,
+      type: ObjectId,
       ref: "EntityDetails",
       required: true,
     },
