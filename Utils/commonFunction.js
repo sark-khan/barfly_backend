@@ -5,23 +5,8 @@ const SECRET_KEY = "BARFLY@WEBMOB456";
 const Event = require("../Models/Event");
 
 const hashPassword = (password) => {
-  return bcrypt.hashSync(password, 8);
+  return bcrypt.hashSync(password, 10);
 };
-
-// function generateOTP(length) {
-//   // Define the characters to be used in the OTP
-//   const characters =
-//     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-//   let otp = "";
-
-//   // Generate a random OTP of the specified length
-//   for (let i = 0; i < length; i++) {
-//     const randomIndex = Math.floor(Math.random() * characters.length);
-//     otp += characters[randomIndex];
-//   }
-
-//   return otp;
-// }
 
 const comparePassword = async (inputPassword, storedPassword) => {
   return bcrypt.compare(inputPassword, storedPassword);

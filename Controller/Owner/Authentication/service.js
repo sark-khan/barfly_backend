@@ -4,8 +4,8 @@ const {
   getJwtToken,
   generateOTP,
 } = require("../../../Utils/commonFunction");
-
-const { createMail } = require("../../../Utils/mailer");
+const crypto = require("crypto");
+const { createMail, sendSMS } = require("../../../Utils/mailer");
 
 const User = require("../../../Models/User");
 const { STATUS_CODES, ROLES } = require("../../../Utils/globalConstants");
@@ -14,63 +14,117 @@ const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
 
 module.exports.register = async (req) => {
-  const userExist = await User.findOne({ email: req.body.email }).lean();
+  const {
+    email,
+    fullName,
+    password,
+    contactNumber,
+    city,
+    street,
+    zipcode,
+    entityName,
+    entityType,
+    entityContactNumber,
+    plotNo,
+    floor,
+    country,
+    buildingName,
+    landMark,
+    enteredOtp,
+  } = req.body;
+  const userExist = await User.findOne({ email }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User already registerd",
     });
   }
+  let otpVerified = false;
+  let message = "";
 
-  // const otpDetails = await Otp.findOne({ email: req.body.email });
-  // console.log({ otpDetails });
-  // if (otpDetails.otp != req.body.otp) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_ACCEPTABLE,
-  //     message: "Invalid Otp",
-  //   });
-  // }
-  // const currentTime = new Date();
-  // const timeDifference = currentTime - otpDetails.updatedAt;
-  // if (timeDifference > 5 * 60 * 1000) {
-  //   throwError({
-  //     message: "Otp is expired. Please regenrate it",
-  //     status: STATUS_CODES.NOT_ACCEPTABLE,
-  //   });
-  // }
-  const hashedPassword = hashPassword(req.body.password);
-  const newUser = await User.create({
-    role: req.body.role,
-    fullName: req.body.fullName,
-    email: req.body.email,
-    password: hashedPassword,
-    contactNumber: req.body.contactNumber,
-  });
+  if (contactNumber) {
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-  const fileBuffer = req.file.buffer;
-  const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
-  const data = await uploadBufferToS3(fileBuffer, fileName);
-  if (!data.Location) {
-    throwError({
-      message: "Error occured while uplaoding the file",
-      status: STATUS_CODES.SERVER_ERROR,
-    });
+    await Otp.findOneAndUpdate(
+      { email },
+      { otp, expiresAt },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const msg = `Your verification code is: ${otp}`;
+    await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+
+    const otpRecord = await Otp.findOne({ email });
+    if (!otpRecord) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "OTP not found. Please request a new OTP.",
+      });
+    }
+
+    if (otpRecord.expiresAt < Date.now()) {
+      await Otp.deleteOne({ email });
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Otp Expired! Please resend the OTP.",
+      });
+    }
+
+    if (enteredOtp !== otpRecord.otp) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Invalid OTP, Please try again.",
+      });
+    }
+    if (enteredOtp === otp) {
+      otpVerified = true;
+      message = "OTP verified successfully.";
+    }
   }
 
-  const newEntityDetails = new EntityDetails({
-    city: req.body.city,
-    street: req.body.street,
-    zipcode: req.body.zipcode,
-    entityName: req.body.entityName,
-    entityType: req.body.entityType,
-    owner: newUser._id,
-    image: fileName.replace(" ", "_"),
-  });
+  if (otpVerified) {
+    const hashedPassword = hashPassword(password);
+    const newUser = await User.create({
+      role: ROLES.STORE_OWNER,
+      fullName,
+      email,
+      password: hashedPassword,
+      contactNumber,
+    });
 
-  await newEntityDetails.save();
-  console.log({ newUser });
-  delete newUser.password;
-  return newUser;
+    const fileBuffer = req.file.buffer;
+    const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
+    const data = await uploadBufferToS3(fileBuffer, fileName);
+    if (!data.Location) {
+      throwError({
+        message: "Error occured while uplaoding the file",
+        status: STATUS_CODES.SERVER_ERROR,
+      });
+    }
+
+    const newEntityDetailsObj = {
+      city,
+      street,
+      zipcode,
+      entityName,
+      entityType,
+      owner: newUser._id,
+      image: fileName.replace(" ", "_"),
+      entityContactNumber,
+      plotNo,
+      floor,
+      country,
+      buildingName,
+      landMark,
+    };
+
+    await EntityDetails.create(newEntityDetailsObj);
+    // delete newUser.password;
+    // return newUser;
+    message = "Registration successful";
+  }
+  return message;
 };
 
 module.exports.login = async (req) => {

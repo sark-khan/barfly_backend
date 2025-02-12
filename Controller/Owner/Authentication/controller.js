@@ -20,10 +20,8 @@ router.post("/login", async (req, res) => {
 
 router.post("/register", async (req, res) => {
   try {
-    const response = await register(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "User registered successfully", response });
+    const message = await register(req);
+    return res.status(STATUS_CODES.OK).json({ message });
   } catch (error) {
     return res.status(error.status || 500).json({ message: error.message });
   }

@@ -37,6 +37,7 @@ const unProtectedApis = {
   "/api/customer/entities/get-counter-list": true,
   "/api/customer/entities/get-counter-menu-category": true,
   "/api/customer/entities/get-menu-category-items": true,
+  "/api/owner/auth/register": true,
 };
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();
@@ -49,7 +50,7 @@ app.use(
   require("./Controller/Owner/Authentication/controller")
 );
 app.use("/api/survey", require("./Controller/Owner/Feedback/controller"));
-app.use("/api/owner", require("./Controller/Owner/controller"));
+app.use("/api/owner/restuarant", require("./Controller/Owner/controller"));
 app.use(
   "/api/customer/auth",
   require("./Controller/Customer/Authentication/controller")
