@@ -47,6 +47,16 @@ module.exports.register = async (req) => {
     contactNumber: req.body.contactNumber,
   });
 
+  const fileBuffer = req.file.buffer;
+  const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
+  const data = await uploadBufferToS3(fileBuffer, fileName);
+  if (!data.Location) {
+    throwError({
+      message: "Error occured while uplaoding the file",
+      status: STATUS_CODES.SERVER_ERROR,
+    });
+  }
+
   const newEntityDetails = new EntityDetails({
     city: req.body.city,
     street: req.body.street,
@@ -54,6 +64,7 @@ module.exports.register = async (req) => {
     entityName: req.body.entityName,
     entityType: req.body.entityType,
     owner: newUser._id,
+    image: fileName.replace(" ", "_"),
   });
 
   await newEntityDetails.save();
@@ -76,10 +87,7 @@ module.exports.login = async (req) => {
   const userAndEntityDetails = await User.aggregate([
     {
       $match: {
-        $or: [
-          { email: email },
-          { contactNumber: email },
-        ],
+        $or: [{ email: email }, { contactNumber: email }],
       },
     },
     {
@@ -114,7 +122,7 @@ module.exports.login = async (req) => {
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "User does not exist",
     });
-    console.log({userrrr: user})
+  console.log({ userrrr: user });
   if (user.role !== ROLES.STORE_OWNER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,

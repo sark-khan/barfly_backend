@@ -11,7 +11,7 @@ const {
   getMenuSubCategory,
   getMenuItems,
   eventOpened,
-  eventClsoed,
+  eventClosed,
   updateFavouriteItem,
   getFavouriteItems,
   getUserCards,
@@ -21,6 +21,7 @@ const {
   addCards,
   processLocationForUser,
   addFavouriteEntity,
+  userFeedback,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -41,7 +42,9 @@ router.get("/get-entities", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while getting Entiities", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -59,7 +62,7 @@ router.post("/event-opened", async (req, res) => {
 
 router.post("/event-closed", async (req, res) => {
   try {
-    await eventClsoed(req);
+    await eventClosed(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Active users reduced" });
@@ -280,7 +283,7 @@ router.post("/update-user-details", async (req, res) => {
   }
 });
 
-router.post("/location", async (req, res, next) => {
+router.post("/location", async (req, res) => {
   try {
     const result = await processLocationForUser(req);
     res
@@ -291,6 +294,20 @@ router.post("/location", async (req, res, next) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while finding the location" });
+  }
+});
+
+router.post("/user-feedback", async (req, res) => {
+  try {
+    const response = await userFeedback(req);
+    res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Feedback submitted successfully.", data: response });
+  } catch (error) {
+    console.error("Error while submitting the feedabck: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while submitting the feedabck",
+    });
   }
 });
 

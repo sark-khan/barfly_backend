@@ -27,6 +27,7 @@ const {
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
 const CountRTags = require("../../Models/CountRTags");
+const Userfeedback = require("../../Models/UserFeedback");
 
 module.exports.getEntities = async (req) => {
   const { limit = 30, skip = 0, searchTerm } = req.query;
@@ -68,10 +69,24 @@ module.exports.getEntities = async (req) => {
     city: 1,
     entityName: 1,
     entityType: 1,
+    street: 1,
+    image: 1,
   }).lean();
   const query2 = {
     _id: { $nin: entityIds },
   };
+
+  currentRunningEntitiesDetails1.map((items) => {
+    console.log("Image key before generating URL:", items.image);
+
+    if (!items.image) {
+      console.warn("Skipping entity because image is missing:", items);
+      return items; // Ensure we don't modify the object if image is invalid
+    }
+
+    items.image = generatePresignedUrl(items.image);
+    return items;
+  });
 
   const currentRunningEntitiesDetails = currentRunningEntitiesDetails1.map(
     (entity) => {
@@ -95,9 +110,22 @@ module.exports.getEntities = async (req) => {
       entityName: 1,
       entityType: 1,
       street: 1,
+      image: 1,
     },
     { limit: limit, skip: skip }
   ).lean();
+  console.log({ remainingEntities });
+  remainingEntities.map((items) => {
+    console.log("Image key before generating URL:", items.image);
+
+    if (!items.image) {
+      console.warn("Skipping entity because image is missing:", items);
+      return items; // Ensure we don't modify the object if image is invalid
+    }
+
+    items.image = generatePresignedUrl(items.image);
+    return items;
+  });
 
   const uniqueRemainingEntities = remainingEntities.map((entity) => {
     if (favouritesIdsSet.has(entity._id.toString())) {
@@ -127,10 +155,12 @@ module.exports.getEntities = async (req) => {
       req.query.isFavouriteEntities == "true"
         ? currentRunningEntitiesDetailsResponse
         : currentRunningEntitiesDetails,
+    // currentRunningEntitiesDetailsImage,
     remainingEntities:
       req.query.isFavouriteEntities == "true"
         ? uniqueRemainingEntitiesResponse
         : uniqueRemainingEntities,
+    // remainingEntitiesImage,
   };
 };
 
@@ -174,7 +204,7 @@ module.exports.eventOpened = async (req) => {
   await Event.updateOne({ _id: eventId }, { $inc: { activeUsers: 1 } });
 };
 
-module.exports.eventClsoed = async (req) => {
+module.exports.eventClosed = async (req) => {
   const { eventId } = req.body;
   await Event.updateOne({ _id: eventId }, { $inc: { activeUsers: -1 } });
 };
@@ -840,4 +870,66 @@ module.exports.processLocationForUser = async (req) => {
     distanceInKm: distance,
     locationSaved,
   };
+};
+
+module.exports.userFeedback = async (req) => {
+  const {
+    userId,
+    body: {
+      entityId,
+      counterId,
+      experience,
+      experienceDescription,
+      placingOrderProcess,
+      placingOrderProcessDescription,
+      statusUpdation,
+      statusUpdationDescription,
+    },
+  } = req;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+
+  const entity = await EntityDetails.findById(entityId);
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Entity doesn't exist.",
+    });
+  }
+
+  const counter = await Counter.findById(counterId);
+  if (!counter) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Counter not found.",
+    });
+  }
+
+  const feedbackObj = {
+    userId,
+    entityId: entity._id,
+    counterId: counter._id,
+    experience: {
+      value: experience,
+      description: experienceDescription || "",
+    },
+    placingOrderProcess: {
+      value: placingOrderProcess,
+      description: placingOrderProcessDescription || "",
+    },
+    statusUpdation: {
+      value: statusUpdation,
+      description: statusUpdationDescription || "",
+    },
+  };
+
+  await Userfeedback.create(feedbackObj);
+
+  return feedbackObj;
 };

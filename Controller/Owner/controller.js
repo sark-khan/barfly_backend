@@ -21,7 +21,7 @@ const {
   getOngoingEventDetails,
   getDistinctYears,
   createItems,
-  getOrderDetailsOfEvents
+  getOrderDetailsOfEvents,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -50,7 +50,9 @@ router.post("/create-counter-with-settings", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while creating Menu", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -182,25 +184,23 @@ router.get("/get-entity-items", async (req, res) => {
 router.get("/update-entity-items", async (req, res) => {
   try {
     const itemsId = await ItemDetails.find({ entityId: req.entityId }).lean();
-  console.log("Reached here");
-  console.log({ itemsId });
+    console.log("Reached here");
+    console.log({ itemsId });
 
-  // Loop through each item in itemsId and update the corresponding MenuItem
-  for (const item of itemsId) {
-    // Update each MenuItem with the corresponding price from ItemDetails
-    await MenuItem.updateOne(
-      { _id: item.itemId }, // Filter by itemId
-      { $set: { price: item.price, currency: "CHF" } } // Set price and currency
-    );
+    // Loop through each item in itemsId and update the corresponding MenuItem
+    for (const item of itemsId) {
+      // Update each MenuItem with the corresponding price from ItemDetails
+      await MenuItem.updateOne(
+        { _id: item.itemId }, // Filter by itemId
+        { $set: { price: item.price, currency: "CHF" } } // Set price and currency
+      );
+    }
+    return res.status(200).json({ message: "Updated all the doc" });
+  } catch (error) {
+    console.log({ error });
+    return res.status(200).json({ message: error });
   }
-    return res.status(200).json({ message: "Updated all the doc" })
-  }
-  catch (error) {
-    console.log({error})
-    return res.status(200).json({ message: error })
-  }
-
-})
+});
 
 router.get("/get-menu-particular-item", async (req, res) => {
   try {
@@ -304,7 +304,7 @@ router.get("/get-event-details-monthly", async (req, res) => {
       monthlyEventDetails,
     });
   } catch (error) {
-    console.error("Error occured while fetching the monthly event details")
+    console.error("Error occured while fetching the monthly event details");
     return res.status(error.status || 400).json({ message: error.message });
   }
 });

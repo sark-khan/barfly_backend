@@ -77,6 +77,12 @@ const EDIT_ACTION = {
   DELETE: "delete",
 };
 
+const EXPERIENCE_TYPE = {
+  GOOD: "GOOD",
+  DECENT: "DECENT",
+  BAD: "BAD",
+};
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -90,4 +96,5 @@ module.exports = {
   CARD_TYPE,
   STATUS,
   EDIT_ACTION,
+  EXPERIENCE_TYPE,
 };

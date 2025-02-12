@@ -11,6 +11,7 @@ const productSchema = new Schema(
     entityName: { type: String, required: true },
     entityType: { type: String, enum: PRODUCT_TYPE, required: true },
     owner: { type: mongoose.Types.ObjectId, ref: "User", required: true },
+    image: { type: String },
   },
   { timestamps: true }
 );
