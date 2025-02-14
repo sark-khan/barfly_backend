@@ -1,16 +1,17 @@
 const mongoose = require("mongoose");
-const { PRODUCT_TYPE } = require("../Utils/globalConstants");
+const { PRODUCT_TYPE, STATUS } = require("../Utils/globalConstants");
 
 const Schema = mongoose.Schema;
+const { ObjectId } = mongoose.Types;
 
 const productSchema = new Schema(
   {
+    userId: { type: ObjectId },
     city: { type: String },
-    street: { type: String },
     zipcode: { type: String },
-    entityName: { type: String, required: true },
-    entityType: { type: String, enum: PRODUCT_TYPE, required: true },
-    owner: { type: mongoose.Types.ObjectId, ref: "User", required: true },
+    entityName: { type: String },
+    entityType: { type: String, enum: PRODUCT_TYPE },
+    owner: { type: mongoose.Types.ObjectId, ref: "User" },
     image: { type: String },
     entityContactNumber: { type: String },
     plotNo: { type: Number },
@@ -18,6 +19,9 @@ const productSchema = new Schema(
     country: { type: String },
     buildingName: { type: String },
     landMark: { type: String },
+    state: { type: String },
+    location: { type: String },
+    status: { type: String, enum: Object.values(STATUS) },
   },
   { timestamps: true }
 );

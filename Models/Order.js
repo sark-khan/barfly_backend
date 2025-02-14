@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
 
 const Schema = mongoose.Schema;
+const { ObjectId } = mongoose.Types;
 
 const orderSchme = new Schema(
   {
@@ -9,36 +10,36 @@ const orderSchme = new Schema(
     items: {
       type: [
         {
-          itemId: { type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" },
+          itemId: { type: ObjectId, ref: "MenuItem" },
           quantity: { type: Number },
         },
       ],
     },
-    // menuCategoryId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "CounterMenuCategory", required: true },
+    // menuCategoryId: { type: ObjectId, required: true, ref: "CounterMenuCategory", required: true },
     counterId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: ObjectId,
       required: true,
       ref: "Counter",
       required: true,
     },
     entityId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: ObjectId,
       required: true,
       ref: "EntityDetails",
     },
     tokenNumber: { type: Number, required: true },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: ObjectId,
       required: true,
       ref: "User",
     },
     totalAmount: { type: Number, required: true },
     eventId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: ObjectId,
       ref: "Event",
     },
   },
-  { timestamps: true }
+  { timestamps: true, minimize: false }
 );
 
 module.exports = mongoose.model("Order", orderSchme);

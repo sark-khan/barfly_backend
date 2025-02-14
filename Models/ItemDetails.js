@@ -5,7 +5,7 @@ const Schema = mongoose.Schema;
 
 const itemSchema = new Schema(
   {
-    availableQuantity: { type: Number,},
+    availableQuantity: { type: Number },
     menuCategoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CounterMenuCategory",
@@ -15,8 +15,8 @@ const itemSchema = new Schema(
       ref: "EntityDetails",
       required: true,
     },
-    unit:{type: String, },
-    isVegan:{type:String},
+    unit: { type: String },
+    isVegan: { type: String },
     itemName: { type: String, required: true },
     quantity: { type: String, required: true },
     description: { type: String, required: true },
@@ -29,7 +29,7 @@ const itemSchema = new Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, minimize: false }
 );
 
 module.exports = mongoose.model("ItemDetails", itemSchema);

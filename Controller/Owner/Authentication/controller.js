@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
-const { register, sendOtp, reSendOtp } = require("./service");
-const { login } = require("./service");
+const { register, login } = require("./service");
 
 router.post("/login", async (req, res) => {
   try {
@@ -21,36 +20,10 @@ router.post("/login", async (req, res) => {
 router.post("/register", async (req, res) => {
   try {
     const message = await register(req);
-    return res.status(STATUS_CODES.OK).json({ message });
+    return res.status(STATUS_CODES.OK).json(message);
   } catch (error) {
-    return res.status(error.status || 500).json({ message: error.message });
+    console.error("error while login", error);
+    return res.status(error.status || 400).json({ message: error.message });
   }
 });
-
-router.post("/send-otp", async (req, res) => {
-  try {
-    await sendOtp(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Otp Sent Successfully" });
-  } catch (error) {
-    return res
-      .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message || "Error occured while sending otp" });
-  }
-});
-
-router.post("/reSend-otp", async (req, res) => {
-  try {
-    await reSendOtp(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Otp re sent Successfully" });
-  } catch (error) {
-    return res
-      .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message || "Error occured while sending otp" });
-  }
-});
-
 module.exports = router;

@@ -25,7 +25,6 @@ const feedbackSchema = new mongoose.Schema(
         value: {
           type: String,
           enum: Object.values(EXPERIENCE_TYPE),
-          required: true,
         },
         description: { type: String, default: "" },
       },
@@ -43,7 +42,6 @@ const feedbackSchema = new mongoose.Schema(
         value: {
           type: String,
           enum: Object.values(EXPERIENCE_TYPE),
-          required: true,
         },
         description: { type: String, default: "" },
       },

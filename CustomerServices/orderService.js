@@ -40,14 +40,13 @@ const createOrder = async (req, session) => {
   const promises = [];
   let amount = 0;
   items.forEach((doc) => {
-    console.log({ doc })
+    console.log({ doc });
     const menuItem = itemNameMapper[`${doc.itemId}`];
     if (menuItem) {
-
-      console.log("Reched ehr er")
+      console.log("Reched ehr er");
       entityId = menuItem?.menuCategoryId?.entityId;
       console.log({ mm: menuItem });
-      console.log({ mm: menuItem.menuCategoryId })
+      console.log({ mm: menuItem.menuCategoryId });
       menuCategoryId = menuItem?.menuCategoryId._id;
       counterId = menuItem?.menuCategoryId?.counterId;
       if (menuItem.availableQuantity < doc.quantity) {
@@ -83,7 +82,7 @@ const createOrder = async (req, session) => {
         counterId,
         entityId,
         tokenNumber,
-        userId: req.id,
+        userId: req.userId,
         totalAmount: amount,
         eventId,
       },
@@ -227,8 +226,7 @@ const particularOrderDetails = async (req) => {
     query: { entityId },
     userId,
   } = req;
-  console.log({ userId, entityId, token: req.headers.token }
-  )
+  console.log({ userId, entityId, token: req.headers.token });
   const orderDetails = await Order.find({
     userId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
@@ -244,7 +242,7 @@ const particularOrderDetails = async (req) => {
     })
     .sort({ tokenNumber: -1 })
     .lean();
-  console.log({ order: orderDetails[0].items })
+  console.log({ order: orderDetails[0].items });
   return orderDetails;
 };
 
@@ -669,16 +667,20 @@ const getOrderGroupByYearsForEntity = async (req) => {
 
 const pastTicketYears = async (req) => {
   const { userId } = req;
-  const orderList = await Order.find({ userId }, { createdAt: 1 }, { sort: { _id: -1 } });
-  const yearList = []
+  const orderList = await Order.find(
+    { userId },
+    { createdAt: 1 },
+    { sort: { _id: -1 } }
+  );
+  const yearList = [];
   orderList.map((orders) => {
-    const year = orders.createdAt.getFullYear()
+    const year = orders.createdAt.getFullYear();
     if (!yearList.includes(year)) {
       yearList.push(year);
     }
-  })
+  });
   return yearList;
-}
+};
 module.exports = {
   createOrder,
   updateStatusOfOrder,
@@ -687,5 +689,5 @@ module.exports = {
   getLiveOrdersUsers,
   particularOrderDetails,
   getOrderGroupByYearsForEntity,
-  pastTicketYears
+  pastTicketYears,
 };

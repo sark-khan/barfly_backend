@@ -5,9 +5,9 @@ const Schema = mongoose.Schema;
 const userSchema = new Schema(
   {
     role: { type: String, required: true, enum: ROLES },
-    fullName: { type: String, required: true },
-    email: { type: String, required: true },
-    password: { type: String, required: true },
+    fullName: { type: String },
+    email: { type: String },
+    password: { type: String },
     language: { type: String },
     contactNumber: { type: String },
     dob: { type: String },

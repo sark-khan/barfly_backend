@@ -70,7 +70,7 @@ module.exports.createCounter = async (req) => {
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
-  const { counterId, name, icon } = req.body;
+  const { counterId, name, amount, description } = req.body;
 
   if (!counterId || !name || !icon) {
     throwError({
@@ -82,8 +82,9 @@ module.exports.createCounterMenuCategory = async (req) => {
   const newElement = await MenuCategory.create({
     counterId,
     name,
-    icon,
     entityId: req.entityId,
+    amount,
+    description,
   });
   return newElement;
 };
@@ -116,11 +117,13 @@ module.exports.createMenuItem = async (req) => {
     menuCategoryId,
     availableQuantity,
     isVegan,
-    unit
+    unit,
   } = req.body;
-  
+
   const fileBuffer = req.file.buffer;
-  const fileName = `${req.entityId}_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
+  const fileName = `${
+    req.entityId
+  }_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
   const data = await uploadBufferToS3(fileBuffer, fileName);
   if (!data.Location) {
     throwError({
@@ -169,23 +172,20 @@ module.exports.createMenuItem = async (req) => {
     isVegan,
     unit,
     description,
-    quantity
+    quantity,
   });
 
   return itemDetails;
 };
 module.exports.createItems = async (req) => {
-  const {
-    itemName,
-    quantity, description,
-    type,
-    price,
-    currency
-  } = req.body;
+  const { itemName, quantity, description, type, price, currency } = req.body;
 
-  const existingItem = await MenuItem.findOne({ itemName }, { _id: 1 })
+  const existingItem = await MenuItem.findOne({ itemName }, { _id: 1 });
   if (existingItem) {
-    return throwError({ status: STATUS_CODES.CONFLICT, message: "Same Item Name already exists" })
+    return throwError({
+      status: STATUS_CODES.CONFLICT,
+      message: "Same Item Name already exists",
+    });
   }
   const fileBuffer = req.file.buffer;
   const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
@@ -205,8 +205,8 @@ module.exports.createItems = async (req) => {
     currency,
     description,
     image: fileName.replace(" ", "_"),
-  })
-}
+  });
+};
 module.exports.updateMenuItem = async (req) => {
   const {
     itemId,
@@ -237,10 +237,9 @@ module.exports.getCreatedItems = async (req) => {
   try {
     const createdItems = await MenuItem.find({ entityId: req.entityId }).lean();
     const itemsList = createdItems.map((items) => {
-      items.image = generatePresignedUrl
-        (items.image);
+      items.image = generatePresignedUrl(items.image);
       return items;
-    })
+    });
 
     return itemsList;
   } catch (error) {
@@ -406,7 +405,7 @@ module.exports.getOngoingEventDetails = async (req) => {
       from: event.from,
       to: event.to,
       eventName: event.eventName,
-      activeUsers: event.activeUsers
+      activeUsers: event.activeUsers,
     });
 
     return true;
@@ -492,9 +491,7 @@ module.exports.getMonthlyEventDetails = async (req) => {
 
   // Fetch events that intersect with the given month
   const eventsForThatMonth = await Event.find({
-    $or: [
-      { from: { $lte: endOfMonth }, to: { $gte: startOfMonth } },
-    ],
+    $or: [{ from: { $lte: endOfMonth }, to: { $gte: startOfMonth } }],
     entityId: req.entityId,
   });
 
@@ -556,7 +553,6 @@ module.exports.getMonthlyEventDetails = async (req) => {
   };
 };
 
-
 module.exports.getEventsByMonthAndYear = async (month, year) => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 1);
@@ -610,49 +606,47 @@ module.exports.getMenuCategoryItems = async (req) => {
   return menuItemsResp;
 };
 
-module.exports.getOrderDetailsOfEvents= async(req)=>{
-
+module.exports.getOrderDetailsOfEvents = async (req) => {
   const { eventId } = req.query;
 
-    // Fetch orders for the given event
-    const orderDetails = await Order.find({ eventId });
+  // Fetch orders for the given event
+  const orderDetails = await Order.find({ eventId });
 
-    // Use a plain object to store grouped order details
-    const orderGrouped = {};
-  let totalAmout=0;
-  let totalTicket=0;
-    for (const order of orderDetails) {
-      if (order.items && Array.isArray(order.items)) {
-        for (const item of order.items) {
-          if (!orderGrouped[item.itemId]) {
-            console.log({itemId: item.itemId});
-            const itemDetails = await MenuItem.findById(item.itemId, {
-              price: 1,itemName:1
-            }).lean();
-            console.log({itemDetails});
-            
-            orderGrouped[item.itemId] = {
-              totalAmount: 0,
-              totalTicket: 0,
-              singlePrice: itemDetails ? itemDetails.price : 0,
-              itemName: itemDetails.itemName
-            };
-          }
+  // Use a plain object to store grouped order details
+  const orderGrouped = {};
+  let totalAmout = 0;
+  let totalTicket = 0;
+  for (const order of orderDetails) {
+    if (order.items && Array.isArray(order.items)) {
+      for (const item of order.items) {
+        if (!orderGrouped[item.itemId]) {
+          console.log({ itemId: item.itemId });
+          const itemDetails = await MenuItem.findById(item.itemId, {
+            price: 1,
+            itemName: 1,
+          }).lean();
+          console.log({ itemDetails });
 
-          
-
-          // Accumulate the total amount and ticket count
-          orderGrouped[item.itemId].totalAmount +=
-            orderGrouped[item.itemId].singlePrice * item.quantity;
-          orderGrouped[item.itemId].totalTicket += 1;
-          totalAmout+=orderGrouped[item.itemId].totalAmount;
-          totalTicket+=1;
+          orderGrouped[item.itemId] = {
+            totalAmount: 0,
+            totalTicket: 0,
+            singlePrice: itemDetails ? itemDetails.price : 0,
+            itemName: itemDetails.itemName,
+          };
         }
+
+        // Accumulate the total amount and ticket count
+        orderGrouped[item.itemId].totalAmount +=
+          orderGrouped[item.itemId].singlePrice * item.quantity;
+        orderGrouped[item.itemId].totalTicket += 1;
+        totalAmout += orderGrouped[item.itemId].totalAmount;
+        totalTicket += 1;
       }
     }
+  }
 
-    return{ orderGrouped, totalAmout, totalTicket};
-}
+  return { orderGrouped, totalAmout, totalTicket };
+};
 
 module.exports.getCounterMenuQuantites = async (req) => {
   const { itemId } = req.query;

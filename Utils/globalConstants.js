@@ -33,6 +33,7 @@ const INSIDER_TYPE = {
 const FOOD_TYPE = {
   SNACK: "Food",
   DRINK: "Drink",
+  ALCOHOL: "Alcohol",
 };
 
 const DRINKS_SIZE = {

@@ -363,6 +363,11 @@ module.exports.getMenuItems = async (req) => {
   if (!menuItems.length) {
     return [];
   }
+  const name = await MenuCategory.findOne(
+    { _id: menuCategoryId },
+    { name: 1, _id: 0 }
+  ).lean();
+
   const favouriteItemList = await FavouriteItem.find(
     {
       userId: req.userId,
@@ -393,7 +398,7 @@ module.exports.getMenuItems = async (req) => {
     });
     return acc;
   }, []);
-  return menuItemsResp;
+  return { menuItemsResp, ...name };
 };
 
 module.exports.addExistingItemToMenu = async (req) => {
@@ -725,18 +730,14 @@ module.exports.updateUserDetails = async (req) => {
         });
       }
 
-      // OTP is valid, so delete the OTP record
       await Otp.deleteOne({ email });
 
-      // Update the user's email and mark the email as verified
       user.emailOtpVerified = true;
       await user.save();
 
-      // Update the user's email.
       user.email = email;
       await user.save();
 
-      // Reset the email OTP verified flag to false so that future updates require OTP verification.
       user.emailOtpVerified = false;
       await user.save();
 
@@ -755,15 +756,13 @@ module.exports.updateUserDetails = async (req) => {
     }
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
         { contactNumber },
         { otp, userId, expiresAt },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
-
-      console.log({ otp });
 
       const msg = `Your verification code is: ${otp}`;
       await sendSMS({ toPhoneNumber: contactNumber, message: msg });
@@ -796,18 +795,14 @@ module.exports.updateUserDetails = async (req) => {
         });
       }
 
-      // OTP is valid, so delete the OTP record
       await Otp.deleteOne({ contactNumber });
 
-      // Update the user's email and mark the email as verified
       user.phoneOtpVerified = true;
       await user.save();
 
-      // Update the user's email.
       user.contactNumber = contactNumber;
       await user.save();
 
-      // Reset the email OTP verified flag to false so that future updates require OTP verification.
       user.phoneOtpVerified = false;
       await user.save();
 
