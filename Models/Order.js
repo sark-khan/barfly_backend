@@ -10,7 +10,7 @@ const orderSchme = new Schema(
     items: {
       type: [
         {
-          itemId: { type: ObjectId, ref: "MenuItem" },
+          itemId: { type: ObjectId, ref: "ItemDetails" },
           quantity: { type: Number },
         },
       ],
@@ -18,13 +18,10 @@ const orderSchme = new Schema(
     // menuCategoryId: { type: ObjectId, required: true, ref: "CounterMenuCategory", required: true },
     counterId: {
       type: ObjectId,
-      required: true,
       ref: "Counter",
-      required: true,
     },
     entityId: {
       type: ObjectId,
-      required: true,
       ref: "EntityDetails",
     },
     tokenNumber: { type: Number, required: true },
@@ -38,6 +35,8 @@ const orderSchme = new Schema(
       type: ObjectId,
       ref: "Event",
     },
+    tableNo: { type: Number, default: 1 },
+    isSelfPickup: { type: Boolean },
   },
   { timestamps: true, minimize: false }
 );

@@ -31,15 +31,15 @@ const MenuItem = require("../../Models/MenuItem");
 const { addExistingItemToMenu } = require("../Customer/service");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-router.use(verifyToken);
-router.use((req, res, next) => {
-  if (req.role != ROLES.STORE_OWNER) {
-    return res
-      .status(STATUS_CODES.NOT_AUTHORIZED)
-      .json({ message: "Only Owner can perform this action" });
-  }
-  return next();
-});
+// router.use(verifyToken);
+// router.use((req, res, next) => {
+//   if (req.role != ROLES.STORE_OWNER) {
+//     return res
+//       .status(STATUS_CODES.NOT_AUTHORIZED)
+//       .json({ message: "Only Owner can perform this action" });
+//   }
+//   return next();
+// });
 
 router.post("/create-counter-with-settings", async (req, res) => {
   try {
@@ -137,9 +137,9 @@ router.get("/get-order-details-of-events", async (req, res) => {
 
 router.post("/create-menu-items", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).send("No file uploaded.");
-    }
+    // if (!req.file) {
+    //   return res.status(400).send("No file uploaded.");
+    // }
     const newItem = await createMenuItem(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Item created successfully",

@@ -310,56 +310,59 @@ module.exports.getMenuItems = async (req) => {
   const { menuCategoryId } = req.query;
   const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
 
-  const menuItems = await ItemDetails.aggregate([
-    {
-      $match: {
-        menuCategoryId: ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
-      },
-    },
-    {
-      $lookup: {
-        from: "menuitems",
-        localField: "itemId",
-        foreignField: "_id",
-        as: "item",
-      },
-    },
-    {
-      $unwind: "$item",
-    },
-    ...(searchTerm
-      ? [
-          {
-            $match: {
-              "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
-            },
-          },
-        ]
-      : []),
-    {
-      $project: {
-        "item._id": 1,
-        "item.itemName": 1,
-        "item.description": 1,
-        "item.type": 1,
-        "item.price": 1,
-        "item.currency": 1,
-        "item.image": 1,
-        "item.quantity": 1,
-        price: 1,
-        availableQuantity: 1,
-        menuCategoryId: 1,
-        counterId: 1,
-        entityId: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        currency: 1,
-      },
-    },
-    {
-      $sort: { updatedAt: -1 },
-    },
-  ]);
+  // const menuItems = await ItemDetails.aggregate([
+  //   {
+  //     $match: {
+  //       menuCategoryId: ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
+  //     },
+  //   },
+  //   {
+  //     $lookup: {
+  //       from: "itemdetails",
+  //       localField: "_id",
+  //       foreignField: "itemId",
+  //       as: "item",
+  //     },
+  //   },
+  //   {
+  //     $unwind: "$item",
+  //   },
+  //   ...(searchTerm
+  //     ? [
+  //         {
+  //           $match: {
+  //             "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
+  //           },
+  //         },
+  //       ]
+  //     : []),
+  //   {
+  //     $project: {
+  //       "item._id": 1,
+  //       "item.itemName": 1,
+  //       "item.description": 1,
+  //       "item.type": 1,
+  //       "item.price": 1,
+  //       "item.currency": 1,
+  //       "item.image": 1,
+  //       "item.quantity": 1,
+  //       price: 1,
+  //       availableQuantity: 1,
+  //       menuCategoryId: 1,
+  //       counterId: 1,
+  //       entityId: 1,
+  //       createdAt: 1,
+  //       updatedAt: 1,
+  //       currency: 1,
+  //     },
+  //   },
+  //   {
+  //     $sort: { updatedAt: -1 },
+  //   },
+  // ]);
+
+  const menuItems = await ItemDetails.find({ menuCategoryId }).lean();
+  console.log({ menuItems });
   if (!menuItems.length) {
     return [];
   }
@@ -383,14 +386,15 @@ module.exports.getMenuItems = async (req) => {
   console.log({ favouriteItemList });
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
-    const itemDetails = menuItem.item;
+    // console.log({ menuItem }, ">>>>>>>>>>>");
+    let itemDetails = menuItem.item;
     delete menuItem.item;
     if (favouriteItemIds.has(menuItem._id.toString())) {
       menuItem.isFavourite = true;
     } else {
       menuItem.isFavourite = false;
     }
-    itemDetails.image = generatePresignedUrl(itemDetails.image);
+    // itemDetails.image = generatePresignedUrl(itemDetails?.image);
     delete menuItem.itemId;
     acc.push({
       ...menuItem,

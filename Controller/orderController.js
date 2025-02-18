@@ -18,7 +18,7 @@ const { STATUS_CODES } = require("../Utils/globalConstants");
 
 const verifyToken = require("../Utils/verifyToken");
 
-router.use(verifyToken);
+// router.use(verifyToken);
 
 router.use((req, res, next) => {
   req.userId = req.id;
@@ -46,7 +46,6 @@ router.post("/create-order", async (req, res) => {
   }
 });
 
-
 router.post("/update-status-of-order", async (req, res) => {
   try {
     await updateStatusOfOrder(req);
@@ -61,13 +60,16 @@ router.post("/update-status-of-order", async (req, res) => {
   }
 });
 
-
 router.post("/get-entity-orders", async (req, res) => {
   try {
     const { data, totalCount } = await getEntityOrders(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Orders fetched successfully.", orderDetails: data, totalCount });
+      .json({
+        message: "Orders fetched successfully.",
+        orderDetails: data,
+        totalCount,
+      });
   } catch (error) {
     console.error("Error while fetching orders", error);
     return res
@@ -130,7 +132,6 @@ router.get("/get-live-order-details", async (req, res) => {
       .json({ message: error.message || "Error while fetching orders" });
   }
 });
-
 
 router.get("/get-past-ticket-years-customer", async (req, res) => {
   try {

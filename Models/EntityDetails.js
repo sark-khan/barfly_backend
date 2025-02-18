@@ -4,7 +4,7 @@ const { PRODUCT_TYPE, STATUS } = require("../Utils/globalConstants");
 const Schema = mongoose.Schema;
 const { ObjectId } = mongoose.Types;
 
-const productSchema = new Schema(
+const entityDetailsSchema = new Schema(
   {
     userId: { type: ObjectId },
     city: { type: String },
@@ -26,4 +26,4 @@ const productSchema = new Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("EntityDetails", productSchema);
+module.exports = mongoose.model("EntityDetails", entityDetailsSchema);

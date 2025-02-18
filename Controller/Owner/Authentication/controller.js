@@ -9,7 +9,7 @@ router.post("/login", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
       token: response.token,
-      userDetails: response.user,
+      // userDetails: response.user,
     });
   } catch (error) {
     console.error("error while login", error);

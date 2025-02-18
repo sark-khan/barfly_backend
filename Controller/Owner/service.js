@@ -23,13 +23,13 @@ module.exports.createCounter = async (req) => {
   }
 
   const existingCounter = await Counter.findOne(
-    { counterName, ownerId: req.id },
+    { counterName, ownerId: req.body.userId },
     { _id: 1 }
   );
 
   if (existingCounter) {
     throw {
-      status: STATUS_CODES.CONFLICT,
+      status: STATUS_CODES.BAD_REQUEST,
       message: "This counter name already exists",
     };
   }
@@ -38,8 +38,8 @@ module.exports.createCounter = async (req) => {
     { counterName, ownerId: req.id, entityId: req.entityId },
     {
       counterName,
-      ownerId: req.id,
-      entityId: req.entityId,
+      ownerId: req.body.userId,
+      entityId: req.body.entityId,
       isTableService,
       isSelfPickUp,
       totalTables,
@@ -49,7 +49,7 @@ module.exports.createCounter = async (req) => {
 
   if (!newCounter) {
     throw {
-      status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+      status: STATUS_CODES.BAD_REQUEST,
       message: "Failed to create or update insider",
     };
   }
@@ -72,7 +72,7 @@ module.exports.createCounter = async (req) => {
 module.exports.createCounterMenuCategory = async (req) => {
   const { counterId, name, amount, description } = req.body;
 
-  if (!counterId || !name || !icon) {
+  if (!counterId || !name) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "CounterId, Name, and Icon are required",
@@ -101,7 +101,7 @@ module.exports.getInsiderElements = async (insiderId) => {
     return elements;
   } catch (error) {
     throw {
-      status: error.status || STATUS_CODES.INTERNAL_SERVER_ERROR,
+      status: error.status || STATUS_CODES.BAD_REQUEST,
       message: error.message || "Failed to fetch insider elements",
     };
   }
@@ -120,17 +120,17 @@ module.exports.createMenuItem = async (req) => {
     unit,
   } = req.body;
 
-  const fileBuffer = req.file.buffer;
-  const fileName = `${
-    req.entityId
-  }_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
-  const data = await uploadBufferToS3(fileBuffer, fileName);
-  if (!data.Location) {
-    throwError({
-      message: "Error occured while uplaoding the file",
-      status: STATUS_CODES.SERVER_ERROR,
-    });
-  }
+  // const fileBuffer = req.file.buffer;
+  // const fileName = `${
+  //   req.entityId
+  // }_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
+  // const data = await uploadBufferToS3(fileBuffer, fileName);
+  // if (!data.Location) {
+  //   throwError({
+  //     message: "Error occured while uplaoding the file",
+  //     status: STATUS_CODES.SERVER_ERROR,
+  //   });
+  // }
   const menuCategory = await MenuCategory.findById(menuCategoryId);
   if (!menuCategory) {
     throw {
@@ -138,14 +138,14 @@ module.exports.createMenuItem = async (req) => {
       message: "Menu Category not found",
     };
   }
-  const existingItem = await MenuItem.findOne(
+  const existingItem = await ItemDetails.findOne(
     { itemName, menuCategoryId },
     { _id: 1 }
   );
   if (existingItem) {
     throwError({
       message: "Same item exists in this menu",
-      status: STATUS_CODES.CONFLICT,
+      status: STATUS_CODES.BAD_REQUEST,
     });
   }
 
@@ -161,14 +161,15 @@ module.exports.createMenuItem = async (req) => {
   });
 
   const itemDetails = await ItemDetails.create({
+    itemName,
     price,
     availableQuantity,
     currency,
     menuCategoryId,
-    entityId: req.entityId,
+    entityId: req.body.entityId,
     counterId: counterId.id,
-    itemId: newItem._id,
-    image: fileName,
+    // itemId: newItem._id,
+    // image: fileName,
     isVegan,
     unit,
     description,
@@ -180,7 +181,7 @@ module.exports.createMenuItem = async (req) => {
 module.exports.createItems = async (req) => {
   const { itemName, quantity, description, type, price, currency } = req.body;
 
-  const existingItem = await MenuItem.findOne({ itemName }, { _id: 1 });
+  const existingItem = await ItemDetails.findOne({ itemName }, { _id: 1 });
   if (existingItem) {
     return throwError({
       status: STATUS_CODES.CONFLICT,
@@ -196,7 +197,7 @@ module.exports.createItems = async (req) => {
       status: STATUS_CODES.SERVER_ERROR,
     });
   }
-  await MenuItem.create({
+  await ItemDetails.create({
     entityId: req.entityId,
     itemName,
     quantity,

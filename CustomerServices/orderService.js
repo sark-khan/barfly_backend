@@ -12,14 +12,14 @@ const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
 
 const createOrder = async (req, session) => {
-  const { items, eventId } = req.body;
+  const { items, eventId, tableNo, isSelfPickup } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
   console.log({ itemsIds });
   if (!itemsIds) return;
-  const menuItems = await ItemDetails.find({ itemId: { $in: itemsIds } })
-    .populate({
-      path: "menuCategoryId",
-    })
+  const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
+    // .populate({
+    //   path: "menuCategoryId",
+    // })
     .lean();
   console.log({ menuItems });
   if (!menuItems.length) {
@@ -31,7 +31,7 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
-    itemNameMapper[`${item.itemId}`] = item;
+    itemNameMapper[`${item._id}`] = item;
   });
   console.log({ itemNameMapper });
   let counterId;
@@ -40,15 +40,12 @@ const createOrder = async (req, session) => {
   const promises = [];
   let amount = 0;
   items.forEach((doc) => {
-    console.log({ doc });
     const menuItem = itemNameMapper[`${doc.itemId}`];
     if (menuItem) {
       console.log("Reched ehr er");
-      entityId = menuItem?.menuCategoryId?.entityId;
-      console.log({ mm: menuItem });
-      console.log({ mm: menuItem.menuCategoryId });
+      entityId = menuItem?.entityId;
       menuCategoryId = menuItem?.menuCategoryId._id;
-      counterId = menuItem?.menuCategoryId?.counterId;
+      counterId = menuItem?.counterId;
       if (menuItem.availableQuantity < doc.quantity) {
         msg += `${menuItem.itemName} , `;
       }
@@ -72,8 +69,6 @@ const createOrder = async (req, session) => {
   if (lastOrder) {
     tokenNumber = lastOrder.tokenNumber + 1;
   }
-  // await Promise.all(promises);
-  console.log({ counterId });
   return Order.create(
     [
       {
@@ -85,6 +80,8 @@ const createOrder = async (req, session) => {
         userId: req.userId,
         totalAmount: amount,
         eventId,
+        tableNo,
+        isSelfPickup,
       },
     ],
     { session }
@@ -150,74 +147,88 @@ const getEntityOrders = async (req) => {
 };
 
 const getLiveOrdersUsers = async (req) => {
-  const {
+  const { userId } = req;
+  console.log({ userId });
+
+  // let liveOrders = await Order.aggregate([
+  //   {
+  //     $match: {
+  //       userId: mongoose.Types.ObjectId(userId),
+  //       status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+  //     },
+  //   },
+  //   {
+  //     $sort: { updatedAt: -1 },
+  //   },
+  //   {
+  //     $lookup: {
+  //       from: "entitydetails",
+  //       localField: "entityId",
+  //       foreignField: "_id",
+  //       as: "entityDetails",
+  //     },
+  //   },
+  //   {
+  //     $unwind: {
+  //       path: "$entityDetails",
+  //       preserveNullAndEmptyArrays: true,
+  //     },
+  //   },
+  //   {
+  //     $group: {
+  //       _id: "$entityId", // Group by `entityId`
+  //       entityDetails: { $first: "$entityDetails" }, // Take the first occurrence of entityDetails for each group
+  //       orders: {
+  //         $push: {
+  //           _id: "$_id",
+  //           status: "$status",
+  //           items: "$items",
+  //           tokenNumber: "$tokenNumber",
+  //           updatedAt: "$updatedAt",
+  //         },
+  //       },
+  //       latestUpdatedAt: { $first: "$updatedAt" },
+  //       orderCount: { $sum: 1 }, // Count the number of orders in each group
+  //     },
+  //   },
+  //   {
+  //     $addFields: {
+  //       orders: {
+  //         $sortArray: {
+  //           input: "$orders",
+  //           sortBy: { tokenNumber: -1 },
+  //         },
+  //       },
+  //     },
+  //   },
+  //   {
+  //     $project: {
+  //       _id: 1,
+  //       entityDetails: 1, // Include `entityDetails` (contains entityName, etc.)
+  //       orders: 1, // Include the grouped orders
+  //       orderCount: 1, // Include the order count
+  //     },
+  //   },
+  //   {
+  //     $sort: { latestUpdatedAt: -1 },
+  //   },
+  // ]);
+
+  const liveOrders = await Order.find({
     userId,
-    query: { pageNo = 1, pageLimit = 10 },
-  } = req;
-  const skip = +(pageNo - 1) * +pageLimit;
-  let liveOrders = await Order.aggregate([
-    {
-      $match: {
-        userId: mongoose.Types.ObjectId(userId),
-        status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-      },
-    },
-    {
-      $sort: { updatedAt: -1 },
-    },
-    {
-      $lookup: {
-        from: "entitydetails",
-        localField: "entityId",
-        foreignField: "_id",
-        as: "entityDetails",
-      },
-    },
-    {
-      $unwind: {
-        path: "$entityDetails",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $group: {
-        _id: "$entityId", // Group by `entityId`
-        entityDetails: { $first: "$entityDetails" }, // Take the first occurrence of entityDetails for each group
-        orders: {
-          $push: {
-            _id: "$_id",
-            status: "$status",
-            items: "$items",
-            tokenNumber: "$tokenNumber",
-            updatedAt: "$updatedAt",
-          },
-        },
-        latestUpdatedAt: { $first: "$updatedAt" },
-        orderCount: { $sum: 1 }, // Count the number of orders in each group
-      },
-    },
-    {
-      $addFields: {
-        orders: {
-          $sortArray: {
-            input: "$orders",
-            sortBy: { tokenNumber: -1 },
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        _id: 1,
-        entityDetails: 1, // Include `entityDetails` (contains entityName, etc.)
-        orders: 1, // Include the grouped orders
-        orderCount: 1, // Include the order count
-      },
-    },
-    {
-      $sort: { latestUpdatedAt: -1 },
-    },
-  ]);
+    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+  })
+    .populate({
+      path: "entityId",
+      select: "entityName",
+      model: "EntityDetails",
+    })
+    .populate({
+      path: "items.itemId",
+      select: "itemName",
+      model: "ItemDetails",
+    });
+
   return liveOrders;
 };
 

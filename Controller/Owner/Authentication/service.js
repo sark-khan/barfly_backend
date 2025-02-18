@@ -5,6 +5,7 @@ const {
   generateOTP,
 } = require("../../../Utils/commonFunction");
 const crypto = require("crypto");
+const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
 
 const User = require("../../../Models/User");
@@ -36,22 +37,23 @@ module.exports.register = async (req) => {
     enteredOtp,
     state,
     location,
+    sessionId,
   } = req.body;
-  const userExist = await User.findOne({ email }).lean();
+  const userExist = await User.findOne({ $or: [{ email }, { contactNumber }] });
   if (userExist) {
     throwError({
-      status: STATUS_CODES.NOT_AUTHORIZED,
+      status: STATUS_CODES.BAD_REQUEST,
       message: "User already registerd",
     });
   }
-  let otpVerified = false;
   let message = "";
   let otpSent = false;
+  let otpVerified = false;
+
   if (contactNumber && !otpSent) {
     let otpRecord = await Otp.findOne({ contactNumber });
 
     if (!otpRecord || otpRecord.expiresAt < Date.now()) {
-      // Generate a new OTP if there's no existing record or if it has expired
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -61,23 +63,12 @@ module.exports.register = async (req) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      // const msg = `Your verification code is: ${otp}`;
-      // await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+      const msg = `Your verification code is: ${otp}`;
+      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
 
       message = "OTP sent successfully.";
       return { otpSent: true, message, otp };
-
-      // return { message, otpSent }; // Exit after sending OTP to avoid immediate verification
     }
-
-    console.log({ otpRecord });
-
-    // if (!enteredOtp) {
-    //   throwError({
-    //     status: STATUS_CODES.BAD_REQUEST,
-    //     message: "Please enter OTP.",
-    //   });
-    // }
 
     if (otpRecord.expiresAt < Date.now()) {
       await Otp.deleteOne({ contactNumber });
@@ -97,115 +88,92 @@ module.exports.register = async (req) => {
     }
 
     // OTP matched
-    if (enteredOtp && enteredOtp == otpRecord.otp) {
-      message = "OTP verified successfully.";
-
+    if (enteredOtp && enteredOtp == otpRecord.otp && !otpVerified) {
       await Otp.deleteOne({ contactNumber });
-      return { otpVerified: true, message };
+      const sessionId = crypto.randomUUID();
+
+      const sessionDetails = await OtpSession.create({
+        sessionId,
+        contactNumber,
+      });
+      console.log({ sessionDetails });
+      message = "OTP verified successfully.";
+      return { otpVerified: true, message, sessionId };
     }
   }
+  const sessionData = await OtpSession.findOne({ sessionId });
 
-  if (otpVerified) {
-    console.log("aa rha hai????????????????????");
-    const newUser = await User.create({
-      role: ROLES.STORE_OWNER,
-      fullName,
-      email,
-      contactNumber,
-      status: STATUS.ACTIVE,
+  if (!sessionData || !sessionData.contactNumber) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Session expired or invalid sessionId. Please verify OTP again.",
     });
-    if (password) {
-      const hashedPassword = hashPassword(password);
-      newUser.password = hashedPassword;
-    }
-    // if (req.file) {
-    //   const fileBuffer = req.file.buffer;
-    //   const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
-    //   const data = await uploadBufferToS3(fileBuffer, fileName);
-    //   if (!data.Location) {
-    //     throwError({
-    //       message: "Error occured while uplaoding the file",
-    //       status: STATUS_CODES.SERVER_ERROR,
-    //     });
-    //   }
-    // }
-
-    const newEntityDetailsObj = {
-      city,
-      zipcode,
-      entityName,
-      entityType,
-      owner: newUser._id,
-      // image: fileName.replace(" ", "_"),
-      entityContactNumber,
-      plotNo,
-      floor,
-      country,
-      buildingName,
-      landMark,
-      userId: newUser._id,
-      status: STATUS.ACTIVE,
-      state,
-      location,
-    };
-
-    await EntityDetails.create(newEntityDetailsObj);
-    delete newUser.password;
-
-    return { message: "Registration successful" };
   }
+
+  const contactNumberSave = sessionData.contactNumber;
+
+  const newUser = {
+    role: ROLES.STORE_OWNER,
+    fullName,
+    email,
+    status: STATUS.ACTIVE,
+    contactNumber: contactNumberSave,
+  };
+  if (password) {
+    const hashedPassword = hashPassword(password);
+    newUser.password = hashedPassword;
+  }
+  const userDetails = await User.create(newUser);
+
+  // if (req.file) {
+  //   const fileBuffer = req.file.buffer;
+  //   const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
+  //   const data = await uploadBufferToS3(fileBuffer, fileName);
+  //   if (!data.Location) {
+  //     throwError({
+  //       message: "Error occured while uplaoding the file",
+  //       status: STATUS_CODES.SERVER_ERROR,
+  //     });
+  //   }
+  // }
+
+  const newEntityDetailsObj = {
+    city,
+    zipcode,
+    entityName,
+    entityType,
+    owner: userDetails._id,
+    // image: fileName.replace(" ", "_"),
+    entityContactNumber,
+    plotNo,
+    floor,
+    country,
+    buildingName,
+    landMark,
+    userId: userDetails._id,
+    status: STATUS.ACTIVE,
+    state,
+    location,
+  };
+
+  await EntityDetails.create(newEntityDetailsObj);
+  await OtpSession.deleteOne({ sessionId });
+  return { message: "Registration successful" };
 };
 
 module.exports.login = async (req) => {
-  const { email, password } = req.body;
-  // const userProjection = {
-  //   role: 1,
-  //   firstName: 1,
-  //   lastName: 1,
-  //   email: 1,
-  //   contactNumber: 1,
-  //   // password: 1,
-  // };
+  const { email, contactNumber, password } = req.body;
 
-  // const userAndEntityDetails = await User.aggregate([
-  //   {
-  //     $match: {
-  //       $or: [{ email: email }, { contactNumber: email }],
-  //     },
-  //   },
-  //   {
-  //     $lookup: {
-  //       from: "entitydetails",
-  //       localField: "_id",
-  //       foreignField: "owner",
-  //       as: "entityDetails",
-  //     },
-  //   },
-  //   {
-  //     $unwind: {
-  //       path: "$entityDetails",
-  //       preserveNullAndEmptyArrays: true,
-  //     },
-  //   },
-  //   {
-  //     $project: {
-  //       ...userProjection,
-  //       "entityDetails.entityName": 1,
-  //       "entityDetails.entityType": 1,
-  //       "entityDetails._id": 1,
-  //     },
-  //   },
-  // ]);
+  const user = await User.findOne({ $or: [{ email }, { contactNumber }] });
+  console.log({ user });
+  const entityDetails = await EntityDetails.findOne({ userId: user._id });
 
-  // const user = userAndEntityDetails[0];
-
-  // const user = await User.findOne({ email });
-  // const entityDetails = await EntityDetails.findOne({ userId });
-
-  const [user, entityDetails] = await Promise.all([
-    User.findOne({ email }).exec(),
-    EntityDetails.findOne({ userId: user._id }).exec(),
-  ]);
+  if (email && contactNumber) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Please enter either email or password.",
+    });
+  }
 
   if (!user)
     throwError({
@@ -236,7 +204,7 @@ module.exports.login = async (req) => {
   }
   user.entityDetails = entityDetails;
 
-  const token = getJwtToken(user);
+  const token = getJwtToken(user, false);
 
   return { user, entityDetails, token };
 };
