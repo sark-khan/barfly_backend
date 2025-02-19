@@ -3,6 +3,9 @@ const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
 const { register, login } = require("./service");
 
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage() });
+
 router.post("/login", async (req, res) => {
   try {
     const response = await login(req);
@@ -17,7 +20,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post("/register", async (req, res) => {
+router.post("/register", upload.single("file"), async (req, res) => {
   try {
     const message = await register(req);
     return res.status(STATUS_CODES.OK).json(message);

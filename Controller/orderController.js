@@ -60,16 +60,14 @@ router.post("/update-status-of-order", async (req, res) => {
   }
 });
 
-router.post("/get-entity-orders", async (req, res) => {
+router.get("/get-entity-orders", async (req, res) => {
   try {
     const { data, totalCount } = await getEntityOrders(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({
-        message: "Orders fetched successfully.",
-        orderDetails: data,
-        totalCount,
-      });
+    return res.status(STATUS_CODES.OK).json({
+      message: "Orders fetched successfully.",
+      orderDetails: data,
+      totalCount,
+    });
   } catch (error) {
     console.error("Error while fetching orders", error);
     return res

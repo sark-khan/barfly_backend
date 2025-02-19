@@ -80,7 +80,7 @@ module.exports.register = async (req) => {
 
     console.log({ enteredOtp, otp: otpRecord.otp });
 
-    if (enteredOtp && enteredOtp !== otpRecord.otp) {
+    if (enteredOtp && enteredOtp != otpRecord.otp) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "Invalid OTP, Please try again.",

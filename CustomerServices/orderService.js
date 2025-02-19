@@ -114,34 +114,40 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    body: { status, pageNo = 1, pageLimit = 10 },
+    // query: { status, pageNo = 1, pageLimit = 10 },
   } = req;
-  const query = {};
-  if (!req.isAdmin) {
-    if (req.role == ROLES.CUSTOMER) {
-      query.userId = req.id;
-    } else {
-      query.entityId = entityId;
-    }
-    if (status) {
-      query.status = status;
-    }
-  } else {
-    if (req.body.entityId) {
-      query.entityId = req.body.entityId;
-    }
-  }
-  const skip = +(pageNo - 1) * +pageLimit;
+  const queryObj = {
+    status: {
+      $in: [ORDER_STATUS.WAITING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED],
+    },
+  };
+  // const query = {};
+  // if (!req.isAdmin) {
+  //   if (req.role == ROLES.CUSTOMER) {
+  //     query.userId = req.id;
+  //   } else {
+  //     query.entityId = entityId;
+  //   }
+  //   if (status) {
+  //     query.status = status;
+  //   }
+  // } else {
+  //   if (req.body.entityId) {
+  //     query.entityId = req.body.entityId;
+  //   }
+  // }
+  // const skip = +(pageNo - 1) * +pageLimit;
   const [data, totalCount] = await Promise.all([
-    Order.find(query, { items: 1, status: 1, tokenNumber: 1 })
+    Order.find({ entityId }, { items: 1, status: 1, tokenNumber: 1 })
       .populate({
         path: "items.itemId",
         select: "itemName quantity description type currency image",
+        model: "ItemDetails",
       })
-      .sort({ tokenNumber: -1 })
-      .skip(skip)
-      .limit(pageLimit),
-    Order.countDocuments(query),
+      .sort({ tokenNumber: -1 }),
+    // .skip(skip)
+    // .limit(pageLimit),
+    Order.countDocuments(queryObj),
   ]);
   return { data, totalCount };
 };
@@ -216,7 +222,14 @@ const getLiveOrdersUsers = async (req) => {
 
   const liveOrders = await Order.find({
     userId,
-    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    status: {
+      $in: [
+        ORDER_STATUS.WAITING,
+        ORDER_STATUS.IN_PROGRESS,
+        ORDER_STATUS.READY,
+        ORDER_STATUS.COMPLETED,
+      ],
+    },
   })
     .populate({
       path: "entityId",

@@ -23,7 +23,7 @@ module.exports.createCounter = async (req) => {
   }
 
   const existingCounter = await Counter.findOne(
-    { counterName, ownerId: req.body.userId },
+    { counterName, ownerId: req.userId },
     { _id: 1 }
   );
 
@@ -38,8 +38,8 @@ module.exports.createCounter = async (req) => {
     { counterName, ownerId: req.id, entityId: req.entityId },
     {
       counterName,
-      ownerId: req.body.userId,
-      entityId: req.body.entityId,
+      ownerId: req.userId,
+      entityId: req.entityId,
       isTableService,
       isSelfPickUp,
       totalTables,
@@ -156,9 +156,9 @@ module.exports.createMenuItem = async (req) => {
   //   type,
   //   image: fileName,
   // });
-  const counterId = await MenuCategory.findById(menuCategoryId, {
-    counterId: 1,
-  });
+  // const counterId = await MenuCategory.findById(menuCategoryId, {
+  //   counterId: 1,
+  // });
 
   const itemDetails = await ItemDetails.create({
     itemName,
@@ -166,8 +166,8 @@ module.exports.createMenuItem = async (req) => {
     availableQuantity,
     currency,
     menuCategoryId,
-    entityId: req.body.entityId,
-    counterId: counterId.id,
+    entityId: req.entityId,
+    counterId: menuCategory.counterId,
     // itemId: newItem._id,
     // image: fileName,
     isVegan,

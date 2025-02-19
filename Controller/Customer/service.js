@@ -277,18 +277,36 @@ module.exports.counterList = async (req) => {
     }
   ).lean();
 
-  const counterIdsList = new Set();
+  // const counterIdsList = new Set();
+  // console.log({ eventOfThisCounters });
+  // eventOfThisCounters.forEach((event) => {
+  //   console.log({ event }, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+  //   event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
+  // });
+
+  const counterLists = [];
+  const counterIdsSet = new Set();
+
   eventOfThisCounters.forEach((event) => {
-    event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
+    event.counterIds.forEach((counterId) => {
+      counterIdsSet.add(counterId.toString());
+      counterLists.push({
+        counterId: counterId.toString(),
+        eventId: event._id.toString(),
+      });
+    });
   });
 
   const counterList = counters.map((counter) => {
-    if (counterIdsList.has(counter._id.toString())) {
-      counter.isLive = true;
-      return counter;
-    }
-    counter.isLive = false;
-    return counter;
+    const matchedCounter = counterLists.find(
+      (c) => c.counterId == counter._id.toString()
+    );
+
+    return {
+      ...counter,
+      isLive: counterIdsSet.has(counter._id.toString()),
+      eventId: matchedCounter ? matchedCounter.eventId : null,
+    };
   });
 
   return counterList;
@@ -307,8 +325,8 @@ module.exports.getMenuSubCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  const { menuCategoryId } = req.query;
-  const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+  const { menuCategoryId, searchTerm } = req.query;
+  // const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
 
   // const menuItems = await ItemDetails.aggregate([
   //   {
@@ -362,7 +380,6 @@ module.exports.getMenuItems = async (req) => {
   // ]);
 
   const menuItems = await ItemDetails.find({ menuCategoryId }).lean();
-  console.log({ menuItems });
   if (!menuItems.length) {
     return [];
   }
@@ -383,10 +400,8 @@ module.exports.getMenuItems = async (req) => {
   favouriteItemList.forEach((item) => {
     favouriteItemIds.add(item.favouriteItemId.toString());
   });
-  console.log({ favouriteItemList });
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
-    // console.log({ menuItem }, ">>>>>>>>>>>");
     let itemDetails = menuItem.item;
     delete menuItem.item;
     if (favouriteItemIds.has(menuItem._id.toString())) {
@@ -402,6 +417,11 @@ module.exports.getMenuItems = async (req) => {
     });
     return acc;
   }, []);
+
+  // if (searchTerm) {
+  //   console.log("32535252432332");
+  //   query.itemName = { $regex: searchTerm, $options: "i" };
+  // }
   return { menuItemsResp, ...name };
 };
 
