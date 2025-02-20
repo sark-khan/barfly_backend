@@ -12,6 +12,7 @@ const {
   particularOrderDetails,
   getOrderGroupByYearsForEntity,
   pastTicketYears,
+  cancelOrder,
 } = require("../CustomerServices/orderService");
 
 const { STATUS_CODES } = require("../Utils/globalConstants");
@@ -142,6 +143,20 @@ router.get("/get-past-ticket-years-customer", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while fetching orders" });
+  }
+});
+
+router.post("/cancel-order", async (req, res) => {
+  try {
+    await cancelOrder(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Order cancelled successfully." });
+  } catch (error) {
+    console.error("Error while cancelling the order", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while cancelling the order" });
   }
 });
 

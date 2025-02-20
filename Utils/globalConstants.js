@@ -34,6 +34,7 @@ const FOOD_TYPE = {
   SNACK: "Food",
   DRINK: "Drink",
   ALCOHOL: "Alcohol",
+  VEGAN: "Vegan",
 };
 
 const DRINKS_SIZE = {
@@ -51,6 +52,7 @@ const ORDER_STATUS = {
   READY: "Ready",
   COMPLETED: "Completed",
   WAITING: "Waiting",
+  CANCELLED: "Cancelled",
 };
 
 const KEY_TYPE_PREFIXES = {

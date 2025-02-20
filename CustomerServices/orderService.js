@@ -14,12 +14,13 @@ const ItemDetails = require("../Models/ItemDetails");
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
-  console.log({ itemsIds });
   if (!itemsIds) return;
   const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
-    // .populate({
-    //   path: "menuCategoryId",
-    // })
+    .populate({
+      path: "menuCategoryId",
+      select: "name amount description",
+      model: "CounterMenuCategory",
+    })
     .lean();
   console.log({ menuItems });
   if (!menuItems.length) {
@@ -42,7 +43,6 @@ const createOrder = async (req, session) => {
   items.forEach((doc) => {
     const menuItem = itemNameMapper[`${doc.itemId}`];
     if (menuItem) {
-      console.log("Reched ehr er");
       entityId = menuItem?.entityId;
       menuCategoryId = menuItem?.menuCategoryId._id;
       counterId = menuItem?.counterId;
@@ -50,7 +50,7 @@ const createOrder = async (req, session) => {
         msg += `${menuItem.itemName} , `;
       }
       const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
-      amount += +doc.quantity * +menuItem.price;
+      amount += doc.quantity * menuItem.price;
     }
   });
   if (msg) {
@@ -114,11 +114,17 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    // query: { status, pageNo = 1, pageLimit = 10 },
+    query: { pageNo, pageLimit },
   } = req;
   const queryObj = {
     status: {
-      $in: [ORDER_STATUS.WAITING, ORDER_STATUS.READY, ORDER_STATUS.COMPLETED],
+      $in: [
+        ORDER_STATUS.WAITING,
+        ORDER_STATUS.IN_PROGRESS,
+        ORDER_STATUS.READY,
+        ORDER_STATUS.COMPLETED,
+        ORDER_STATUS.CANCELLED,
+      ],
     },
   };
   // const query = {};
@@ -705,6 +711,36 @@ const pastTicketYears = async (req) => {
   });
   return yearList;
 };
+
+const cancelOrder = async (req) => {
+  const { orderId } = req.body;
+  const order = await Order.findOne({
+    _id: orderId,
+    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+  });
+
+  if (!order) {
+    throwError({
+      status: STATUS_CODES.NOT_ACCEPTABLE,
+      message: "Order not found",
+    });
+  }
+
+  if (
+    order.status === ORDER_STATUS.READY ||
+    order.status === ORDER_STATUS.COMPLETED
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Apologies! order cannot be cancelled now.",
+    });
+  }
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { status: ORDER_STATUS.CANCELLED } }
+  );
+};
+
 module.exports = {
   createOrder,
   updateStatusOfOrder,
@@ -714,4 +750,5 @@ module.exports = {
   particularOrderDetails,
   getOrderGroupByYearsForEntity,
   pastTicketYears,
+  cancelOrder,
 };

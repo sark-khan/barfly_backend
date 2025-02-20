@@ -41,12 +41,12 @@ const upload = multer({ storage: storage });
 //   return next();
 // });
 
-router.post("/create-counter-with-settings", async (req, res) => {
+router.post("/create-counter", async (req, res) => {
   try {
     const response = await createCounter(req);
     return res.status(STATUS_CODES.OK).json({
       message: `${response.counterName} created successfully`,
-      data: response,
+      data: response.counterName,
     });
   } catch (error) {
     console.error("Error while creating Menu", error);
@@ -64,7 +64,9 @@ router.post("/add-existing-item-to-menu", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while adding item to category", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -72,12 +74,14 @@ router.post("/create-counter-menu-category", async (req, res) => {
   try {
     const response = await createCounterMenuCategory(req);
     return res.status(STATUS_CODES.OK).json({
-      message: `Counter menu category successfully`,
+      message: `Counter menu category created successfully`,
       data: response,
     });
   } catch (error) {
-    console.error("Error while creating menu category", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    console.error("Error while creating counter category", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -90,9 +94,12 @@ router.get("/get-counter", async (req, res) => {
     console.log({ counter });
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Counter succesfully fetched", counter });
+      .json({ message: "Counters fetched succesfully.", counter });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    console.error("Error while getting counters:", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while getting counters" });
   }
 });
 
@@ -105,7 +112,9 @@ router.get("/get-menu-category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while fetching menu category", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -118,7 +127,9 @@ router.get("/get-menu-category-items", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while fetching menu items", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -131,15 +142,14 @@ router.get("/get-order-details-of-events", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while fetching oreder Details", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
 router.post("/create-menu-items", upload.single("file"), async (req, res) => {
   try {
-    // if (!req.file) {
-    //   return res.status(400).send("No file uploaded.");
-    // }
     const newItem = await createMenuItem(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Item created successfully",
@@ -155,7 +165,7 @@ router.post("/create-menu-items", upload.single("file"), async (req, res) => {
 router.post("/create-items", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).send("No file uploaded.");
+      return res.status(STATUS_CODES.SERVER_ERROR).send("No file uploaded.");
     }
     const newItem = await createItems(req);
     return res.status(STATUS_CODES.OK).json({
@@ -177,7 +187,9 @@ router.get("/get-entity-items", async (req, res) => {
       entityItems: response,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -210,7 +222,9 @@ router.get("/get-menu-particular-item", async (req, res) => {
       particularItemDetails: response,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 router.post("/update-menu-item", async (req, res) => {
@@ -220,7 +234,9 @@ router.post("/update-menu-item", async (req, res) => {
       message: "Items updated succesfully",
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -232,7 +248,9 @@ router.post("/create-event", async (req, res) => {
       .json({ message: "Event succesfully created", data: response });
   } catch (error) {
     console.error({ error, message: "Error occured in create event" });
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -244,7 +262,9 @@ router.get("/get-upcoming-events", async (req, res) => {
       upcomingEvents,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -256,7 +276,9 @@ router.get("/get-past-events-years", async (req, res) => {
       pastEventsYear,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -268,7 +290,9 @@ router.get("/get-past-events-year-month", async (req, res) => {
       pastEventsMonths,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -292,7 +316,9 @@ router.get("/get-past-events-by-month", async (req, res) => {
       data: response,
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -305,7 +331,9 @@ router.get("/get-event-details-monthly", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching the monthly event details");
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -318,7 +346,9 @@ router.get("/get-ongoing-event-details", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured in ongoing event details", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -331,7 +361,9 @@ router.get("/get-counter-list-quantity", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching counter list quantity", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -344,7 +376,9 @@ router.post("/update-counter-settings", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching counter list quantity", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -357,7 +391,9 @@ router.get("/get-counter-settings", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching counter list quantity", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
