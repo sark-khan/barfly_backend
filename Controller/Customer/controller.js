@@ -56,7 +56,9 @@ router.post("/event-opened", async (req, res) => {
       .json({ message: "Active users increased" });
   } catch (error) {
     console.error("Error while event opened api", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -68,7 +70,9 @@ router.post("/event-closed", async (req, res) => {
       .json({ message: "Active users reduced" });
   } catch (error) {
     console.error("Error while event opened api", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -79,7 +83,9 @@ router.post("/add-favourite-entity", async (req, res) => {
       .status(STATUS_CODES.OK)
       .json({ message: "Favourite event added" });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -91,7 +97,7 @@ router.post("/add-favourite-entity", async (req, res) => {
 //       data: response,
 //     });
 //   } catch (error) {
-//     return res.status(error.status || 400).json({ message: error.message });
+//     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({ message: error.message });
 //   }
 // });
 
@@ -102,7 +108,9 @@ router.get("/counter-list-items", async (req, res) => {
       .status(STATUS_CODES.OK)
       .json({ message: "Favourite event added" });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 // router.put("/remove-favourite-events", async (req, res) => {
@@ -112,7 +120,7 @@ router.get("/counter-list-items", async (req, res) => {
 //       message: "Favourite events removed successfully",
 //     });
 //   } catch (error) {
-//     return res.status(error.status || 400).json({ message: error.message });
+//     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({ message: error.message });
 //   }
 // });
 
@@ -124,7 +132,9 @@ router.post("/visitor-count", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while incrementing visitor count", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -136,7 +146,9 @@ router.post("/add-existing-item", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while incrementing visitor count", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -149,7 +161,9 @@ router.get("/get-counter-list", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while get counter list", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -162,7 +176,9 @@ router.get("/get-counter-menu-category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while getting counter category", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -175,7 +191,9 @@ router.get("/get-menu-category-items", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while getting menu items", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -187,7 +205,9 @@ router.post("/update-language", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while updating language", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -199,7 +219,9 @@ router.post("/update-favourite-items", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while updating favourites list", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
@@ -212,7 +234,9 @@ router.get("/get-favourite-items", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching favourite items", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 

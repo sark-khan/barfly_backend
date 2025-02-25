@@ -13,6 +13,8 @@ const {
   getOrderGroupByYearsForEntity,
   pastTicketYears,
   cancelOrder,
+  getOrderGroupByMonths,
+  getRestaurantOrdersAndCount,
 } = require("../CustomerServices/orderService");
 
 const { STATUS_CODES } = require("../Utils/globalConstants");
@@ -77,6 +79,21 @@ router.get("/get-entity-orders", async (req, res) => {
   }
 });
 
+router.get("/get-users-restaurant-orders-count", async (req, res) => {
+  try {
+    const userOrders = await getRestaurantOrdersAndCount(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "User orders fetched successfully.",
+      userOrders,
+    });
+  } catch (error) {
+    console.error("Error while fetching user orders", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while fetching user orders" });
+  }
+});
+
 router.get("/get-users-orders-group-by-years", async (req, res) => {
   try {
     const previosuOrdersList = await getOrderGroupByYears(req);
@@ -90,6 +107,22 @@ router.get("/get-users-orders-group-by-years", async (req, res) => {
       .json({ message: error.message || "Error while fetching orders" });
   }
 });
+
+router.get("/get-users-orders-group-by-months", async (req, res) => {
+  try {
+    const ordersByMonthAndEntity = await getOrderGroupByMonths(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Monthly orders fetched successfully.",
+      ordersByMonthAndEntity,
+    });
+  } catch (error) {
+    console.error("Error while fetching orders", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while fetching orders" });
+  }
+});
+
 router.get("/get-entity-orders-group-by-years", async (req, res) => {
   try {
     const previosuOrdersList = await getOrderGroupByYearsForEntity(req);

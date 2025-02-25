@@ -10,6 +10,7 @@ const {
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
+const { ObjectId } = mongoose.Types;
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup } = req.body;
@@ -22,7 +23,6 @@ const createOrder = async (req, session) => {
       model: "CounterMenuCategory",
     })
     .lean();
-  console.log({ menuItems });
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -34,7 +34,6 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     itemNameMapper[`${item._id}`] = item;
   });
-  console.log({ itemNameMapper });
   let counterId;
   let entityId;
   let msg = "";
@@ -160,71 +159,6 @@ const getEntityOrders = async (req) => {
 
 const getLiveOrdersUsers = async (req) => {
   const { userId } = req;
-  console.log({ userId });
-
-  // let liveOrders = await Order.aggregate([
-  //   {
-  //     $match: {
-  //       userId: mongoose.Types.ObjectId(userId),
-  //       status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-  //     },
-  //   },
-  //   {
-  //     $sort: { updatedAt: -1 },
-  //   },
-  //   {
-  //     $lookup: {
-  //       from: "entitydetails",
-  //       localField: "entityId",
-  //       foreignField: "_id",
-  //       as: "entityDetails",
-  //     },
-  //   },
-  //   {
-  //     $unwind: {
-  //       path: "$entityDetails",
-  //       preserveNullAndEmptyArrays: true,
-  //     },
-  //   },
-  //   {
-  //     $group: {
-  //       _id: "$entityId", // Group by `entityId`
-  //       entityDetails: { $first: "$entityDetails" }, // Take the first occurrence of entityDetails for each group
-  //       orders: {
-  //         $push: {
-  //           _id: "$_id",
-  //           status: "$status",
-  //           items: "$items",
-  //           tokenNumber: "$tokenNumber",
-  //           updatedAt: "$updatedAt",
-  //         },
-  //       },
-  //       latestUpdatedAt: { $first: "$updatedAt" },
-  //       orderCount: { $sum: 1 }, // Count the number of orders in each group
-  //     },
-  //   },
-  //   {
-  //     $addFields: {
-  //       orders: {
-  //         $sortArray: {
-  //           input: "$orders",
-  //           sortBy: { tokenNumber: -1 },
-  //         },
-  //       },
-  //     },
-  //   },
-  //   {
-  //     $project: {
-  //       _id: 1,
-  //       entityDetails: 1, // Include `entityDetails` (contains entityName, etc.)
-  //       orders: 1, // Include the grouped orders
-  //       orderCount: 1, // Include the order count
-  //     },
-  //   },
-  //   {
-  //     $sort: { latestUpdatedAt: -1 },
-  //   },
-  // ]);
 
   const liveOrders = await Order.find({
     userId,
@@ -256,7 +190,6 @@ const particularOrderDetails = async (req) => {
     query: { entityId },
     userId,
   } = req;
-  console.log({ userId, entityId, token: req.headers.token });
   const orderDetails = await Order.find({
     userId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
@@ -272,376 +205,200 @@ const particularOrderDetails = async (req) => {
     })
     .sort({ tokenNumber: -1 })
     .lean();
-  console.log({ order: orderDetails[0].items });
   return orderDetails;
 };
 
-// const getOrderGroupByYears = async (req) => {
-//     const userId = req.id;
-//     const entityIds = (await Order.find({ userId }, { entityId: 1 }).lean()).map(
-//         (doc) => doc.entityId
-//     );
-//     const entities = await EntityDetails.find(
-//         { _id: { $in: entityIds } },
-//         { entityName: 1, entityType: 1 }
-//     ).lean();
-//     const entityMapper = {};
-//     entities.forEach((doc) => {
-//         entityMapper[`${doc._id}`] = doc;
-//     });
-//     const ordersByYearAndEntity = await Order.aggregate([
-//         {
-//             // Stage 1: Match documents by userId
-//             $match: {
-//                 userId: new mongoose.Types.ObjectId(userId),
-//             },
-//         },
-//         {
-//             // Stage 2: Add a field for the year based on the order's creation date
-//             $addFields: {
-//                 year: { $year: "$createdAt" },
-//             },
-//         },
-//         {
-//             // Stage 3: Lookup the itemId to join with the MenuItem collection to get itemDetails
-//             $lookup: {
-//                 from: "menuitems", // Replace with the actual collection name for MenuItem
-//                 localField: "items.itemId",
-//                 foreignField: "_id",
-//                 as: "itemDetails",
-//             },
-//         },
-//         {
-//             // Stage 4: Add entityId to each item and project specific fields from itemDetails
-//             $addFields: {
-//                 items: {
-//                     $map: {
-//                         input: "$items",
-//                         as: "item",
-//                         in: {
-//                             _id: "$$item._id",
-//                             itemId: "$$item.itemId",
-//                             quantity: "$$item.quantity",
-//                             itemDetails: {
-//                                 $arrayElemAt: [
-//                                     {
-//                                         $filter: {
-//                                             input: "$itemDetails",
-//                                             as: "detail",
-//                                             cond: { $eq: ["$$detail._id", "$$item.itemId"] },
-//                                         },
-//                                     },
-//                                     0,
-//                                 ],
-//                             },
-//                         },
-//                     },
-//                 },
-//             },
-//         },
-//         {
-//             // Stage 5: Project specific fields from itemDetails into items
-//             $addFields: {
-//                 items: {
-//                     $map: {
-//                         input: "$items",
-//                         as: "item",
-//                         in: {
-//                             _id: "$$item._id",
-//                             itemId: "$$item.itemId",
-//                             quantity: "$$item.quantity",
-//                             itemDetails: {
-//                                 _id: "$$item.itemDetails._id",
-//                                 itemName: "$$item.itemDetails.itemName",
-//                                 description: "$$item.itemDetails.description",
-//                                 type: "$$item.itemDetails.type",
-//                                 currency: "$$item.itemDetails.currency",
-//                                 image: "$$item.itemDetails.image",
-//                                 entityId: "$$item.itemDetails.entityId", // Ensure entityId is added to itemDetails
-//                             },
-//                         },
-//                     },
-//                 },
-//             },
-//         },
-//         {
-//             // Stage 6: Group by year and entityId, accumulating orders
-//             $group: {
-//                 _id: {
-//                     year: "$year",
-//                     entityId: "$entityId", // Include entityId in the group
-//                 },
-//                 orders: {
-//                     $push: {
-//                         _id: "$_id",
-//                         status: "$status",
-//                         tokenNumber: "$tokenNumber",
-//                         items: "$items",
-//                         entityId: "$entityId", // Include entityId in the order
-//                     },
-//                 },
-//             },
-//         },
-//         {
-//             // Stage 7: Ensure orders are sorted by tokenNumber in descending order
-//             $addFields: {
-//                 orders: {
-//                     $map: {
-//                         input: "$orders",
-//                         as: "order",
-//                         in: {
-//                             _id: "$$order._id",
-//                             status: "$$order.status",
-//                             tokenNumber: "$$order.tokenNumber",
-//                             items: {
-//                                 $map: {
-//                                     input: "$$order.items",
-//                                     as: "item",
-//                                     in: {
-//                                         _id: "$$item._id",
-//                                         itemId: "$$item.itemId",
-//                                         quantity: "$$item.quantity",
-//                                         entityId: "$$item.entityId", // Access entityId from itemDetails
-//                                         itemDetails: {
-//                                             _id: "$$item.itemDetails._id",
-//                                             itemName: "$$item.itemDetails.itemName",
-//                                             description: "$$item.itemDetails.description",
-//                                             type: "$$item.itemDetails.type",
-//                                             currency: "$$item.itemDetails.currency",
-//                                             image: "$$item.itemDetails.image",
-//                                             entityId: "$$item.itemDetails.entityId",
-//                                         },
-//                                     },
-//                                 },
-//                             },
-//                             entityId: "$$order.entityId", // Include entityId in the order
-//                         },
-//                     },
-//                 },
-//             },
-//         },
-//         {
-//             // Stage 8: Group by year and accumulate entities
-//             $group: {
-//                 _id: "$_id.year",
-//                 entities: {
-//                     $push: {
-//                         entityId: "$_id.entityId",
-//                         orders: "$orders",
-//                     },
-//                 },
-//             },
-//         },
-//         {
-//             // Stage 9: Sort by year in descending order
-//             $sort: { _id: -1 },
-//         },
-//     ]);
-//     ordersByYearAndEntity.forEach((doc) => {
-//         if (doc.entities?.length) {
-//             doc.entities.forEach((entity) => {
-//                 entity.entityDetails = entityMapper[entity.entityId];
-//                 delete entity.entityId;
-//             });
-//         }
-//     });
-//     return ordersByYearAndEntity;
-// };
+const getRestaurantOrdersAndCount = async (req) => {
+  const {
+    // userId,
+    query: { year, userId },
+  } = req;
+
+  const orders = await Order.find(
+    {
+      userId,
+      createdAt: {
+        $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        $lt: new Date(`${year}-12-31T23:59:59.999Z`),
+      },
+    },
+    { entityId: 1 }
+  );
+
+  if (orders.length === 0) return [];
+
+  const entityOrderCount = orders.reduce((acc, order) => {
+    acc[order.entityId] = (acc[order.entityId] || 0) + 1;
+    return acc;
+  }, {});
+
+  const entityIds = Object.keys(entityOrderCount);
+  const entities = await EntityDetails.find(
+    { _id: { $in: entityIds } },
+    { entityType: 1, entityName: 1, city: 1 }
+  ).lean();
+
+  return entities.map((entity) => ({
+    entityName: entity.entityName,
+    city: entity.city,
+    entityId: entity._id,
+    orderCount: entityOrderCount[entity._id],
+  }));
+};
 
 const getOrderGroupByYears = async (req) => {
-  const { userId } = req;
-  const entityIds = (await Order.find({ userId }, { entityId: 1 }).lean()).map(
-    (doc) => doc.entityId
-  );
+  const {
+    userId,
+    query: { entityId },
+  } = req;
+
+  const entityIds = (
+    await Order.find({ userId, entityId }, { entityId: 1 }).lean()
+  ).map((doc) => doc.entityId);
+
+  let orderFilter = { userId };
+  if (entityId) {
+    orderFilter.entityId = entityId;
+  }
+
+  let allOrders = await Order.find(orderFilter, {
+    items: 1,
+    tokenNumber: 1,
+    updatedAt: 1,
+    entityId: 1,
+  })
+    .populate({
+      path: "items.itemId",
+      select: "itemName description",
+      model: "ItemDetails",
+    })
+    .lean();
+
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
     { entityName: 1, entityType: 1 }
   ).lean();
+
   const entityMapper = {};
   entities.forEach((doc) => {
     entityMapper[`${doc._id}`] = doc;
   });
-  const ordersByYearAndEntity = await Order.aggregate([
+
+  allOrders = allOrders.map((doc) => {
+    return {
+      ...doc,
+      year: new Date(doc.updatedAt).getFullYear(),
+    };
+  });
+
+  const orderMapper = {};
+  allOrders.forEach((doc) => {
+    if (!orderMapper[doc.year]) {
+      orderMapper[doc.year] = {};
+    }
+    if (!orderMapper[doc.year][doc.entityId]) {
+      orderMapper[doc.year][doc.entityId] = {
+        entityDetails: entityMapper[doc.entityId],
+        orders: [],
+      };
+    }
+    orderMapper[doc.year][doc.entityId].orders.push(doc);
+  });
+
+  return orderMapper;
+};
+
+const getOrderGroupByMonths = async (req) => {
+  const {
+    userId,
+    query: { year, entityId },
+  } = req;
+
+  const entityIds = await Order.distinct("entityId", { userId });
+
+  const entities = await EntityDetails.find(
+    { _id: { $in: entityIds } },
+    { entityName: 1, entityType: 1 }
+  ).lean();
+
+  const entityMapper = Object.fromEntries(
+    entities.map((doc) => [doc._id.toString(), doc])
+  );
+
+  const ordersByMonthAndEntity = await Order.aggregate([
     {
-      // Stage 1: Match documents by userId
       $match: {
-        userId: new mongoose.Types.ObjectId(userId),
+        userId: ObjectId(userId),
+        entityId: ObjectId(entityId),
+        createdAt: {
+          $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+          $lt: new Date(`${year}-12-31T23:59:59.999Z`),
+        },
       },
     },
+    { $addFields: { month: { $month: "$createdAt" } } },
     {
-      // Stage 2: Add a field for the year based on the order's creation date
-      $addFields: {
-        year: { $year: "$createdAt" },
-      },
-    },
-    {
-      // Stage 3: Lookup the itemId to join with the MenuItem collection to get itemDetails
       $lookup: {
-        from: "itemdetails", // Replace with the actual collection name for MenuItem
+        from: "itemdetails",
         localField: "items.itemId",
         foreignField: "_id",
         as: "itemDetails",
       },
     },
     {
-      // Stage 4: Add entityId to each item and project specific fields from itemDetails
       $addFields: {
         items: {
           $map: {
             input: "$items",
             as: "item",
             in: {
-              _id: "$$item._id",
-              itemId: "$$item.itemId",
-              quantity: "$$item.quantity",
-              itemDetails: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$itemDetails",
-                      as: "detail",
-                      cond: { $eq: ["$$detail._id", "$$item.itemId"] },
-                    },
-                  },
-                  0,
-                ],
+              itemId: {
+                _id: "$$item.itemId",
+                itemName: {
+                  $arrayElemAt: [
+                    "$itemDetails.itemName",
+                    { $indexOfArray: ["$itemDetails._id", "$$item.itemId"] },
+                  ],
+                },
               },
+              quantity: "$$item.quantity",
             },
           },
         },
       },
     },
     {
-      // Stage 5: Project specific fields from itemDetails into items
-      $addFields: {
-        items: {
-          $map: {
-            input: "$items",
-            as: "item",
-            in: {
-              _id: "$$item._id",
-              itemId: "$$item.itemId",
-              quantity: "$$item.quantity",
-              itemDetails: {
-                _id: "$$item.itemDetails._id",
-                itemName: "$$item.itemDetails.itemName",
-                description: "$$item.itemDetails.description",
-                type: "$$item.itemDetails.type",
-                currency: "$$item.itemDetails.currency",
-                image: "$$item.itemDetails.image",
-                entityId: "$$item.itemDetails.entityId", // Ensure entityId is added to itemDetails
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      // Stage 6: Group by year and entityId, accumulating orders
       $group: {
-        _id: {
-          year: "$year",
-          entityId: "$entityId", // Include entityId in the group
-        },
+        _id: { month: "$month", entityId: "$entityId" },
         orders: {
           $push: {
             _id: "$_id",
             status: "$status",
             tokenNumber: "$tokenNumber",
             items: "$items",
-            entityId: "$entityId", // Include entityId in the order
           },
         },
       },
     },
     {
-      // Stage 7: Ensure orders are sorted by tokenNumber in descending order
-      $addFields: {
-        orders: {
-          $map: {
-            input: "$orders",
-            as: "order",
-            in: {
-              _id: "$$order._id",
-              status: "$$order.status",
-              tokenNumber: "$$order.tokenNumber",
-              items: {
-                $map: {
-                  input: "$$order.items",
-                  as: "item",
-                  in: {
-                    _id: "$$item._id",
-                    itemId: "$$item.itemId",
-                    quantity: "$$item.quantity",
-                    entityId: "$$item.entityId", // Access entityId from itemDetails
-                    itemDetails: {
-                      _id: "$$item.itemDetails._id",
-                      itemName: "$$item.itemDetails.itemName",
-                      description: "$$item.itemDetails.description",
-                      type: "$$item.itemDetails.type",
-                      currency: "$$item.itemDetails.currency",
-                      image: "$$item.itemDetails.image",
-                      entityId: "$$item.itemDetails.entityId",
-                    },
-                  },
-                },
-              },
-              entityId: "$$order.entityId", // Include entityId in the order
-            },
-          },
-        },
-      },
-    },
-    {
-      // Stage 8: Group by year and accumulate entities
       $group: {
-        _id: "$_id.year",
-        entities: {
-          $push: {
-            entityId: "$_id.entityId",
-            orders: "$orders",
-          },
-        },
+        _id: "$_id.month",
+        entities: { $push: { entityId: "$_id.entityId", orders: "$orders" } },
       },
     },
-    {
-      // Stage 9: Sort by year in descending order
-      $sort: { _id: -1 },
-    },
+    { $sort: { _id: 1 } },
   ]);
-  ordersByYearAndEntity.forEach((doc) => {
-    if (doc.entities?.length) {
-      doc.entities.forEach((entity) => {
-        entity.entityDetails = entityMapper[entity.entityId];
-        delete entity.entityId;
-      });
-    }
-  });
-  allOrders = allOrders.map((doc) => {
-    const data = { ...doc };
-    data.items = doc.items.map((item) => {
-      return { quantity: item.quantity, ...itemDetailsMapper[item.itemId] };
+
+  ordersByMonthAndEntity.forEach((doc) => {
+    doc.entities.forEach((entity) => {
+      entity.entityDetails = entityMapper[entity.entityId];
+      delete entity.entityId;
     });
-    data.year = new Date(doc.updatedAt).getFullYear();
-    return data;
   });
 
-  const mapper = {};
-  allOrders.forEach((doc) => {
-    if (!mapper[doc.year]) {
-      mapper[doc.year] = {};
-    }
-    if (!mapper[doc.year][doc.entityId._id]) {
-      mapper[doc.year][doc.entityId._id] = {
-        entityDetails: entityMapper[doc.entityId._id],
-        orders: [],
-      };
-    }
-    mapper[doc.year][doc.entityId._id].orders.push(doc);
-  });
-  console.log({ mapper });
-  return mapper;
+  return ordersByMonthAndEntity;
 };
+
 const getOrderGroupByYearsForEntity = async (req) => {
   let { entityId } = req;
   if (req.query.entityId) {
@@ -751,4 +508,6 @@ module.exports = {
   getOrderGroupByYearsForEntity,
   pastTicketYears,
   cancelOrder,
+  getOrderGroupByMonths,
+  getRestaurantOrdersAndCount,
 };
