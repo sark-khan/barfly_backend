@@ -325,61 +325,21 @@ module.exports.getMenuSubCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  const { menuCategoryId, searchTerm } = req.query;
-  // const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+  let { menuCategoryId, searchTerm } = req.query;
 
-  // const menuItems = await ItemDetails.aggregate([
-  //   {
-  //     $match: {
-  //       menuCategoryId: ObjectId(menuCategoryId), // Ensure `menuCategoryId` is an ObjectId
-  //     },
-  //   },
-  //   {
-  //     $lookup: {
-  //       from: "itemdetails",
-  //       localField: "_id",
-  //       foreignField: "itemId",
-  //       as: "item",
-  //     },
-  //   },
-  //   {
-  //     $unwind: "$item",
-  //   },
-  //   ...(searchTerm
-  //     ? [
-  //         {
-  //           $match: {
-  //             "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
-  //           },
-  //         },
-  //       ]
-  //     : []),
-  //   {
-  //     $project: {
-  //       "item._id": 1,
-  //       "item.itemName": 1,
-  //       "item.description": 1,
-  //       "item.type": 1,
-  //       "item.price": 1,
-  //       "item.currency": 1,
-  //       "item.image": 1,
-  //       "item.quantity": 1,
-  //       price: 1,
-  //       availableQuantity: 1,
-  //       menuCategoryId: 1,
-  //       counterId: 1,
-  //       entityId: 1,
-  //       createdAt: 1,
-  //       updatedAt: 1,
-  //       currency: 1,
-  //     },
-  //   },
-  //   {
-  //     $sort: { updatedAt: -1 },
-  //   },
-  // ]);
+  if (mongoose.Types.ObjectId.isValid(menuCategoryId)) {
+    menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
+  }
 
-  const menuItems = await ItemDetails.find({ menuCategoryId }).lean();
+  let filter = { menuCategoryId };
+
+  if (searchTerm && searchTerm.trim()) {
+    filter.itemName = { $regex: searchTerm, $options: "i" };
+  }
+
+  console.log("Final Filter Query:", JSON.stringify(filter));
+  const menuItems = await ItemDetails.find(filter).lean();
+  console.log({ menuItems });
   if (!menuItems.length) {
     return [];
   }
@@ -418,10 +378,6 @@ module.exports.getMenuItems = async (req) => {
     return acc;
   }, []);
 
-  // if (searchTerm) {
-  //   console.log("32535252432332");
-  //   query.itemName = { $regex: searchTerm, $options: "i" };
-  // }
   return { menuItemsResp, ...name };
 };
 
