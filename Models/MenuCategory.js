@@ -6,7 +6,11 @@ const { ObjectId } = mongoose.Types;
 const counterMenuCategory = new Schema(
   {
     counterId: { type: ObjectId, ref: "Counter" },
-    name: { type: String, required: true, enum: Object.values(FOOD_TYPE) },
+    categoryName: {
+      type: String,
+      required: true,
+      enum: Object.values(FOOD_TYPE),
+    },
     entityId: {
       type: ObjectId,
       required: true,

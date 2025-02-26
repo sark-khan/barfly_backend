@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { appClient } = require("../redis");
 const SECRET_KEY = "BARFLY@WEBMOB456";
 const Event = require("../Models/Event");
+const admin = require("../firebaseAdmin");
 
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
@@ -125,6 +126,20 @@ const haversineDistance = async (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+async function sendFirebaseNotification(token, title, body) {
+  const message = {
+    notification: { title, body },
+    token: token,
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    console.log("Successfully sent notification:", response);
+  } catch (error) {
+    console.error("Error sending notification:", error);
+  }
+}
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -134,4 +149,5 @@ module.exports = {
   performEndOfDayTask,
   shiftArrayRight,
   haversineDistance,
+  sendFirebaseNotification,
 };
