@@ -65,10 +65,10 @@ module.exports.createCounter = async (req) => {
 module.exports.createCounterMenuCategory = async (req) => {
   const {
     entityId,
-    body: { counterId, name, amount, description },
+    body: { counterId, categoryName },
   } = req;
 
-  if (!counterId || !name) {
+  if (!counterId || !categoryName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "CounterId, Name, and Icon are required",
@@ -77,7 +77,7 @@ module.exports.createCounterMenuCategory = async (req) => {
 
   const categoryObj = {
     counterId,
-    name,
+    categoryName,
     entityId,
   };
   return MenuCategory.create(categoryObj);

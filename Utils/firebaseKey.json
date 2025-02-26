@@ -1,0 +1,29 @@
+{
+    "project_info": {
+      "project_number": "198736511718",
+      "project_id": "counter-5755b",
+      "storage_bucket": "counter-5755b.firebasestorage.app"
+    },
+    "client": [
+      {
+        "client_info": {
+          "mobilesdk_app_id": "1:198736511718:android:daef9ccb6807ea45e73127",
+          "android_client_info": {
+            "package_name": "com.example.barfly"
+          }
+        },
+        "oauth_client": [],
+        "api_key": [
+          {
+            "current_key": "AIzaSyApcycAwhUBmeeo6gvNF1tS2mPZ_C-wjTA"
+          }
+        ],
+        "services": {
+          "appinvite_service": {
+            "other_platform_oauth_client": []
+          }
+        }
+      }
+    ],
+    "configuration_version": "1"
+  }

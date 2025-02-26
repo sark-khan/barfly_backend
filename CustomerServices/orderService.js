@@ -19,10 +19,11 @@ const createOrder = async (req, session) => {
   const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
     .populate({
       path: "menuCategoryId",
-      select: "name amount description",
-      model: "CounterMenuCategory",
+      // select: "name amount description",
+      // model: "CounterMenuCategory",
     })
     .lean();
+  console.log({ menuItems });
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -41,10 +42,11 @@ const createOrder = async (req, session) => {
   let amount = 0;
   items.forEach((doc) => {
     const menuItem = itemNameMapper[`${doc.itemId}`];
+    console.log({ menuItem: menuItem });
     if (menuItem) {
       entityId = menuItem?.entityId;
       menuCategoryId = menuItem?.menuCategoryId._id;
-      counterId = menuItem?.counterId;
+      counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
       if (menuItem.availableQuantity < doc.quantity) {
         msg += `${menuItem.itemName} , `;
       }
@@ -113,47 +115,35 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    query: { pageNo, pageLimit },
+    query: { pageNo = 1, pageLimit = 10, status },
   } = req;
-  const queryObj = {
-    status: {
-      $in: [
-        ORDER_STATUS.WAITING,
-        ORDER_STATUS.IN_PROGRESS,
-        ORDER_STATUS.READY,
-        ORDER_STATUS.COMPLETED,
-        ORDER_STATUS.CANCELLED,
-      ],
-    },
-  };
-  // const query = {};
-  // if (!req.isAdmin) {
-  //   if (req.role == ROLES.CUSTOMER) {
-  //     query.userId = req.id;
-  //   } else {
-  //     query.entityId = entityId;
-  //   }
-  //   if (status) {
-  //     query.status = status;
-  //   }
-  // } else {
-  //   if (req.body.entityId) {
-  //     query.entityId = req.body.entityId;
-  //   }
-  // }
-  // const skip = +(pageNo - 1) * +pageLimit;
+
+  const limit = Math.max(Number(pageLimit), 1);
+  const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
+
+  const query = { entityId };
+  query.status = status
+    ? status
+    : { $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING] };
+
   const [data, totalCount] = await Promise.all([
-    Order.find({ entityId }, { items: 1, status: 1, tokenNumber: 1 })
+    Order.find(query)
       .populate({
         path: "items.itemId",
-        select: "itemName quantity description type currency image",
+        select: "itemName quantity description type currency image createdAt",
         model: "ItemDetails",
       })
-      .sort({ tokenNumber: -1 }),
-    // .skip(skip)
-    // .limit(pageLimit),
-    Order.countDocuments(queryObj),
+      .populate({
+        path: "counterId",
+        select: "counterName",
+        model: "Counter",
+      })
+      .sort({ tokenNumber: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(query),
   ]);
+
   return { data, totalCount };
 };
 

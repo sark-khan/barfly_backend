@@ -2,11 +2,14 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
+const { Country, State, City } = require("country-state-city");
+
 const { ObjectId } = mongoose.Types;
 const {
   STATUS_CODES,
   STATUS,
   EDIT_ACTION,
+  COUNTRY_ARRAY,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -907,4 +910,34 @@ module.exports.userFeedback = async (req) => {
   await Userfeedback.create(feedbackObj);
 
   return feedbackObj;
+};
+
+exports.getAllcountries = () => {
+  const data = COUNTRY_ARRAY;
+  return { data };
+};
+
+exports.getCountryByIsoCode = ({ req }) => {
+  const { isoCode } = req.query;
+  const countries = Country.getAllCountries();
+  const country = countries.find((country) => country.isoCode === isoCode);
+  if (!country) {
+    throw new Error(`Country with ISO code ${isoCode} not found.`);
+  }
+  const states = State.getStatesOfCountry(isoCode);
+  const data = {
+    country: country.name,
+    isoCode: country.isoCode,
+    statesList: states.map((state) => ({
+      state: state.name,
+      isoCode: state.isoCode,
+    })),
+  };
+  return { data };
+};
+
+exports.getCitiesOfStates = async (req) => {
+  const { countryCode, stateCode } = req.query;
+  const cities = City.getCitiesOfState(countryCode, stateCode);
+  return cities;
 };

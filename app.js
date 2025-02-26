@@ -22,6 +22,7 @@ const MenuItem = require("./Models/MenuItem");
 const { STATUS_CODES } = require("./Utils/globalConstants");
 const { ownerTrades } = require("./PdfServices/ownerTrades");
 const verifyToken = require("./Utils/verifyToken");
+const { sendFirebaseNotification } = require("./Utils/commonFunction");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 require("./seeder");
@@ -34,9 +35,6 @@ const unProtectedApis = {
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
   "/api/customer/auth/check-and-generate-countR-tag": true,
-  // "/api/customer/entities/get-counter-list": true,
-  // "/api/customer/entities/get-counter-menu-category": true,
-  // "/api/customer/entities/get-menu-category-items": true,
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
 };
@@ -136,6 +134,19 @@ app.get("/get-trade-pdf", async (req, res) => {
       .json({ message: "Error occured while trade pdf", error });
   }
 });
+
+app.post("/send-firebase-notification", async (req, res) => {
+  const { token, title, body } = req.body;
+
+  if (!token)
+    return res
+      .status(STATUS_CODES.BAD_REQUEST)
+      .json({ error: "FCM token is required" });
+
+  await sendFirebaseNotification(token, title, body);
+  res.json({ success: true, message: "Notification sent!" });
+});
+
 const port = process.env.PORT;
 
 app.listen(port, () => {

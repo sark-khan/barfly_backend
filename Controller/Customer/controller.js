@@ -22,6 +22,9 @@ const {
   processLocationForUser,
   addFavouriteEntity,
   userFeedback,
+  getAllcountries,
+  getCitiesOfStates,
+  getCountryByIsoCode,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -331,6 +334,48 @@ router.post("/user-feedback", async (req, res) => {
     console.error("Error while submitting the feedabck: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while submitting the feedabck",
+    });
+  }
+});
+
+router.get("/get-all-countries", async (req, res) => {
+  try {
+    const { data } = getAllcountries();
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Countries fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching countries: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while fetching countries." });
+  }
+});
+
+router.get("/get-cities-of-state", async (req, res) => {
+  try {
+    const cities = await getCitiesOfStates(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Cities fetched successfully.", cities });
+  } catch (error) {
+    console.error("Error while fetching cities: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching cities",
+    });
+  }
+});
+
+router.get("/get-iso-code", async (req, res) => {
+  try {
+    const { data } = await getCountryByIsoCode({ req });
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Iso code fetched successfully.", stateList: data });
+  } catch (error) {
+    console.error("Error while fetching iso code: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching iso code",
     });
   }
 });

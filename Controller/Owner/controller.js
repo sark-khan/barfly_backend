@@ -88,13 +88,12 @@ router.post("/create-counter-menu-category", async (req, res) => {
 router.get("/get-counter", async (req, res) => {
   try {
     const counter = await Counter.find(
-      { ownerId: req.id },
+      { ownerId: req.userId },
       { counterName: 1, updatedAt: 1 }
     ).sort({ updatedAt: -1 });
-    console.log({ counter });
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Counters fetched succesfully.", counter });
+      .json({ message: "Counters fetched succesfully.", data: counter });
   } catch (error) {
     console.error("Error while getting counters:", error);
     return res
@@ -108,7 +107,7 @@ router.get("/get-menu-category", async (req, res) => {
     const menuCategory = await getMenuCategory(req);
     return res.status(STATUS_CODES.OK).json({
       message: `Menu category fetched successfully`,
-      menuCategory,
+      data: menuCategory,
     });
   } catch (error) {
     console.error("Error while fetching menu category", error);
