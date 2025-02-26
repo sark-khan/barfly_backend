@@ -31,7 +31,7 @@ const INSIDER_TYPE = {
   FEEDBACK: "Feedback",
 };
 const FOOD_TYPE = {
-  SNACK: "Food",
+  FOOD: "Food",
   DRINK: "Drink",
   ALCOHOL: "Alcohol",
   VEGAN: "Vegan",

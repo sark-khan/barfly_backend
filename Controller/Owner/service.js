@@ -264,7 +264,7 @@ module.exports.createEvent = async (req) => {
     ageLimit,
   } = req.body;
 
-  const ownerId = req.id;
+  const ownerId = req.userId;
   console.log({ from, to, startingDate });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
@@ -557,9 +557,8 @@ module.exports.getEventsByMonthAndYear = async (month, year) => {
 };
 
 module.exports.getMenuCategory = async (req) => {
-  const { counterId } = req.query;
   const menuCategories = await MenuCategory.find(
-    { counterId, entityId: req.entityId },
+    { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 },
     { sort: { _id: -1 }, lean: true }
   );

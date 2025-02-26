@@ -415,7 +415,7 @@ module.exports.updateLanguage = async (req) => {
 };
 
 module.exports.updateFavouriteItem = async (req) => {
-  const userId = req.id;
+  const userId = req.userId;
   const { menuId, itemId, isFavourite } = req.body;
   console.log({ isFavourite });
   const menuCategory = await MenuCategory.findById(menuId, { counterId: 1 });
@@ -441,7 +441,7 @@ module.exports.getFavouriteItems = async (req) => {
   const { counterId } = req.query;
   const favouriteItemList = await FavouriteItem.find(
     {
-      userId: req.id,
+      userId: req.userId,
       counterId: counterId,
       isFavourite: true,
     },

@@ -126,25 +126,31 @@ const getEntityOrders = async (req) => {
     ? status
     : { $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING] };
 
-  const [data, totalCount] = await Promise.all([
-    Order.find(query)
-      .populate({
-        path: "items.itemId",
-        select: "itemName quantity description type currency image createdAt",
-        model: "ItemDetails",
-      })
-      .populate({
-        path: "counterId",
-        select: "counterName",
-        model: "Counter",
-      })
-      .sort({ tokenNumber: -1 })
-      .skip(skip)
-      .limit(limit),
-    Order.countDocuments(query),
-  ]);
+  const [data, orderProcessCount, readyOrders, completedOrders] =
+    await Promise.all([
+      Order.find(query)
+        .populate({
+          path: "items.itemId",
+          select: "itemName quantity description type currency image createdAt",
+          model: "ItemDetails",
+        })
+        .populate({
+          path: "counterId",
+          select: "counterName",
+          model: "Counter",
+        })
+        .sort({ tokenNumber: -1 })
+        .skip(skip)
+        .limit(limit),
+      Order.countDocuments({
+        entityId,
+        status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+      }),
+      Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
+      Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
+    ]);
 
-  return { data, totalCount };
+  return { data, orderProcessCount, readyOrders, completedOrders };
 };
 
 const getLiveOrdersUsers = async (req) => {

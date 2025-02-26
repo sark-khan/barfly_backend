@@ -65,11 +65,14 @@ router.post("/update-status-of-order", async (req, res) => {
 
 router.get("/get-entity-orders", async (req, res) => {
   try {
-    const { data, totalCount } = await getEntityOrders(req);
+    const { data, orderProcessCount, readyOrders, completedOrders } =
+      await getEntityOrders(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Orders fetched successfully.",
       data,
-      totalCount,
+      orderProcessCount,
+      readyOrders,
+      completedOrders,
     });
   } catch (error) {
     console.error("Error while fetching orders", error);
