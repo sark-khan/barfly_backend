@@ -1,7 +1,11 @@
 const Event = require("../../Models/Event");
 const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
-const { STATUS_CODES, INSIDER_TYPE } = require("../../Utils/globalConstants");
+const {
+  STATUS_CODES,
+  INSIDER_TYPE,
+  EDIT_ACTION,
+} = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
 
@@ -12,6 +16,7 @@ const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const { shiftArrayRight } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
 const { start } = require("pm2");
+const { query } = require("express");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -107,29 +112,41 @@ module.exports.createMenuItem = async (req) => {
     body: {
       itemName,
       price,
-      quantity,
       description,
       currency,
       menuCategoryId,
       availableQuantity,
       isVegan,
       unit,
+      nutritionType,
+      counterIds,
     },
   } = req;
 
-  // if (file) {
-  //   const fileBuffer = req.file.buffer;
-  //   const fileName = `${
-  //     req.entityId
-  //   }_${new Date().getTime()}_${req.file.originalname.replace(" ", "_")}`;
-  //   const data = await uploadBufferToS3(fileBuffer, fileName);
-  //   if (!data.Location) {
-  //     throwError({
-  //       message: "Error occured while uplaoding the file",
-  //       status: STATUS_CODES.BAD_REQUEST,
-  //     });
-  //   }
-  // }
+  let fileName = "";
+
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Error occurred while uploading the file",
+        });
+      }
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: "File upload failed",
+      });
+    }
+  }
 
   const menuCategory = await MenuCategory.findById(menuCategoryId);
   if (!menuCategory) {
@@ -138,14 +155,15 @@ module.exports.createMenuItem = async (req) => {
       message: "Menu Category not found",
     };
   }
+
   const existingItem = await ItemDetails.findOne(
     { itemName, menuCategoryId },
     { _id: 1 }
   );
   if (existingItem) {
     throwError({
-      message: "Same item exists in this menu",
       status: STATUS_CODES.BAD_REQUEST,
+      message: "Same item exists in this menu",
     });
   }
 
@@ -153,90 +171,164 @@ module.exports.createMenuItem = async (req) => {
     itemName,
     price,
     availableQuantity,
-    currency,
+    currency: "CHF",
     menuCategoryId,
     entityId: req.entityId,
     counterId: menuCategory.counterId,
-    // image: fileName,
+    counterIds,
+    image: fileName,
     isVegan,
     unit,
     description,
-    quantity,
+    nutritionType,
+    isOutOfStock,
   });
 
   return itemDetails;
 };
-module.exports.createItems = async (req) => {
-  const { itemName, quantity, description, type, price, currency } = req.body;
 
-  const existingItem = await ItemDetails.findOne({ itemName }, { _id: 1 });
-  if (existingItem) {
-    return throwError({
-      status: STATUS_CODES.CONFLICT,
-      message: "Same Item Name already exists",
-    });
-  }
-  const fileBuffer = req.file.buffer;
-  const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
-  const data = await uploadBufferToS3(fileBuffer, fileName);
-  if (!data.Location) {
-    throwError({
-      message: "Error occured while uplaoding the file",
-      status: STATUS_CODES.SERVER_ERROR,
-    });
-  }
-  await ItemDetails.create({
-    entityId: req.entityId,
-    itemName,
-    quantity,
-    type,
-    price,
-    currency,
-    description,
-    image: fileName.replace(" ", "_"),
-  });
-};
+// module.exports.createItems = async (req) => {
+//   const { itemName, quantity, description, type, price, currency } = req.body;
+
+//   const existingItem = await ItemDetails.findOne({ itemName }, { _id: 1 });
+//   if (existingItem) {
+//     return throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Same Item Name already exists",
+//     });
+//   }
+//   const fileBuffer = req.file.buffer;
+//   const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
+//   const data = await uploadBufferToS3(fileBuffer, fileName);
+//   if (!data.Location) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Error occured while uplaoding the file",
+//     });
+//   }
+//   await ItemDetails.create({
+//     entityId: req.entityId,
+//     itemName,
+//     quantity,
+//     type,
+//     price,
+//     currency,
+//     description,
+//     image: fileName.replace(" ", "_"),
+//   });
+// };
+
 module.exports.updateMenuItem = async (req) => {
   const {
-    itemId,
-    itemName,
-    price,
-    quantity,
-    description,
-    type,
-    image,
-    currency,
-    availableQuantity,
-  } = req.body;
+    file,
+    body: {
+      itemId,
+      itemName,
+      price,
+      description,
+      nutritionType,
+      currency,
+      availableQuantity,
+      action,
+      isOutOfStock,
+      counterIds,
+    },
+  } = req;
 
-  const itemDetails = await ItemDetails.findOneAndUpdate(
-    { _id: itemId }, // Filter
-    { $set: { availableQuantity, currency, price } }, // Update
-    { new: true } // Options: return the updated document
-  );
-  console.log({ itemDetails });
+  console.log({ body: req.body });
 
-  await MenuItem.updateOne(
-    { _id: itemDetails.itemId },
-    { $set: { itemName, quantity, description, type, image } }
-  );
+  const item = await ItemDetails.findOne({ _id: itemId });
+  console.log({ item });
+
+  if (!item) {
+    return throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "Item not found.",
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT) {
+    // Update fields only if they exist (handle falsy values correctly)
+    if (itemName !== undefined) item.itemName = itemName;
+    if (price !== undefined) item.price = price;
+    if (description !== undefined) item.description = description;
+    if (nutritionType !== undefined) item.nutritionType = nutritionType;
+    if (currency !== undefined) item.currency = currency;
+    if (availableQuantity !== undefined)
+      item.availableQuantity = availableQuantity;
+    if (counterIds !== undefined) item.counterIds = counterIds;
+    if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
+
+    if (file) {
+      const fileBuffer = file.buffer;
+      const fileName = `${
+        req.entityId
+      }_${Date.now()}_${file.originalname.replace(/ /g, "_")}`;
+
+      try {
+        const data = await uploadBufferToS3(fileBuffer, fileName);
+        if (!data.Location) {
+          return throwError({
+            status: STATUS_CODES.BAD_REQUEST,
+            message: "Error occurred while uploading the file",
+          });
+        }
+        item.image = fileName; // Save the file name in the document
+      } catch (error) {
+        return throwError({
+          status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+          message: "File upload failed",
+        });
+      }
+    }
+
+    await item.save(); // Save the updated item
+  } else if (action === EDIT_ACTION.DELETE) {
+    await ItemDetails.deleteOne({ _id: itemId });
+  }
 };
 
 module.exports.getCreatedItems = async (req) => {
-  try {
-    const createdItems = await MenuItem.find({ entityId: req.entityId }).lean();
-    const itemsList = createdItems.map((items) => {
-      items.image = generatePresignedUrl(items.image);
-      return items;
-    });
+  const {
+    entityId,
+    query: { menuCategoryId, pageNo = 1, pageLimit = 8, isOutOfStock },
+  } = req;
 
-    return itemsList;
-  } catch (error) {
-    throw {
-      status: error.status || STATUS_CODES.INTERNAL_SERVER_ERROR,
-      message: error.message || "Failed to fetch created items",
-    };
+  const query = { entityId };
+  if (menuCategoryId) {
+    query.menuCategoryId = menuCategoryId;
   }
+  if (isOutOfStock) {
+    query.isOutOfStock = isOutOfStock;
+  }
+
+  const limit = Math.max(Number(pageLimit), 1);
+  const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
+
+  const totalCount = await ItemDetails.countDocuments(query);
+  const createdItems = await ItemDetails.find(query)
+    .lean()
+    .populate({
+      path: "menuCategoryId",
+      select: "categoryName",
+      model: "CounterMenuCategory",
+    })
+    .skip(skip)
+    .limit(limit);
+
+  const itemsList = createdItems.map((item) => {
+    if (!item.image) {
+      console.warn(`⚠️ Warning: Missing image for item ${item._id}`);
+      return item;
+    }
+
+    return {
+      ...item,
+      image: generatePresignedUrl(item.image),
+    };
+  });
+
+  return { itemsList, totalCount };
 };
 
 module.exports.getParticularItemDetail = async (req) => {

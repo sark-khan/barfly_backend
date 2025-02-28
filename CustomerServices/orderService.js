@@ -54,6 +54,13 @@ const createOrder = async (req, session) => {
       amount += doc.quantity * menuItem.price;
     }
   });
+  if (remainingQuantity < menuItems.availableQuantity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message:
+        "Apologies! Please enter the less quantity as we are on short of this item for now.",
+    });
+  }
   if (msg) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -91,7 +98,6 @@ const createOrder = async (req, session) => {
 
 const updateStatusOfOrder = async (req) => {
   const { orderId, status } = req.body;
-  console.log({ orderId, status });
   if (
     status !== ORDER_STATUS.COMPLETED &&
     status !== ORDER_STATUS.READY &&
@@ -115,7 +121,7 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    query: { pageNo = 1, pageLimit = 10, status },
+    query: { pageNo = 1, pageLimit = 10, status, counterId },
   } = req;
 
   const limit = Math.max(Number(pageLimit), 1);
@@ -125,6 +131,10 @@ const getEntityOrders = async (req) => {
   query.status = status
     ? status
     : { $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING] };
+
+  if (counterId) {
+    query.counterId = counterId;
+  }
 
   const [data, orderProcessCount, readyOrders, completedOrders] =
     await Promise.all([
@@ -149,7 +159,7 @@ const getEntityOrders = async (req) => {
       Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
       Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
     ]);
-
+  console.log({ data });
   return { data, orderProcessCount, readyOrders, completedOrders };
 };
 
@@ -206,8 +216,8 @@ const particularOrderDetails = async (req) => {
 
 const getRestaurantOrdersAndCount = async (req) => {
   const {
-    // userId,
-    query: { year, userId },
+    userId,
+    query: { year },
   } = req;
 
   const orders = await Order.find(

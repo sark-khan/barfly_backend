@@ -155,35 +155,51 @@ router.post("/create-menu-items", upload.single("file"), async (req, res) => {
       data: newItem,
     });
   } catch (error) {
+    console.error("Error while creating items: ", error);
     return res
-      .status(error.status || 500)
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Failed to create item" });
   }
 });
 
-router.post("/create-items", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(STATUS_CODES.SERVER_ERROR).send("No file uploaded.");
-    }
-    const newItem = await createItems(req);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Item created successfully",
-      data: newItem,
-    });
-  } catch (error) {
-    return res
-      .status(error.status || 500)
-      .json({ message: error.message || "Failed to create item" });
-  }
-});
+// router.post("/create-items", upload.single("file"), async (req, res) => {
+//   try {
+//     if (!req.file) {
+//       return res.status(STATUS_CODES.BAD_REQUEST).send("No file uploaded.");
+//     }
+//     const newItem = await createItems(req);
+//     return res.status(STATUS_CODES.OK).json({
+//       message: "Item created successfully",
+//       data: newItem,
+//     });
+//   } catch (error) {
+//     console.error("Error while creating items: ", error);
+//     return res
+//       .status(error.status || 500)
+//       .json({ message: error.message || "Error while creating items:" });
+//   }
+// });
 
 router.get("/get-entity-items", async (req, res) => {
   try {
     const response = await getCreatedItems(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Items fetch succesfully",
-      entityItems: response,
+      data: response,
+    });
+  } catch (error) {
+    console.error("Error while getting items: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while getting items" });
+  }
+});
+
+router.post("/update-menu-item", upload.single("file"), async (req, res) => {
+  try {
+    await updateMenuItem(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Items updated succesfully",
     });
   } catch (error) {
     return res
@@ -219,18 +235,6 @@ router.get("/get-menu-particular-item", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({
       message: "Items fetch succesfully",
       particularItemDetails: response,
-    });
-  } catch (error) {
-    return res
-      .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message });
-  }
-});
-router.post("/update-menu-item", async (req, res) => {
-  try {
-    await updateMenuItem(req);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Items updated succesfully",
     });
   } catch (error) {
     return res

@@ -37,6 +37,9 @@ const unProtectedApis = {
   "/api/customer/auth/check-and-generate-countR-tag": true,
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
+
+  "/api/customer/entities/get-menu-category-items": true,
+  "/api/customer/entities/recommended-items": true,
 };
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();

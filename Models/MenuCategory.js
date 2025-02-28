@@ -9,7 +9,6 @@ const counterMenuCategory = new Schema(
     categoryName: {
       type: String,
       required: true,
-      enum: Object.values(FOOD_TYPE),
     },
     entityId: {
       type: ObjectId,

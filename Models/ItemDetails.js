@@ -17,18 +17,26 @@ const itemSchema = new Schema(
       ref: "EntityDetails",
     },
     unit: { type: String },
-    isVegan: { type: String },
+    nutritionType: { type: String, enum: Object.values(FOOD_TYPE) },
+    isVegan: { type: Boolean, default: false },
     itemName: { type: String, required: true },
-    quantity: { type: String, required: true },
     description: { type: String, required: true },
     image: { type: String },
 
     price: { type: Number },
     currency: { type: String },
-    counterId: {
-      type: ObjectId,
-      ref: "Counter",
-    },
+    // counterId: {
+    //   type: ObjectId,
+    //   ref: "Counter",
+    // },
+    counterIds: [
+      {
+        type: ObjectId,
+        ref: "Counter",
+        required: true,
+      },
+    ],
+    isOutOfStock: { type: Boolean, default: false },
   },
   { timestamps: true, minimize: false }
 );

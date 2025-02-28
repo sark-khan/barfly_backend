@@ -340,9 +340,7 @@ module.exports.getMenuItems = async (req) => {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
 
-  console.log("Final Filter Query:", JSON.stringify(filter));
   const menuItems = await ItemDetails.find(filter).lean();
-  console.log({ menuItems });
   if (!menuItems.length) {
     return [];
   }
@@ -382,6 +380,22 @@ module.exports.getMenuItems = async (req) => {
   }, []);
 
   return { menuItemsResp, ...name };
+};
+
+module.exports.getRecommendedItems = async (req) => {
+  const { entityId } = req.query;
+
+  const allItems = await ItemDetails.find({ entityId });
+
+  const categoryMap = {};
+
+  allItems.forEach((item) => {
+    if (!categoryMap[item.menuCategoryId]) {
+      categoryMap[item.menuCategoryId] = item;
+    }
+  });
+
+  return Object.values(categoryMap);
 };
 
 module.exports.addExistingItemToMenu = async (req) => {

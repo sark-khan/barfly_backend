@@ -25,6 +25,7 @@ const {
   getAllcountries,
   getCitiesOfStates,
   getCountryByIsoCode,
+  getRecommendedItems,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -189,11 +190,26 @@ router.get("/get-menu-category-items", async (req, res) => {
   try {
     const menuItems = await getMenuItems(req);
     return res.status(STATUS_CODES.OK).json({
-      message: "Menu Categories Fetched",
+      message: "Menu items fetched successfully.",
       menuItems,
     });
   } catch (error) {
     console.error("Error occured while getting menu items", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/recommended-items", async (req, res) => {
+  try {
+    const items = await getRecommendedItems(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Recommended items fetched successfully.",
+      data: items,
+    });
+  } catch (error) {
+    console.error("Error occured while getting recommended items", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
