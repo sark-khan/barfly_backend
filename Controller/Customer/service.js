@@ -330,9 +330,9 @@ module.exports.getMenuSubCategory = async (req) => {
 module.exports.getMenuItems = async (req) => {
   let { menuCategoryId, searchTerm } = req.query;
 
-  if (mongoose.Types.ObjectId.isValid(menuCategoryId)) {
-    menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
-  }
+  // if (mongoose.Types.ObjectId.isValid(menuCategoryId)) {
+  //   menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
+  // }
 
   let filter = { menuCategoryId };
 
@@ -340,14 +340,16 @@ module.exports.getMenuItems = async (req) => {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
 
-  const menuItems = await ItemDetails.find(filter).lean();
+  const menuItems = await ItemDetails.find(filter).populate("menuCategoryId").lean();
   if (!menuItems.length) {
     return [];
   }
-  const name = await MenuCategory.findOne(
-    { _id: menuCategoryId },
-    { name: 1, _id: 0 }
-  ).lean();
+
+  // console.log({menuItems: menuItems[0].menuCategoryId.categoryName});
+  // // const name = await MenuCategory.findOne(
+  // //   { _id: menuCategoryId },
+  // //   { name: 1, _id: 0 }
+  // // ).lean();
 
   const favouriteItemList = await FavouriteItem.find(
     {
@@ -364,6 +366,7 @@ module.exports.getMenuItems = async (req) => {
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
+    menuItem.image= generatePresignedUrl(menuItem.image);
     delete menuItem.item;
     if (favouriteItemIds.has(menuItem._id.toString())) {
       menuItem.isFavourite = true;
@@ -378,18 +381,19 @@ module.exports.getMenuItems = async (req) => {
     });
     return acc;
   }, []);
-
-  return { menuItemsResp, ...name };
+  return menuItemsResp;
 };
 
 module.exports.getRecommendedItems = async (req) => {
-  const { entityId } = req.query;
+  const { entityId, counterId } = req.query;
 
-  const allItems = await ItemDetails.find({ entityId });
 
+
+  const allItems = await ItemDetails.find({ entityId, counterIds:[counterId] }).populate("menuCategoryId");
   const categoryMap = {};
 
   allItems.forEach((item) => {
+    item.image= generatePresignedUrl(item.image);
     if (!categoryMap[item.menuCategoryId]) {
       categoryMap[item.menuCategoryId] = item;
     }

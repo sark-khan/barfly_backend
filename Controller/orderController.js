@@ -15,6 +15,7 @@ const {
   cancelOrder,
   getOrderGroupByMonths,
   getRestaurantOrdersAndCount,
+  particularOrderDetailsCustomer,
 } = require("../CustomerServices/orderService");
 
 const { STATUS_CODES } = require("../Utils/globalConstants");
@@ -154,12 +155,29 @@ router.get("/get-live-orders-user", async (req, res) => {
   }
 });
 
-router.get("/get-live-order-details", async (req, res) => {
+router.get("/get-particular-live-order-details", async (req, res) => {
   try {
     const liveOrders = await particularOrderDetails(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Orders fetched successfully.", liveOrders });
+  } catch (error) {
+    console.error("Error while fetching orders", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while fetching orders" });
+  }
+});
+
+
+
+
+router.get("/get-particular-live-order-details-customer", async (req, res) => {
+  try {
+      const particularLiveOrder = await particularOrderDetailsCustomer(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Orders fetched successfully.", particularLiveOrder });
   } catch (error) {
     console.error("Error while fetching orders", error);
     return res

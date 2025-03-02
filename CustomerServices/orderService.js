@@ -10,10 +10,12 @@ const {
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
+const { generatePresignedUrl } = require("../Controller/aws-service");
 const { ObjectId } = mongoose.Types;
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup } = req.body;
+  console.log({items});
   const itemsIds = items?.map((doc) => doc.itemId);
   if (!itemsIds) return;
   const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
@@ -50,23 +52,23 @@ const createOrder = async (req, session) => {
       if (menuItem.availableQuantity < doc.quantity) {
         msg += `${menuItem.itemName} , `;
       }
-      const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
+      // const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
       amount += doc.quantity * menuItem.price;
     }
   });
-  if (remainingQuantity < menuItems.availableQuantity) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message:
-        "Apologies! Please enter the less quantity as we are on short of this item for now.",
-    });
-  }
-  if (msg) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: msg + "this items have not valid stocks.",
-    });
-  }
+  // if (remainingQuantity < menuItems.availableQuantity) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message:
+  //       "Apologies! Please enter the less quantity as we are on short of this item for now.",
+  //   });
+  // }
+  // if (msg) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message: msg + "this items have not valid stocks.",
+  //   });
+  // }
 
   const lastOrder = await Order.findOne(
     { entityId },
@@ -177,18 +179,30 @@ const getLiveOrdersUsers = async (req) => {
       ],
     },
   })
-    .populate({
-      path: "entityId",
-      select: "entityName",
-      model: "EntityDetails",
-    })
-    .populate({
-      path: "items.itemId",
-      select: "itemName",
-      model: "ItemDetails",
-    });
+  .populate({
+    path: "items.itemId",
+    select: "currency itemId itemName quantity isVegan",
+  }).populate({
+    path: "entityId",
+    select: "entityName city image state country",
+    model: "EntityDetails",
+  }).sort({_id:-1})
+  const updatedLiveOrders = liveOrders.map(order => {
+    if (order.entityId && order.entityId.image) {
+      return {
+        ...order.toObject(),
+        entityId: {
+          ...order.entityId.toObject(),
+          image: order.entityId.image.includes("X-Amz-Signature")
+            ? order.entityId.image
+            : generatePresignedUrl(order.entityId.image),
+        }
+      };
+    }
+    return order;
+  });
 
-  return liveOrders;
+  return updatedLiveOrders;
 };
 
 const particularOrderDetails = async (req) => {
@@ -211,6 +225,36 @@ const particularOrderDetails = async (req) => {
     })
     .sort({ tokenNumber: -1 })
     .lean();
+  return orderDetails;
+};
+
+
+const particularOrderDetailsCustomer = async (req) => {
+  const {
+    query: { orderId},
+  } = req;
+  const orderDetails = await Order.findOne({
+    userId: req.id,
+    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    _id: orderId
+  },{_id:1, tableNo:1,status:1,items:1,tokenNumber:1,totalAmount:1,isSelfPickup:1,createdAt:1, updatedAt:1, entityId:1})
+    .populate({
+      path: "items.itemId",
+      select: "currency itemId itemName quantity isVegan",
+    }).populate({
+      path: "entityId",
+      select: "entityName city image",
+      model: "EntityDetails",
+    })
+    .sort({ tokenNumber: -1 })
+    .lean();
+  
+    if(!orderDetails){
+      throwError({status:STATUS_CODES.NOT_FOUND,message:"No such Order found"});
+    }
+    if(orderDetails.entityId){
+      orderDetails.entityId.image= generatePresignedUrl(orderDetails.entityId.image)
+    }
   return orderDetails;
 };
 
@@ -516,4 +560,5 @@ module.exports = {
   cancelOrder,
   getOrderGroupByMonths,
   getRestaurantOrdersAndCount,
+  particularOrderDetailsCustomer
 };

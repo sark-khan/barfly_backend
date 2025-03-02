@@ -181,7 +181,7 @@ module.exports.createMenuItem = async (req) => {
     unit,
     description,
     nutritionType,
-    isOutOfStock,
+    isOutOfStock: false,
   });
 
   return itemDetails;

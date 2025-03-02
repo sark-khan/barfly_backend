@@ -206,7 +206,7 @@ router.get("/recommended-items", async (req, res) => {
     const items = await getRecommendedItems(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Recommended items fetched successfully.",
-      data: items,
+      menuItems:items,
     });
   } catch (error) {
     console.error("Error occured while getting recommended items", error);

@@ -48,7 +48,7 @@ const REDIS_KEYS = {
 };
 
 const ORDER_STATUS = {
-  IN_PROGRESS: "InProgress",
+  IN_PROGRESS: "In Process",
   READY: "Ready",
   COMPLETED: "Completed",
   WAITING: "Waiting",
