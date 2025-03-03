@@ -14,8 +14,7 @@ const { generatePresignedUrl } = require("../Controller/aws-service");
 const { ObjectId } = mongoose.Types;
 
 const createOrder = async (req, session) => {
-  const { items, eventId, tableNo, isSelfPickup } = req.body;
-  console.log({items});
+  const { items, eventId, tableNo, isSelfPickup, note } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
   if (!itemsIds) return;
   const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
@@ -92,6 +91,7 @@ const createOrder = async (req, session) => {
         eventId,
         tableNo,
         isSelfPickup,
+        note,
       },
     ],
     { session }
@@ -166,7 +166,30 @@ const getEntityOrders = async (req) => {
 };
 
 const getLiveOrdersUsers = async (req) => {
-  const { userId } = req;
+  const {
+    userId,
+    query: { searchTerm },
+  } = req;
+
+  let searchConditions = [];
+  if (searchTerm && searchTerm.trim() !== "") {
+    searchConditions = [
+      {
+        entityId: {
+          $in: await EntityDetails.find({
+            entityName: { $regex: searchTerm, $options: "i" },
+          }).distinct("_id"),
+        },
+      },
+      {
+        "items.itemId": {
+          $in: await ItemDetails.find({
+            itemName: { $regex: searchTerm, $options: "i" },
+          }).distinct("_id"),
+        },
+      },
+    ];
+  }
 
   const liveOrders = await Order.find({
     userId,
@@ -178,16 +201,20 @@ const getLiveOrdersUsers = async (req) => {
         ORDER_STATUS.COMPLETED,
       ],
     },
+    ...(searchConditions.length > 0 ? { $or: searchConditions } : {}),
   })
-  .populate({
-    path: "items.itemId",
-    select: "currency itemId itemName quantity isVegan",
-  }).populate({
-    path: "entityId",
-    select: "entityName city image state country",
-    model: "EntityDetails",
-  }).sort({_id:-1})
-  const updatedLiveOrders = liveOrders.map(order => {
+    .populate({
+      path: "items.itemId",
+      select: "currency itemId itemName quantity isVegan",
+    })
+    .populate({
+      path: "entityId",
+      select: "entityName city image state country",
+      model: "EntityDetails",
+    })
+    .sort({ _id: -1 });
+
+  const updatedLiveOrders = liveOrders.map((order) => {
     if (order.entityId && order.entityId.image) {
       return {
         ...order.toObject(),
@@ -196,7 +223,7 @@ const getLiveOrdersUsers = async (req) => {
           image: order.entityId.image.includes("X-Amz-Signature")
             ? order.entityId.image
             : generatePresignedUrl(order.entityId.image),
-        }
+        },
       };
     }
     return order;
@@ -225,36 +252,70 @@ const particularOrderDetails = async (req) => {
     })
     .sort({ tokenNumber: -1 })
     .lean();
+
+  //Need to change this logic and we should get the price at the time of creating order.
+  for (const order of orderDetails) {
+    for (const item of order.items) {
+      const itemDetail = await ItemDetails.findOne({ _id: item.itemId._id })
+        .select("price")
+        .lean();
+
+      const itemPrice = itemDetail ? itemDetail.price : 0;
+      item.totalPrice = itemPrice * (item.quantity || 1);
+    }
+  }
+
   return orderDetails;
 };
 
-
 const particularOrderDetailsCustomer = async (req) => {
   const {
-    query: { orderId},
+    userId,
+    query: { orderId },
   } = req;
-  const orderDetails = await Order.findOne({
-    userId: req.id,
-    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-    _id: orderId
-  },{_id:1, tableNo:1,status:1,items:1,tokenNumber:1,totalAmount:1,isSelfPickup:1,createdAt:1, updatedAt:1, entityId:1})
+  const orderDetails = await Order.findOne(
+    {
+      userId,
+      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+      _id: orderId,
+    },
+    {
+      _id: 1,
+      tableNo: 1,
+      status: 1,
+      items: 1,
+      tokenNumber: 1,
+      totalAmount: 1,
+      isSelfPickup: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      entityId: 1,
+      note: 1,
+    }
+  )
     .populate({
       path: "items.itemId",
       select: "currency itemId itemName quantity isVegan",
-    }).populate({
+    })
+    .populate({
       path: "entityId",
       select: "entityName city image",
       model: "EntityDetails",
     })
     .sort({ tokenNumber: -1 })
     .lean();
-  
-    if(!orderDetails){
-      throwError({status:STATUS_CODES.NOT_FOUND,message:"No such Order found"});
-    }
-    if(orderDetails.entityId){
-      orderDetails.entityId.image= generatePresignedUrl(orderDetails.entityId.image)
-    }
+
+  if (!orderDetails) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "No such Order found",
+    });
+  }
+  if (orderDetails.entityId) {
+    orderDetails.entityId.image = generatePresignedUrl(
+      orderDetails.entityId.image
+    );
+  }
   return orderDetails;
 };
 
@@ -560,5 +621,5 @@ module.exports = {
   cancelOrder,
   getOrderGroupByMonths,
   getRestaurantOrdersAndCount,
-  particularOrderDetailsCustomer
+  particularOrderDetailsCustomer,
 };

@@ -37,6 +37,7 @@ const orderSchme = new Schema(
     },
     tableNo: { type: Number, default: 1 },
     isSelfPickup: { type: Boolean },
+    note: { type: String },
   },
   { timestamps: true, minimize: false }
 );

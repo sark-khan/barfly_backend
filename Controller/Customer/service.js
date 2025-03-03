@@ -31,6 +31,7 @@ const {
 const Location = require("./../../Models/Location");
 const CountRTags = require("../../Models/CountRTags");
 const Userfeedback = require("../../Models/UserFeedback");
+const SearchLogs = require("../../Models/searchLogs");
 
 module.exports.getEntities = async (req) => {
   const { limit = 30, skip = 0, searchTerm } = req.query;
@@ -41,6 +42,8 @@ module.exports.getEntities = async (req) => {
     { _id: 1, entityId: 1 },
     { lean: true }
   );
+
+  console.log({ favouritesList });
 
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
@@ -102,7 +105,7 @@ module.exports.getEntities = async (req) => {
     }
   );
 
-  if (req.query?.searchTerm && req.query.seacrhTerm != "") {
+  if (req.query?.searchTerm && req.query.searchTerm != "") {
     query2.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
   }
 
@@ -340,7 +343,9 @@ module.exports.getMenuItems = async (req) => {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
 
-  const menuItems = await ItemDetails.find(filter).populate("menuCategoryId").lean();
+  const menuItems = await ItemDetails.find(filter)
+    .populate("menuCategoryId")
+    .lean();
   if (!menuItems.length) {
     return [];
   }
@@ -366,7 +371,7 @@ module.exports.getMenuItems = async (req) => {
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
-    menuItem.image= generatePresignedUrl(menuItem.image);
+    menuItem.image = generatePresignedUrl(menuItem.image);
     delete menuItem.item;
     if (favouriteItemIds.has(menuItem._id.toString())) {
       menuItem.isFavourite = true;
@@ -385,15 +390,20 @@ module.exports.getMenuItems = async (req) => {
 };
 
 module.exports.getRecommendedItems = async (req) => {
-  const { entityId, counterId } = req.query;
+  const { entityId, counterId, searchTerm } = req.query;
 
+  const query = { entityId, counterIds: counterId };
 
+  if (searchTerm) {
+    query.itemName = { $regex: searchTerm, $options: "i" };
+  }
 
-  const allItems = await ItemDetails.find({ entityId, counterIds:[counterId] }).populate("menuCategoryId");
+  const allItems = await ItemDetails.find(query).populate("menuCategoryId");
+
   const categoryMap = {};
 
   allItems.forEach((item) => {
-    item.image= generatePresignedUrl(item.image);
+    item.image = generatePresignedUrl(item.image);
     if (!categoryMap[item.menuCategoryId]) {
       categoryMap[item.menuCategoryId] = item;
     }
@@ -406,7 +416,6 @@ module.exports.addExistingItemToMenu = async (req) => {
   const { menuId, itemId } = req.body;
   const itemDetails = await MenuItem.findById(itemId).lean();
   const menuCategory = await MenuCategory.findById(menuId).lean();
-  console.log({ menuCategory, itemDetails });
   const updateSet = {
     entityId: req.entityId,
     counterId: menuId,
@@ -958,4 +967,59 @@ exports.getCitiesOfStates = async (req) => {
   const { countryCode, stateCode } = req.query;
   const cities = City.getCitiesOfState(countryCode, stateCode);
   return cities;
+};
+
+exports.createSearchLogs = async (req) => {
+  const {
+    userId,
+    body: { entityId },
+  } = req;
+
+  const searchLogsObj = {
+    userId,
+    entityId,
+  };
+  return SearchLogs.create(searchLogsObj);
+};
+
+exports.getSearchLogs = async (req) => {
+  const { userId } = req;
+  const logs = await SearchLogs.find({ userId, isRemoved: false })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: "entityId",
+      select: "entityName city state country image",
+      model: "EntityDetails",
+    });
+  logs.map((items) => {
+    console.log("Image key before generating URL:", items.entityId.image);
+
+    if (!items.entityId.image) {
+      console.warn("Skipping entity because image is missing:", items);
+      return items;
+    }
+
+    items.entityId.image = generatePresignedUrl(items.entityId.image);
+    return items;
+  });
+
+  return logs;
+};
+
+exports.removeLogs = async (req) => {
+  const {
+    userId,
+    body: { entityId, isRemoved },
+  } = req;
+
+  const logs = await SearchLogs.findOne({ userId, entityId, isRemoved: false });
+  if (!logs) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "logs not found.",
+    });
+  }
+  if (isRemoved) logs.isRemoved = isRemoved;
+
+  return logs.save();
 };

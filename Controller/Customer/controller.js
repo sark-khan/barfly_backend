@@ -26,6 +26,9 @@ const {
   getCitiesOfStates,
   getCountryByIsoCode,
   getRecommendedItems,
+  createSearchLogs,
+  getSearchLogs,
+  removeLogs,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -206,7 +209,7 @@ router.get("/recommended-items", async (req, res) => {
     const items = await getRecommendedItems(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Recommended items fetched successfully.",
-      menuItems:items,
+      menuItems: items,
     });
   } catch (error) {
     console.error("Error occured while getting recommended items", error);
@@ -392,6 +395,48 @@ router.get("/get-iso-code", async (req, res) => {
     console.error("Error while fetching iso code: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while fetching iso code",
+    });
+  }
+});
+
+router.post("/create-search-logs", async (req, res) => {
+  try {
+    await createSearchLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs created successfully." });
+  } catch (error) {
+    console.error("Error while creating logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while creating logs",
+    });
+  }
+});
+
+router.get("/get-search-logs", async (req, res) => {
+  try {
+    const searchedEntitiesLogs = await getSearchLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs fetched successfully.", searchedEntitiesLogs });
+  } catch (error) {
+    console.error("Error while fetched logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetched logs",
+    });
+  }
+});
+
+router.post("/remove-search-logs", async (req, res) => {
+  try {
+    const data = await removeLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetched logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetched logs",
     });
   }
 });

@@ -15,8 +15,6 @@ const ItemDetails = require("../../Models/ItemDetails");
 const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const { shiftArrayRight } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
-const { start } = require("pm2");
-const { query } = require("express");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
