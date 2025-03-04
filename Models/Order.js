@@ -35,7 +35,7 @@ const orderSchme = new Schema(
       type: ObjectId,
       ref: "Event",
     },
-    tableNo: { type: Number, default: 1 },
+    tableNo: { type: Number, default: 0 },
     isSelfPickup: { type: Boolean },
     note: { type: String },
   },
