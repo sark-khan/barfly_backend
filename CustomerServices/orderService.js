@@ -346,13 +346,16 @@ const getRestaurantOrdersAndCount = async (req) => {
   const entityIds = Object.keys(entityOrderCount);
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
-    { entityType: 1, entityName: 1, city: 1 }
+    { entityType: 1, entityName: 1, city: 1, state: 1, country: 1, image: 1 }
   ).lean();
 
   return entities.map((entity) => ({
     entityName: entity.entityName,
     city: entity.city,
     entityId: entity._id,
+    state: entity.state,
+    country: entity.country,
+    image: entity.image ? generatePresignedUrl(entity.image) : "",
     orderCount: entityOrderCount[entity._id],
   }));
 };
@@ -487,6 +490,8 @@ const getOrderGroupByMonths = async (req) => {
             status: "$status",
             tokenNumber: "$tokenNumber",
             items: "$items",
+            totalAmount: "$totalAmount",
+            createdAt: "$createdAt"
           },
         },
       },

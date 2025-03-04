@@ -22,8 +22,6 @@ const { STATUS_CODES } = require("../Utils/globalConstants");
 
 const verifyToken = require("../Utils/verifyToken");
 
-// router.use(verifyToken);
-
 router.use((req, res, next) => {
   req.userId = req.id;
   return next();
