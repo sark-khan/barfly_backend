@@ -170,7 +170,7 @@ module.exports.register = async (req) => {
     entityName,
     entityType,
     owner: userDetails._id,
-    image: fileName.replace(" ", "_"),
+    image: fileName,
     entityContactNumber,
     plotNo,
     floor,

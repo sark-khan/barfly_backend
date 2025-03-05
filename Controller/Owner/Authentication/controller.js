@@ -15,8 +15,10 @@ router.post("/login", async (req, res) => {
       // userDetails: response.user,
     });
   } catch (error) {
-    console.error("error while login", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    console.error("Error while login", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while login" });
   }
 });
 
@@ -25,8 +27,10 @@ router.post("/register", upload.single("file"), async (req, res) => {
     const message = await register(req);
     return res.status(STATUS_CODES.OK).json(message);
   } catch (error) {
-    console.error("error while login", error);
-    return res.status(error.status || 400).json({ message: error.message });
+    console.error("Error while registering the user: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while registering the user" });
   }
 });
 module.exports = router;
