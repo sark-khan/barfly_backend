@@ -669,7 +669,6 @@ module.exports.getMenuCategoryItems = async (req) => {
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     const itemDetails = menuItem.itemId;
-    console.log({ menuItem });
     delete menuItem.itemId;
     itemDetails.image = generatePresignedUrl(itemDetails.image);
     acc.push({

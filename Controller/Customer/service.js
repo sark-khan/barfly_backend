@@ -43,8 +43,6 @@ module.exports.getEntities = async (req) => {
     { lean: true }
   );
 
-  console.log({ favouritesList });
-
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
     favouritesIdsSet.add(id.entityId.toString());
@@ -60,7 +58,6 @@ module.exports.getEntities = async (req) => {
     },
     { entityId: 1, counterIds: 1 }
   );
-  // console.log({currentRunningEvents});
 
   const entityIds = currentRunningEvents.map((entity) => entity.entityId);
   const query = {
@@ -87,7 +84,7 @@ module.exports.getEntities = async (req) => {
 
     if (!items.image) {
       console.warn("Skipping entity because image is missing:", items);
-      return items; // Ensure we don't modify the object if image is invalid
+      return items;
     }
 
     items.image = generatePresignedUrl(items.image);
@@ -120,13 +117,12 @@ module.exports.getEntities = async (req) => {
     },
     { limit: limit, skip: skip }
   ).lean();
-  console.log({ remainingEntities });
   remainingEntities.map((items) => {
     console.log("Image key before generating URL:", items.image);
 
     if (!items.image) {
       console.warn("Skipping entity because image is missing:", items);
-      return items; // Ensure we don't modify the object if image is invalid
+      return items;
     }
 
     items.image = generatePresignedUrl(items.image);
@@ -161,12 +157,10 @@ module.exports.getEntities = async (req) => {
       req.query.isFavouriteEntities == "true"
         ? currentRunningEntitiesDetailsResponse
         : currentRunningEntitiesDetails,
-    // currentRunningEntitiesDetailsImage,
     remainingEntities:
       req.query.isFavouriteEntities == "true"
         ? uniqueRemainingEntitiesResponse
         : uniqueRemainingEntities,
-    // remainingEntitiesImage,
   };
 };
 
