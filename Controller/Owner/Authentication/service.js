@@ -17,6 +17,7 @@ const {
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
+const { uploadBufferToS3 } = require("../../aws-service");
 
 module.exports.register = async (req) => {
   const {
@@ -42,6 +43,7 @@ module.exports.register = async (req) => {
       sessionId,
     },
   } = req;
+
   const userExist = await User.findOne({ $or: [{ email }, { contactNumber }] });
   if (userExist) {
     throwError({
@@ -127,26 +129,11 @@ module.exports.register = async (req) => {
   }
   const userDetails = await User.create(newUser);
 
-  // if (req.file) {
-  //   const fileBuffer = req.file.buffer;
-  //   const fileName = `${req.entityId}_${new Date()}_${req.file.originalname}`;
-  //   const data = await uploadBufferToS3(fileBuffer, fileName);
-  //   if (!data.Location) {
-  //     throwError({
-  //       message: "Error occured while uplaoding the file",
-  //       status: STATUS_CODES.SERVER_ERROR,
-  //     });
-  //   }
-  // }
-
   let fileName = "";
 
   if (file) {
     const fileBuffer = file.buffer;
-    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
-      / /g,
-      "_"
-    )}`;
+    fileName = `${Date.now()}_${file.originalname.replace(/ /g, "_")}`;
 
     try {
       const data = await uploadBufferToS3(fileBuffer, fileName);
@@ -158,7 +145,7 @@ module.exports.register = async (req) => {
       }
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        status: STATUS_CODES.BAD_REQUEST,
         message: "File upload failed",
       });
     }
@@ -170,7 +157,7 @@ module.exports.register = async (req) => {
     entityName,
     entityType,
     owner: userDetails._id,
-    image: fileName,
+    image: fileName.replace(" ", "_"),
     entityContactNumber,
     plotNo,
     floor,
@@ -184,7 +171,6 @@ module.exports.register = async (req) => {
   };
 
   await EntityDetails.create(newEntityDetailsObj);
-  await OtpSession.deleteOne({ sessionId });
   return { message: "Registration successful" };
 };
 
