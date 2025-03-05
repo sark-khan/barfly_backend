@@ -8,7 +8,7 @@ const {
   visitorCount,
   getEntities,
   counterList,
-  getMenuSubCategory,
+  getCounterMenuCategory,
   getMenuItems,
   eventOpened,
   eventClosed,
@@ -29,6 +29,8 @@ const {
   createSearchLogs,
   getSearchLogs,
   removeLogs,
+  newlyAddedEntities,
+  popularEntities,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -176,7 +178,7 @@ router.get("/get-counter-list", async (req, res) => {
 
 router.get("/get-counter-menu-category", async (req, res) => {
   try {
-    const menuLists = await getMenuSubCategory(req);
+    const menuLists = await getCounterMenuCategory(req);
     return res.status(STATUS_CODES.OK).json({
       message: "Menu Categories Fetched",
       menuLists,
@@ -441,4 +443,34 @@ router.post("/remove-search-logs", async (req, res) => {
   }
 });
 
+router.get("/newly-added-entities", async (req, res) => {
+  try {
+    const data = await newlyAddedEntities();
+    return res.status(STATUS_CODES.OK).json({
+      message: "Newly added entities fetched successfully.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting newly added entities: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message:
+        error.message || "Error occured while getting newly added entities.",
+    });
+  }
+});
+
+router.get("/popular-entities", async (req, res) => {
+  try {
+    const data = await popularEntities();
+    return res.status(STATUS_CODES.OK).json({
+      message: "Popular entities fetched successfully.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting popular entities: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error occured while getting popular entities.",
+    });
+  }
+});
 module.exports = router;

@@ -20,25 +20,28 @@ const EntityDetails = require("../../../Models/EntityDetails");
 
 module.exports.register = async (req) => {
   const {
-    email,
-    fullName,
-    password,
-    contactNumber,
-    city,
-    zipcode,
-    entityName,
-    entityType,
-    entityContactNumber,
-    plotNo,
-    floor,
-    country,
-    buildingName,
-    landMark,
-    enteredOtp,
-    state,
-    location,
-    sessionId,
-  } = req.body;
+    file,
+    body: {
+      email,
+      fullName,
+      password,
+      contactNumber,
+      city,
+      zipcode,
+      entityName,
+      entityType,
+      entityContactNumber,
+      plotNo,
+      floor,
+      country,
+      buildingName,
+      landMark,
+      enteredOtp,
+      state,
+      location,
+      sessionId,
+    },
+  } = req;
   const userExist = await User.findOne({ $or: [{ email }, { contactNumber }] });
   if (userExist) {
     throwError({
@@ -87,7 +90,6 @@ module.exports.register = async (req) => {
       });
     }
 
-    // OTP matched
     if (enteredOtp && enteredOtp == otpRecord.otp && !otpVerified) {
       await Otp.deleteOne({ contactNumber });
       const sessionId = crypto.randomUUID();
@@ -137,13 +139,38 @@ module.exports.register = async (req) => {
   //   }
   // }
 
+  let fileName = "";
+
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Error occurred while uploading the file",
+        });
+      }
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: "File upload failed",
+      });
+    }
+  }
+
   const newEntityDetailsObj = {
     city,
     zipcode,
     entityName,
     entityType,
     owner: userDetails._id,
-    // image: fileName.replace(" ", "_"),
+    image: fileName.replace(" ", "_"),
     entityContactNumber,
     plotNo,
     floor,

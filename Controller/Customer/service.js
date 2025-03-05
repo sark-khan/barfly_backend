@@ -303,6 +303,11 @@ module.exports.counterList = async (req) => {
     });
   });
 
+  await EntityDetails.findByIdAndUpdate(
+    { _id: entityId },
+    { $inc: { views: 1 } }
+  );
+
   const counterList = counters.map((counter) => {
     const matchedCounter = counterLists.find(
       (c) => c.counterId == counter._id.toString()
@@ -318,7 +323,7 @@ module.exports.counterList = async (req) => {
   return counterList;
 };
 
-module.exports.getMenuSubCategory = async (req) => {
+module.exports.getCounterMenuCategory = async (req) => {
   const { counterId, searchTerm } = req.query;
 
   const query = { ...(counterId && { counterId }) };
@@ -326,7 +331,6 @@ module.exports.getMenuSubCategory = async (req) => {
     query.name = { $regex: searchTerm, $options: "i" };
   }
 
-  // Fetch subcategories with lean() for performance optimization
   return await MenuCategory.find(query).lean();
 };
 
@@ -1022,4 +1026,25 @@ exports.removeLogs = async (req) => {
   if (isRemoved) logs.isRemoved = isRemoved;
 
   return logs.save();
+};
+
+exports.newlyAddedEntities = async () => {
+  const fortyEightHoursago = new Date();
+  fortyEightHoursago.setHours(fortyEightHoursago.getHours() - 48);
+
+  const entities = await EntityDetails.find({
+    createdAt: { $gte: fortyEightHoursago },
+  }).sort({ createdAt: -1 });
+
+  return entities;
+};
+
+exports.popularEntities = async () => {
+  const popular = await EntityDetails.find(
+    {},
+    { entityName: 1, city: 1, views: 1, country: 1, status: 1 }
+  )
+    .sort({ views: -1 })
+    .limit(10);
+  return popular;
 };

@@ -22,6 +22,7 @@ const entityDetailsSchema = new Schema(
     state: { type: String },
     location: { type: String },
     status: { type: String, enum: Object.values(STATUS) },
+    views: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
