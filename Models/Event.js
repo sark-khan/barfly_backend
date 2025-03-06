@@ -18,7 +18,7 @@ const eventSchema = new Schema(
         required: true,
       },
     ],
-    ageLimit: { type: Number, required: true },
+    ageLimit: { type: String, required: true },
     ownerId: { type: ObjectId, ref: "User", required: true },
     entityId: {
       type: ObjectId,
@@ -26,6 +26,8 @@ const eventSchema = new Schema(
       required: true,
     },
     activeUsers: { type: Number, default: 0 },
+    image: { type: String },
+    location: { type: String },
   },
   { timestamps: true }
 );

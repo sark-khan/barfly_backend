@@ -140,7 +140,7 @@ module.exports.createMenuItem = async (req) => {
       }
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        status: STATUS_CODES.BAD_REQUEST,
         message: "File upload failed",
       });
     }
@@ -343,16 +343,20 @@ module.exports.getParticularItemDetail = async (req) => {
 
 module.exports.createEvent = async (req) => {
   const {
-    eventName,
-    startingDate,
-    endDate,
-    isRepetitive,
-    repetitiveDays,
-    from,
-    to,
-    counterIds,
-    ageLimit,
-  } = req.body;
+    file,
+    body: {
+      eventName,
+      startingDate,
+      endDate,
+      isRepetitive,
+      repetitiveDays,
+      from,
+      to,
+      counterIds,
+      ageLimit,
+      location,
+    },
+  } = req;
 
   const ownerId = req.userId;
   console.log({ from, to, startingDate });
@@ -386,10 +390,42 @@ module.exports.createEvent = async (req) => {
     });
   }
   let repetitiveDaysArr = [];
-  if (!isRepetitive) {
-    repetitiveDaysArr = [];
-  } else {
-    repetitiveDaysArr = shiftArrayRight(repetitiveDays);
+
+  if (isRepetitive && repetitiveDays) {
+    try {
+      repetitiveDaysArr = JSON.parse(repetitiveDays); // Convert string to array
+    } catch (error) {
+      console.error("Error parsing repetitiveDays:", error);
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Invalid repetitiveDays format",
+      });
+    }
+  }
+
+  let fileName = "";
+
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Error occurred while uploading the file",
+        });
+      }
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: "File upload failed",
+      });
+    }
   }
 
   const newEvent = new Event({
@@ -404,16 +440,22 @@ module.exports.createEvent = async (req) => {
     ownerId,
     counterIds,
     entityId: req.entityId,
-    activeUsers: 0,
+    image: fileName,
+    location,
   });
 
   const savedEvent = await newEvent.save();
+  await Event.findOneAndUpdate(
+    { _id: newEvent._id },
+    { $inc: { activeUsers: 1 } }
+  );
+
   return savedEvent;
 };
 
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
-  const ownerId = req.id;
+  const ownerId = req.userId;
 
   const upcomingEvents = await Event.find({
     ownerId,
@@ -424,7 +466,7 @@ module.exports.getUpcomingEvents = async (req) => {
 };
 
 module.exports.getDistinctYears = async (req) => {
-  const ownerId = req.id;
+  const ownerId = req.userId;
   const distinctYears = await Event.aggregate([
     {
       $match: {
@@ -460,67 +502,131 @@ module.exports.getDistinctYears = async (req) => {
   return distinctYears;
 };
 
+// module.exports.getOngoingEventDetails = async (req) => {
+//   const currentTime = new Date();
+//   const events = await Event.find(
+//     {
+//       from: { $lte: currentTime },
+//       to: { $gte: currentTime },
+//       entityId: req.query.entityId,
+//     },
+//     null,
+//     { sort: { from: -1 }, lean: 1 }
+//   );
+//   console.log({ events: events });
+//   const eventIds = new Map();
+//   const ongoingEvents = events?.filter((event) => {
+//     if (event.isRepetitive == true) {
+//       const day = currentTime.getDay();
+//       if (event.repetitiveDays[day] == false) {
+//         return false;
+//       }
+//     }
+//     // console.log({ ongoingEvents: ongoingEvents });
+//     eventIds.set(event._id.toString(), {
+//       isRepetitive: event.isRepetitive,
+//       from: event.from,
+//       to: event.to,
+//       eventName: event.eventName,
+//       activeUsers: event.activeUsers,
+//     });
+//     console.log({ event });
+
+//     return true;
+//   });
+//   const startingTime = new Date();
+//   startingTime.setHours(0, 0, 0, 0);
+//   const endingTime = new Date();
+//   endingTime.setDate(endingTime.getDate() + 1);
+//   endingTime.setHours(0, 0, 0, 0);
+//   const ordersOfEvents = await Order.find({
+//     eventId: { $in: Array.from(eventIds.keys()) }, // Filters orders by event IDs
+//     // createdAt: { $gte: startingTime, $lte: endingTime }, // Filters orders within the specified time range
+//   });
+//   console.log({ eventIds });
+//   console.log({ ordersOfEvents });
+//   const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce(
+//     (acc, orders) => {
+//       console.log({ ebe: eventIds.get(orders.eventId.toString()) });
+//       if (!acc[orders.eventId]) {
+//         const eventDetails = eventIds.get(orders.eventId.toString());
+//         acc[orders.eventId] = {
+//           eventId: orders.eventId,
+//           from: eventDetails.from,
+//           to: eventDetails.to,
+//           eventName: eventDetails.eventName,
+//           activeUsers: eventDetails.activeUsers,
+//           totalOrders: 0,
+//         };
+//       }
+//       acc[orders.eventId].totalOrders = acc[orders.eventId]?.totalOrders + 1;
+//       return acc;
+//     },
+//     {}
+//   );
+
+//   return ongoingEventDetailsWithOrders;
+// };
+
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
+
   const events = await Event.find(
     {
       from: { $lte: currentTime },
       to: { $gte: currentTime },
       entityId: req.entityId,
     },
-    null,
-    { sort: { from: -1 }, lean: 1 }
+    {
+      isRepetitive: 1,
+      repetitiveDays: 1,
+      from: 1,
+      to: 1,
+      eventName: 1,
+      activeUsers: 1,
+    },
+    { sort: { from: -1 }, lean: true }
   );
+
   const eventIds = new Map();
-  const ongoingEvents = events?.filter((event) => {
-    if (event.isRepetitive == true) {
+
+  for (const event of events) {
+    if (event.isRepetitive) {
       const day = currentTime.getDay();
-      if (event.repetitiveDays[day] == false) {
-        return false;
-      }
+      if (!event.repetitiveDays?.[day]) continue;
     }
+
     eventIds.set(event._id.toString(), {
-      isRepetitive: event.isRepetitive,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
       activeUsers: event.activeUsers,
     });
+  }
 
-    return true;
-  });
-  const startingTime = new Date();
-  startingTime.setHours(0, 0, 0, 0);
-  const endingTime = new Date();
-  endingTime.setDate(endingTime.getDate() + 1);
-  endingTime.setHours(0, 0, 0, 0);
-  const ordersOfEvents = await Order.find({
-    eventId: { $in: Array.from(eventIds.keys()) }, // Filters orders by event IDs
-    // createdAt: { $gte: startingTime, $lte: endingTime }, // Filters orders within the specified time range
-  });
-  console.log({ eventIds });
-  console.log({ ordersOfEvents });
-  const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce(
-    (acc, orders) => {
-      console.log({ ebe: eventIds.get(orders.eventId.toString()) });
-      if (!acc[orders.eventId]) {
-        const eventDetails = eventIds.get(orders.eventId.toString());
-        acc[orders.eventId] = {
-          eventId: orders.eventId,
-          from: eventDetails.from,
-          to: eventDetails.to,
-          eventName: eventDetails.eventName,
-          activeUsers: eventDetails.activeUsers,
-          totalOrders: 0,
-        };
-      }
-      acc[orders.eventId].totalOrders = acc[orders.eventId]?.totalOrders + 1;
-      return acc;
-    },
-    {}
+  if (eventIds.size === 0) return {};
+
+  const orders = await Order.find(
+    { eventId: { $in: Array.from(eventIds.keys()) } },
+    { eventId: 1 },
+    { lean: true }
   );
 
-  return ongoingEventDetailsWithOrders;
+  const ongoingEventDetails = {};
+
+  for (const order of orders) {
+    const eventId = order.eventId.toString();
+    if (!ongoingEventDetails[eventId]) {
+      ongoingEventDetails[eventId] = {
+        eventId,
+        ...eventIds.get(eventId),
+        totalOrders: 0,
+      };
+    }
+    ongoingEventDetails[eventId].totalOrders++;
+  }
+
+  return ongoingEventDetails;
 };
 
 module.exports.getDistinctMonthsOfYear = async (req) => {

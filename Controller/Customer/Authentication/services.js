@@ -124,7 +124,7 @@ module.exports.countRTag = async (req) => {
 
   const obj = {
     userId: user._id,
-    countRTag: `@ ${countRTag}`,
+    countRTag: `${countRTag}`,
   };
   await CountRTags.create(obj);
 };

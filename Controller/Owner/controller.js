@@ -243,7 +243,7 @@ router.get("/get-menu-particular-item", async (req, res) => {
   }
 });
 
-router.post("/create-event", async (req, res) => {
+router.post("/create-event", upload.single("file"), async (req, res) => {
   try {
     const response = await createEvent(req);
     return res
