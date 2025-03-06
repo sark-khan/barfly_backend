@@ -491,7 +491,7 @@ const getOrderGroupByMonths = async (req) => {
             tokenNumber: "$tokenNumber",
             items: "$items",
             totalAmount: "$totalAmount",
-            createdAt: "$createdAt"
+            createdAt: "$createdAt",
           },
         },
       },
@@ -601,7 +601,8 @@ const cancelOrder = async (req) => {
 
   if (
     order.status === ORDER_STATUS.READY ||
-    order.status === ORDER_STATUS.COMPLETED
+    order.status === ORDER_STATUS.COMPLETED ||
+    order.status === ORDER_STATUS.CANCELLED
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,

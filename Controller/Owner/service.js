@@ -344,6 +344,8 @@ module.exports.getParticularItemDetail = async (req) => {
 module.exports.createEvent = async (req) => {
   const {
     file,
+    ownerId,
+    userId,
     body: {
       eventName,
       startingDate,
@@ -358,7 +360,6 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
-  const ownerId = req.userId;
   console.log({ from, to, startingDate });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
@@ -438,6 +439,7 @@ module.exports.createEvent = async (req) => {
     to: dateTimeTo,
     ageLimit,
     ownerId,
+    userId,
     counterIds,
     entityId: req.entityId,
     image: fileName,
@@ -455,13 +457,13 @@ module.exports.createEvent = async (req) => {
 
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
-  const ownerId = req.userId;
+  const { ownerId, entityId } = req;
 
   const upcomingEvents = await Event.find({
     ownerId,
-    entityId: req.entityId,
+    entityId,
     from: { $gte: currentDateTime },
-  }).sort({ date: 1 });
+  }).sort({ createdAt: -1 });
   return upcomingEvents;
 };
 
