@@ -34,7 +34,13 @@ const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
 
 module.exports.getEntities = async (req) => {
-  const { limit = 30, skip = 0, searchTerm } = req.query;
+  const {
+    limit = 30,
+    skip = 0,
+    searchTerm,
+    isNewlyAdded,
+    isPopular,
+  } = req.query;
   const now = new Date();
 
   const favouritesList = await FavouriteEntity.find(
@@ -60,9 +66,19 @@ module.exports.getEntities = async (req) => {
   );
 
   const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+
   const query = {
     _id: { $in: entityIds },
   };
+  console.log({ isNewlyAdded });
+  const sort = {};
+  if (isNewlyAdded) {
+    const fortyEightHoursago = new Date();
+    fortyEightHoursago.setHours(fortyEightHoursago.getHours() - 48);
+    query.createdAt = { $gte: fortyEightHoursago };
+  } else if (isPopular) {
+    sort.views = -1;
+  }
 
   if (searchTerm) {
     query.entityName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
@@ -74,10 +90,22 @@ module.exports.getEntities = async (req) => {
     entityType: 1,
     street: 1,
     image: 1,
-  }).lean();
+    views: 1,
+  })
+    .sort(sort)
+    .lean();
   const query2 = {
     _id: { $nin: entityIds },
   };
+
+  if (isNewlyAdded) {
+    const fortyEightHoursago = new Date();
+    fortyEightHoursago.setHours(fortyEightHoursago.getHours() - 48);
+    query2.createdAt = { $gte: fortyEightHoursago };
+  }
+  // else if (isPopular) {
+  //   sort.views = -1;
+  // }
 
   currentRunningEntitiesDetails1.map((items) => {
     console.log("Image key before generating URL:", items.image);
@@ -114,8 +142,9 @@ module.exports.getEntities = async (req) => {
       entityType: 1,
       street: 1,
       image: 1,
+      views: 1,
     },
-    { limit: limit, skip: skip }
+    { limit: limit, skip: skip, sort: sort }
   ).lean();
   remainingEntities.map((items) => {
     console.log("Image key before generating URL:", items.image);
@@ -1030,15 +1059,26 @@ exports.newlyAddedEntities = async () => {
     createdAt: { $gte: fortyEightHoursago },
   }).sort({ createdAt: -1 });
 
+  entities.map((entity) => {
+    entity.image = generatePresignedUrl(entity.image);
+    return entity;
+  });
   return entities;
 };
 
 exports.popularEntities = async () => {
   const popular = await EntityDetails.find(
     {},
-    { entityName: 1, city: 1, views: 1, country: 1, status: 1 }
+    { entityName: 1, city: 1, views: 1, country: 1, status: 1, image: 1 }
   )
     .sort({ views: -1 })
     .limit(10);
+
+  popular.map((entity) => {
+    if (entity.image != null) {
+      entity.image = generatePresignedUrl(entity.image);
+    }
+    return entity;
+  });
   return popular;
 };
