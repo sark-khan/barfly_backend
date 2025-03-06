@@ -22,6 +22,8 @@ const {
   getDistinctYears,
   createItems,
   getOrderDetailsOfEvents,
+  createDiscountCoupon,
+  getDiscountCoupon,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -394,6 +396,34 @@ router.get("/get-counter-settings", async (req, res) => {
     });
   } catch (error) {
     console.error("Error occured while fetching counter list quantity", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/create-discount-coupon", async (req, res) => {
+  try {
+    await createDiscountCoupon(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Discount coupon created successfully",
+    });
+  } catch (error) {
+    console.error("Error occured while creating discount coupon", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/get-discount-coupons", async (req, res) => {
+  try {
+    await getDiscountCoupon(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Discount coupons fetched successfully",
+    });
+  } catch (error) {
+    console.error("Error occured while fetching discount coupons", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

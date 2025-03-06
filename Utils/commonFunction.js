@@ -4,6 +4,8 @@ const { appClient } = require("../redis");
 const SECRET_KEY = "BARFLY@WEBMOB456";
 const Event = require("../Models/Event");
 const admin = require("../firebaseAdmin");
+const { STATUS } = require("./globalConstants");
+const Discount = require("../Models/Discount");
 
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
@@ -140,6 +142,45 @@ async function sendFirebaseNotification(token, title, body) {
   }
 }
 
+const validateCoupon = async (couponCode, totalAmount) => {
+  if (!couponCode) return { discountAmount: 0 };
+
+  const discount = await Discount.findOne({
+    code: couponCode,
+    status: STATUS.ACTIVE,
+  });
+  if (!discount) {
+    throw new Error("Invalid or expired coupon");
+  }
+
+  const currentDate = new Date();
+
+  if (currentDate < discount.startDate || currentDate > discount.endDate) {
+    throw new Error("Coupon is not valid at this time");
+  }
+
+  if (discount.usedCount >= discount.usageLimit) {
+    throw new Error("Coupon usage limit reached");
+  }
+
+  if (totalAmount < discount.minAmount) {
+    throw new Error(`Minimum order amount should be ${discount.minAmount}`);
+  }
+
+  let discountAmount = 0;
+
+  if (discount.type === "percentage") {
+    discountAmount = (totalAmount * discount.value) / 100;
+    if (discount.maxDiscount) {
+      discountAmount = Math.min(discountAmount, discount.maxDiscount);
+    }
+  } else if (discount.type === "fixed") {
+    discountAmount = discount.value;
+  }
+
+  return { discountAmount, couponCode };
+};
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -150,4 +191,5 @@ module.exports = {
   shiftArrayRight,
   haversineDistance,
   sendFirebaseNotification,
+  validateCoupon,
 };

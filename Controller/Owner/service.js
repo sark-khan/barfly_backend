@@ -5,6 +5,7 @@ const {
   STATUS_CODES,
   INSIDER_TYPE,
   EDIT_ACTION,
+  STATUS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const mongoose = require("mongoose");
@@ -15,6 +16,7 @@ const ItemDetails = require("../../Models/ItemDetails");
 const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const { shiftArrayRight } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
+const Discount = require("../../Models/Discount");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -901,4 +903,62 @@ module.exports.getCounterSettings = async (req) => {
     { lean: 1 }
   );
   return counterSettings;
+};
+
+module.exports.createDiscountCoupon = async (req) => {
+  const {
+    // entityId,
+    // userId,
+    body: {
+      code,
+      type,
+      value,
+      maxDiscount,
+      minAmount,
+      usageLimit,
+      startDate,
+      endDate,
+      entityId,
+      userId,
+    },
+  } = req;
+
+  const existingCoupon = await Discount.findOne({
+    code,
+    status: STATUS.ACTIVE,
+  });
+  if (existingCoupon) {
+    throw new Error("Coupon code already exists");
+  }
+
+  const couponObj = {
+    code,
+    type,
+    value,
+    maxDiscount,
+    minAmount,
+    usageLimit,
+    startDate,
+    endDate,
+    entityId,
+    userId,
+    status: STATUS.ACTIVE,
+  };
+
+  return Discount.create(couponObj);
+};
+
+module.exports.getDiscountCoupon = async (req) => {
+  const { entityId, userId } = req;
+
+  let currentDate = new Date();
+
+  const coupons = await Discount.find({
+    entityId,
+    userId,
+    status: STATUS.ACTIVE,
+    endDate: { $gte: currentDate },
+  });
+
+  return coupons;
 };

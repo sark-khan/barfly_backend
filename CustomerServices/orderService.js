@@ -13,22 +13,22 @@ const ItemDetails = require("../Models/ItemDetails");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { ObjectId } = mongoose.Types;
 
+const { validateCoupon } = require("../Utils/commonFunction");
+const Discount = require("../Models/Discount");
+
 const createOrder = async (req, session) => {
-  const { items, eventId, tableNo, isSelfPickup, note } = req.body;
+  const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
   if (!itemsIds) return;
+
   const menuItems = await ItemDetails.find({ _id: { $in: itemsIds } })
-    .populate({
-      path: "menuCategoryId",
-      // select: "name amount description",
-      // model: "CounterMenuCategory",
-    })
+    .populate({ path: "menuCategoryId" })
     .lean();
-  console.log({ menuItems });
+
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No Such Item exists.",
+      message: "No such item exists.",
     });
   }
 
@@ -36,67 +36,75 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     itemNameMapper[`${item._id}`] = item;
   });
+
   let counterId;
   let entityId;
   let msg = "";
-  const promises = [];
   let amount = 0;
+
   items.forEach((doc) => {
     const menuItem = itemNameMapper[`${doc.itemId}`];
-    console.log({ menuItem: menuItem });
     if (menuItem) {
       entityId = menuItem?.entityId;
-      menuCategoryId = menuItem?.menuCategoryId._id;
       counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
       if (menuItem.availableQuantity < doc.quantity) {
-        msg += `${menuItem.itemName} , `;
+        msg += `${menuItem.itemName}, `;
       }
-      // const remainingQuantity = menuItem?.availableQuantity - doc.quantity;
       amount += doc.quantity * menuItem.price;
     }
   });
-  // if (remainingQuantity < menuItems.availableQuantity) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message:
-  //       "Apologies! Please enter the less quantity as we are on short of this item for now.",
-  //   });
-  // }
-  // if (msg) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: msg + "this items have not valid stocks.",
-  //   });
-  // }
+
+  if (msg) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: msg + "these items do not have sufficient stock.",
+    });
+  }
 
   const lastOrder = await Order.findOne(
     { entityId },
     { tokenNumber: 1 },
     { sort: { createdAt: -1 } }
   );
-  let tokenNumber = 1;
-  if (lastOrder) {
-    tokenNumber = lastOrder.tokenNumber + 1;
+  let tokenNumber = lastOrder ? lastOrder.tokenNumber + 1 : 1;
+
+  const originalAmount = amount;
+  let discountAmount = 0;
+
+  if (couponCode) {
+    const couponValidation = await validateCoupon(couponCode, originalAmount);
+    discountAmount = couponValidation.discountAmount;
   }
-  return Order.create(
-    [
-      {
-        status: ORDER_STATUS.WAITING,
-        items,
-        counterId,
-        entityId,
-        tokenNumber,
-        userId: req.userId,
-        totalAmount: amount,
-        eventId,
-        tableNo,
-        isSelfPickup,
-        note,
-      },
-    ],
-    { session }
-  );
+
+  const finalAmount = originalAmount - discountAmount;
+
+  const orderData = {
+    status: ORDER_STATUS.WAITING,
+    items,
+    counterId,
+    entityId,
+    tokenNumber,
+    userId: req.userId,
+    totalAmount: originalAmount,
+    discountAmount,
+    finalAmount,
+    couponCode,
+    eventId,
+    tableNo,
+    isSelfPickup,
+    note,
+  };
+
+  const createdOrder = await Order.create([orderData], { session });
+
+  if (couponCode) {
+    await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
+  }
+
+  return createdOrder;
 };
+
+module.exports = { createOrder };
 
 const updateStatusOfOrder = async (req) => {
   const { orderId, status } = req.body;
