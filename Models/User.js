@@ -20,6 +20,7 @@ const userSchema = new Schema(
     phoneOtpVerified: { type: Boolean, default: false },
     locationEnabled: { type: Boolean, default: false },
     status: { type: String, enum: Object.values(STATUS) },
+    isRegistrationCompleted: { type: Boolean, default: false },
   },
   { timestamps: true, minimize: false }
 );

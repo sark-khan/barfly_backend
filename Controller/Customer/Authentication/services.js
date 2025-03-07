@@ -127,6 +127,10 @@ module.exports.countRTag = async (req) => {
     countRTag: `${countRTag}`,
   };
   await CountRTags.create(obj);
+  // await User.findOneAndUpdate(
+  //   { _id: userId },
+  //   { $set: { isRegistrationCompleted: true } }
+  // );
 };
 
 module.exports.checkAndProvideCountRTag = async (req) => {

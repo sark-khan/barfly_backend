@@ -535,9 +535,7 @@ module.exports.getOngoingEventDetails = async (req) => {
   const eventIds = new Map();
 
   const ongoingEvents = events?.filter((event) => {
-    console.log("Processing event:", event);
     if (event.isRepetitive === true) {
-      console.log("Event is repetitive. Checking day...");
       const day = currentTime.getDay();
       if (!event.repetitiveDays || event.repetitiveDays[day] === false) {
         return false;
@@ -553,7 +551,6 @@ module.exports.getOngoingEventDetails = async (req) => {
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
     });
-    console.log("Added event to Map:", event._id.toString());
     return true;
   });
 
@@ -569,11 +566,7 @@ module.exports.getOngoingEventDetails = async (req) => {
 
   const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce((acc, order) => {
     const eventKey = order.eventId.toString();
-    console.log(
-      "Processing order for event:",
-      eventKey,
-      eventIds.get(eventKey)
-    );
+
     if (!acc[eventKey]) {
       const eventDetails = eventIds.get(eventKey);
       acc[eventKey] = {

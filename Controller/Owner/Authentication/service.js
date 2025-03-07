@@ -170,8 +170,11 @@ module.exports.register = async (req) => {
     location,
   };
 
-  await EntityDetails.create(newEntityDetailsObj);
-  return { message: "Registration successful" };
+  const entity = await EntityDetails.create(newEntityDetailsObj);
+
+  const token = getJwtToken(entity, false);
+
+  return { message: "Registration successful", entity, token };
 };
 
 module.exports.login = async (req) => {
@@ -215,9 +218,10 @@ module.exports.login = async (req) => {
         message: "Invalid paaword.",
       });
   }
-  user.entityDetails = entityDetails;
+  // user.entityDetails = entityDetails;
 
-  const token = getJwtToken(user, false);
+  // const token = getJwtToken(user, false);
 
-  return { user, entityDetails, token };
+  // return { user, entityDetails, token };
+  return { user, entityDetails };
 };

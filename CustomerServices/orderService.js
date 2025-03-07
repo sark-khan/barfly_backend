@@ -61,12 +61,12 @@ const createOrder = async (req, session) => {
     });
   }
 
-  const lastOrder = await Order.findOne(
+  const lastOrder = await Order.find(
     { entityId },
     { tokenNumber: 1 },
-    { sort: { createdAt: -1 } }
-  );
-  let tokenNumber = lastOrder ? lastOrder.tokenNumber + 1 : 1;
+    { sort: { _id: -1 } }
+  ).limit(1);
+  let tokenNumber = lastOrder[0] ? lastOrder[0].tokenNumber + 1 : 1;
 
   const originalAmount = amount;
   let discountAmount = 0;
@@ -103,8 +103,6 @@ const createOrder = async (req, session) => {
 
   return createdOrder;
 };
-
-module.exports = { createOrder };
 
 const updateStatusOfOrder = async (req) => {
   const { orderId, status } = req.body;
@@ -319,6 +317,7 @@ const particularOrderDetailsCustomer = async (req) => {
       orderDetails.entityId.image
     );
   }
+  console.log({ orderDetails: orderDetails });
   return orderDetails;
 };
 
