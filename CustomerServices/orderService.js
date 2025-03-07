@@ -202,12 +202,7 @@ const getLiveOrdersUsers = async (req) => {
   const liveOrders = await Order.find({
     userId,
     status: {
-      $in: [
-        ORDER_STATUS.WAITING,
-        ORDER_STATUS.IN_PROGRESS,
-        ORDER_STATUS.READY,
-        ORDER_STATUS.COMPLETED,
-      ],
+      $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY],
     },
     ...(searchConditions.length > 0 ? { $or: searchConditions } : {}),
   })
@@ -330,7 +325,7 @@ const particularOrderDetailsCustomer = async (req) => {
 const getRestaurantOrdersAndCount = async (req) => {
   const {
     userId,
-    query: { year },
+    query: { year, searchTerm },
   } = req;
 
   const orders = await Order.find(
@@ -352,10 +347,22 @@ const getRestaurantOrdersAndCount = async (req) => {
   }, {});
 
   const entityIds = Object.keys(entityOrderCount);
-  const entities = await EntityDetails.find(
-    { _id: { $in: entityIds } },
-    { entityType: 1, entityName: 1, city: 1, state: 1, country: 1, image: 1 }
-  ).lean();
+
+  const searchQuery = {
+    _id: { $in: entityIds },
+  };
+  if (searchTerm) {
+    searchQuery.entityName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
+  }
+
+  const entities = await EntityDetails.find(searchQuery, {
+    entityType: 1,
+    entityName: 1,
+    city: 1,
+    state: 1,
+    country: 1,
+    image: 1,
+  }).lean();
 
   return entities.map((entity) => ({
     entityName: entity.entityName,

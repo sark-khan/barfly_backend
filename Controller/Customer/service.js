@@ -701,23 +701,55 @@ module.exports.updateUserDetails = async (req) => {
 
   let message = "";
 
-  const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
-  console.log({ user });
-  if (!user) {
+  if (newPassword) {
+    const userPass = await User.findOne({ _id: userId });
+    if (!userPass) {
+      throwError({
+        status: STATUS_CODES.NOT_FOUND,
+        message: "User not found.",
+      });
+    }
+
+    const passwordCompare = await comparePassword(
+      newPassword,
+      userPass.password
+    );
+    if (passwordCompare) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "We don't accept old password as new password.",
+      });
+    }
+
+    const passwordChange = bcrypt.hashSync(newPassword, 10);
+    userPass.password = passwordChange;
+    await userPass.save();
+
+    message = "Password updated successfully.";
+    return message;
+  }
+
+  // Now, check if email or contact number exists
+  const query = { status: STATUS.ACTIVE };
+  if (email) {
+    query.email = email;
+  }
+  if (contactNumber) {
+    query.contactNumber = contactNumber;
+  }
+
+  console.log({ query });
+  const user = await User.findOne(query);
+  if (user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: email
+        ? `Email ${email} already exists.`
+        : `Contact number ${contactNumber} already exists.`,
     });
   }
 
   if (email) {
-    if (user.email == email) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "You are not allowed to enter the same email. Please try again.",
-      });
-    }
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
@@ -737,60 +769,32 @@ module.exports.updateUserDetails = async (req) => {
       };
 
       createMail(mail_data);
-
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
       return (message = "OTP sent to your new email.");
-    } else if (enteredOtp && !user.emailOtpVerified) {
+    } else {
       const otpRecord = await Otp.findOne({ email });
-      console.log({ otpRecord });
-      if (!otpRecord) {
+      if (
+        !otpRecord ||
+        otpRecord.otp !== enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message: "Invalid OTP or OTP expired.",
         });
       }
 
-      const { otp, expiresAt } = otpRecord;
-      if (otp !== enteredOtp) {
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: "Incorrect OTP.",
-        });
-      }
-
-      if (new Date() > expiresAt) {
-        await Otp.deleteOne({ email });
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: "OTP expired. Request a new one.",
-        });
-      }
-
       await Otp.deleteOne({ email });
 
-      user.emailOtpVerified = true;
-      await user.save();
-
-      user.email = email;
-      await user.save();
-
-      user.emailOtpVerified = false;
-      await user.save();
+      await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
 
       message = "Email updated successfully.";
-      return { message, user };
+      return { message };
     }
   }
 
   if (contactNumber) {
-    if (user.contactNumber == contactNumber) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "You are not allowed to enter the same mobile number. Please try again.",
-      });
-    }
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -806,60 +810,30 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
 
-      message = "OTP sent to your new mobile Number.";
-    } else if (enteredOtp && !user.phoneOtpVerified) {
+      return { message: "OTP sent to your new mobile number." };
+    } else {
       const otpRecord = await Otp.findOne({ contactNumber });
-      if (!otpRecord) {
+      if (
+        !otpRecord ||
+        otpRecord.otp !== enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message: "Invalid OTP or OTP expired.",
         });
       }
 
-      const { otp, expiresAt } = otpRecord;
-      if (otp !== enteredOtp) {
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: "Incorrect OTP.",
-        });
-      }
-
-      if (new Date() > expiresAt) {
-        await Otp.deleteOne({ contactNumber });
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: "OTP expired. Request a new one.",
-        });
-      }
-
       await Otp.deleteOne({ contactNumber });
 
-      user.phoneOtpVerified = true;
-      await user.save();
-
-      user.contactNumber = contactNumber;
-      await user.save();
-
-      user.phoneOtpVerified = false;
-      await user.save();
+      await User.updateOne(
+        { _id: userId },
+        { contactNumber, phoneOtpVerified: true }
+      );
 
       message = "Mobile number updated successfully.";
-      return { message, user };
+      return { message };
     }
-  }
-  if (newPassword) {
-    const passwordCompare = await comparePassword(newPassword, user.password);
-    if (passwordCompare) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
-      });
-    }
-    const passwordChange = bcrypt.hashSync(newPassword, 10);
-    user.password = passwordChange;
-    await user.save();
-    message = "Password updated successfuly.";
-    return { message };
   }
 };
 
