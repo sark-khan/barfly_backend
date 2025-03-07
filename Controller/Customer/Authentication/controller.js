@@ -14,11 +14,11 @@ const {
 
 router.post("/login", async (req, res) => {
   try {
-    await login(req);
+    const response=await login(req);
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
-      // token: response.token,
-      // userDetails: response.user,
+      token: response.token,
+      userDetails: response.user,
     });
   } catch (error) {
     console.error("Error while Logging-in the user: ", error);
