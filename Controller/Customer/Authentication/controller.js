@@ -14,11 +14,11 @@ const {
 
 router.post("/login", async (req, res) => {
   try {
-    const response = await login(req);
+    await login(req);
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
-      token: response.token,
-      userDetails: response.user,
+      // token: response.token,
+      // userDetails: response.user,
     });
   } catch (error) {
     console.error("Error while Logging-in the user: ", error);
@@ -31,9 +31,11 @@ router.post("/login", async (req, res) => {
 router.post("/register", async (req, res) => {
   try {
     const response = await register(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "User registered successfully", response });
+    return res.status(STATUS_CODES.OK).json({
+      message: "User registered successfully",
+      userObj: response.userObj,
+      token: response.token,
+    });
   } catch (error) {
     console.error("Error while registering the user.: ", error);
     return res

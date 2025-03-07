@@ -56,7 +56,9 @@ module.exports.register = async (req) => {
   });
 
   delete userObj.password;
-  return userObj;
+
+  const token = getJwtToken(userObj, true);
+  return { userObj, token };
 };
 
 module.exports.login = async (req) => {
@@ -97,10 +99,10 @@ module.exports.login = async (req) => {
     });
   }
 
-  const token = getJwtToken(user, true);
-  delete user.password;
+  // const token = getJwtToken(user, true);
+  // delete user.password;
 
-  return { user, token };
+  // return { user, token };
 };
 
 module.exports.countRTag = async (req) => {
