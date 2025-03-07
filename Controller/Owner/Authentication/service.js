@@ -48,14 +48,13 @@ module.exports.register = async (req) => {
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registerd",
+      message: "User already registered",
     });
   }
-  let message = "";
-  let otpSent = false;
-  let otpVerified = false;
 
-  if (contactNumber && !otpSent) {
+  let message = "";
+
+  if (contactNumber) {
     let otpRecord = await Otp.findOne({ contactNumber });
 
     if (!otpRecord || otpRecord.expiresAt < Date.now()) {
@@ -83,8 +82,6 @@ module.exports.register = async (req) => {
       });
     }
 
-    console.log({ enteredOtp, otp: otpRecord.otp });
-
     if (enteredOtp && enteredOtp != otpRecord.otp) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
@@ -92,19 +89,19 @@ module.exports.register = async (req) => {
       });
     }
 
-    if (enteredOtp && enteredOtp == otpRecord.otp && !otpVerified) {
+    if (enteredOtp && enteredOtp == otpRecord.otp) {
       await Otp.deleteOne({ contactNumber });
       const sessionId = crypto.randomUUID();
 
-      const sessionDetails = await OtpSession.create({
+      await OtpSession.create({ sessionId, contactNumber });
+      return {
+        otpVerified: true,
+        message: "OTP verified successfully.",
         sessionId,
-        contactNumber,
-      });
-      console.log({ sessionDetails });
-      message = "OTP verified successfully.";
-      return { otpVerified: true, message, sessionId };
+      };
     }
   }
+
   const sessionData = await OtpSession.findOne({ sessionId });
 
   if (!sessionData || !sessionData.contactNumber) {
@@ -114,29 +111,25 @@ module.exports.register = async (req) => {
     });
   }
 
-  const contactNumberSave = sessionData.contactNumber;
-
   const newUser = {
     role: ROLES.STORE_OWNER,
     fullName,
     email,
     status: STATUS.ACTIVE,
-    contactNumber: contactNumberSave,
+    contactNumber: sessionData.contactNumber,
   };
   if (password) {
-    const hashedPassword = hashPassword(password);
-    newUser.password = hashedPassword;
+    newUser.password = hashPassword(password);
   }
+
   const userDetails = await User.create(newUser);
 
   let fileName = "";
-
   if (file) {
-    const fileBuffer = file.buffer;
     fileName = `${Date.now()}_${file.originalname.replace(/ /g, "_")}`;
 
     try {
-      const data = await uploadBufferToS3(fileBuffer, fileName);
+      const data = await uploadBufferToS3(file.buffer, fileName);
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -151,7 +144,7 @@ module.exports.register = async (req) => {
     }
   }
 
-  const newEntityDetailsObj = {
+  const entityDetails = await EntityDetails.create({
     city,
     zipcode,
     entityName,
@@ -168,13 +161,16 @@ module.exports.register = async (req) => {
     status: STATUS.ACTIVE,
     state,
     location,
+  });
+
+  userDetails.entityDetails = entityDetails;
+  const token = getJwtToken(userDetails, false);
+
+  return {
+    message: "Registration successful",
+    entity: entityDetails,
+    token,
   };
-
-  const entity = await EntityDetails.create(newEntityDetailsObj);
-
-  const token = getJwtToken(entity, false);
-
-  return { message: "Registration successful", entity, token };
 };
 
 module.exports.login = async (req) => {
@@ -218,10 +214,9 @@ module.exports.login = async (req) => {
         message: "Invalid paaword.",
       });
   }
-  // user.entityDetails = entityDetails;
+  user.entityDetails = entityDetails;
 
-  // const token = getJwtToken(user, false);
+  const token = getJwtToken(user, false);
 
-  // return { user, entityDetails, token };
-  return { user, entityDetails };
+  return { user, entityDetails, token };
 };
