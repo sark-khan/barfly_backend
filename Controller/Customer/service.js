@@ -1065,6 +1065,7 @@ module.exports.entityOffers = async () => {
     value: 1,
     description: 1,
     entityId: 1,
+    colourTheme: 1,
   };
   const coupons = await Discount.find({}, projection).populate({
     path: "entityId",

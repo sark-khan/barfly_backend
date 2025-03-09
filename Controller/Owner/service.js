@@ -932,6 +932,7 @@ module.exports.createDiscountCoupon = async (req) => {
       entityId,
       userId,
       description,
+      colourTheme,
     },
   } = req;
 
@@ -955,6 +956,7 @@ module.exports.createDiscountCoupon = async (req) => {
     entityId,
     userId,
     description,
+    colourTheme,
     status: STATUS.ACTIVE,
   };
 

@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { STATUS } = require("../Utils/globalConstants");
+const { STATUS, COLOUR_THEME } = require("../Utils/globalConstants");
 const { ObjectId } = mongoose.Types;
 
 const DiscountSchema = new mongoose.Schema(
@@ -17,6 +17,7 @@ const DiscountSchema = new mongoose.Schema(
     entityId: { type: ObjectId },
     userId: { type: ObjectId },
     description: { type: String, required: true },
+    colourTheme: { type: String, enum: Object.values(COLOUR_THEME) },
   },
   { timestamps: true, minimize: false }
 );

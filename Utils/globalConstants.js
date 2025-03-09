@@ -86,6 +86,12 @@ const EXPERIENCE_TYPE = {
   BAD: "BAD",
 };
 
+const COLOUR_THEME = {
+  RED: "Red",
+  GREEN: "Green",
+  BLUE: "Blue",
+};
+
 const COUNTRY_ARRAY = [
   { code: "AF", country: "Afghanistan", telePhoneCode: "+93" },
   { code: "AL", country: "Albania", telePhoneCode: "+355" },
@@ -283,4 +289,5 @@ module.exports = {
   EDIT_ACTION,
   EXPERIENCE_TYPE,
   COUNTRY_ARRAY,
+  COLOUR_THEME,
 };
