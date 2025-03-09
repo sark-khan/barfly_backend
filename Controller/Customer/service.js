@@ -32,6 +32,7 @@ const Location = require("./../../Models/Location");
 const CountRTags = require("../../Models/CountRTags");
 const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
+const Discount = require("../../Models/Discount");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -1055,4 +1056,27 @@ exports.popularEntities = async () => {
     return entity;
   });
   return popular;
+};
+
+module.exports.entityOffers = async () => {
+  const projection = {
+    code: 1,
+    type: 1,
+    value: 1,
+    description: 1,
+    entityId: 1,
+  };
+  const coupons = await Discount.find({}, projection).populate({
+    path: "entityId",
+    select: "entityName image",
+    model: "EntityDetails",
+  });
+
+  coupons.map((entityImage) => {
+    entityImage.entityId.image = generatePresignedUrl(
+      entityImage.entityId.image
+    );
+  });
+
+  return coupons;
 };

@@ -31,6 +31,7 @@ const {
   removeLogs,
   newlyAddedEntities,
   popularEntities,
+  entityOffers,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -473,4 +474,20 @@ router.get("/popular-entities", async (req, res) => {
     });
   }
 });
+
+router.get("/entity-offers", async (req, res) => {
+  try {
+    const data = await entityOffers();
+    return res.status(STATUS_CODES.OK).json({
+      message: "Entities offers fetched successfully.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting entities offers: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error occured while getting entities offers",
+    });
+  }
+});
+
 module.exports = router;

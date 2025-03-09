@@ -519,9 +519,81 @@ module.exports.getDistinctYears = async (req) => {
   return distinctYears;
 };
 
+// module.exports.getOngoingEventDetails = async (req) => {
+//   const currentTime = new Date();
+
+//   const events = await Event.find(
+//     {
+//       from: { $lte: currentTime },
+//       to: { $gte: currentTime },
+//       entityId: req.entityId,
+//     },
+//     null,
+//     { sort: { from: -1 }, lean: true }
+//   );
+//   console.log({ events });
+
+//   const eventIds = new Map();
+
+//   const ongoingEvents = events?.filter((event) => {
+//     if (event.isRepetitive === true) {
+//       const day = currentTime.getDay();
+//       if (!event.repetitiveDays || event.repetitiveDays[day] === false) {
+//         return false;
+//       }
+//     }
+
+//     eventIds.set(event._id.toString(), {
+//       isRepetitive: event.isRepetitive,
+//       from: event.from,
+//       to: event.to,
+//       eventName: event.eventName,
+//       activeUsers: event.activeUsers,
+//       ageLimit: event.ageLimit,
+//       image: generatePresignedUrl(event.image),
+//     });
+//     return true;
+//   });
+//   console.log({ ongoingEvents: ongoingEvents });
+
+//   const startingTime = new Date();
+//   startingTime.setHours(0, 0, 0, 0);
+//   const endingTime = new Date();
+//   endingTime.setDate(endingTime.getDate() + 1);
+//   endingTime.setHours(0, 0, 0, 0);
+
+//   const ordersOfEvents = await Order.find({
+//     eventId: { $in: Array.from(eventIds.keys()) },
+//   });
+//   console.log({ ordersOfEvents: ordersOfEvents });
+
+//   const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce((acc, order) => {
+//     const eventKey = order.eventId.toString();
+
+//     if (!acc[eventKey]) {
+//       const eventDetails = eventIds.get(eventKey);
+//       acc[eventKey] = {
+//         eventId: order.eventId,
+//         from: eventDetails.from,
+//         to: eventDetails.to,
+//         eventName: eventDetails.eventName,
+//         activeUsers: eventDetails.activeUsers,
+//         totalOrders: 0,
+//         ageLimit: eventDetails.ageLimit,
+//         image: generatePresignedUrl(eventDetails.image),
+//       };
+//     }
+//     acc[eventKey].totalOrders += 1;
+//     return acc;
+//   }, {});
+
+//   return [ongoingEventDetailsWithOrders, ongoingEvents];
+// };
+
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
 
+  // Fetch ongoing events
   const events = await Event.find(
     {
       from: { $lte: currentTime },
@@ -532,126 +604,45 @@ module.exports.getOngoingEventDetails = async (req) => {
     { sort: { from: -1 }, lean: true }
   );
 
-  const eventIds = new Map();
+  console.log({ events });
+
+  const eventDetailsMap = new Map();
 
   const ongoingEvents = events?.filter((event) => {
-    if (event.isRepetitive === true) {
+    if (event.isRepetitive) {
       const day = currentTime.getDay();
-      if (!event.repetitiveDays || event.repetitiveDays[day] === false) {
+      if (!event.repetitiveDays || !event.repetitiveDays[day]) {
         return false;
       }
     }
 
-    eventIds.set(event._id.toString(), {
-      isRepetitive: event.isRepetitive,
+    eventDetailsMap.set(event._id.toString(), {
+      eventId: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
-      activeUsers: event.activeUsers,
+      activeUsers: event.activeUsers || 0,
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
+      totalOrders: 0,
     });
+
     return true;
   });
 
-  const startingTime = new Date();
-  startingTime.setHours(0, 0, 0, 0);
-  const endingTime = new Date();
-  endingTime.setDate(endingTime.getDate() + 1);
-  endingTime.setHours(0, 0, 0, 0);
-
-  const ordersOfEvents = await Order.find({
-    eventId: { $in: Array.from(eventIds.keys()) },
+  const orders = await Order.find({
+    eventId: { $in: Array.from(eventDetailsMap.keys()) },
   });
 
-  const ongoingEventDetailsWithOrders = ordersOfEvents?.reduce((acc, order) => {
+  orders.forEach((order) => {
     const eventKey = order.eventId.toString();
-
-    if (!acc[eventKey]) {
-      const eventDetails = eventIds.get(eventKey);
-      acc[eventKey] = {
-        eventId: order.eventId,
-        from: eventDetails.from,
-        to: eventDetails.to,
-        eventName: eventDetails.eventName,
-        activeUsers: eventDetails.activeUsers,
-        totalOrders: 0,
-        ageLimit: eventDetails.ageLimit,
-        image: generatePresignedUrl(eventDetails.image),
-      };
+    if (eventDetailsMap.has(eventKey)) {
+      eventDetailsMap.get(eventKey).totalOrders += 1;
     }
-    acc[eventKey].totalOrders += 1;
-    return acc;
-  }, {});
+  });
 
-  return [ongoingEventDetailsWithOrders];
+  return Array.from(eventDetailsMap.values());
 };
-
-// module.exports.getOngoingEventDetails = async (req) => {
-//   const currentTime = new Date();
-
-//   const events = await Event.find(
-//     {
-//       from: { $lte: currentTime },
-//       to: { $gte: currentTime },
-//       entityId: req.entityId,
-//     },
-//     {
-//       isRepetitive: 1,
-//       repetitiveDays: 1,
-//       from: 1,
-//       to: 1,
-//       eventName: 1,
-//       activeUsers: 1,
-//     },
-//     { sort: { from: -1 }, lean: true }
-//   );
-//   console.log({ events });
-
-//   const eventIds = new Map();
-
-//   for (const event of events) {
-//     console.log({ event: event });
-//     if (event.isRepetitive) {
-//       const day = currentTime.getDay();
-//       if (!event.repetitiveDays?.[day]) continue;
-//     }
-
-//     eventIds.set(event._id.toString(), {
-//       from: event.from,
-//       to: event.to,
-//       eventName: event.eventName,
-//       activeUsers: event.activeUsers,
-//     });
-//   }
-
-//   // if (eventIds.size === 0) return [];
-
-//   const orders = await Order.find(
-//     { eventId: { $in: Array.from(eventIds.keys()) } },
-//     { eventId: 1 },
-//     { lean: true }
-//   );
-//   console.log({ orders: orders });
-
-//   const ongoingEventDetails = {};
-
-//   for (const order of orders) {
-//     console.log({ order: order });
-//     const eventId = order.eventId.toString();
-//     if (!ongoingEventDetails[eventId]) {
-//       ongoingEventDetails[eventId] = {
-//         eventId,
-//         ...eventIds.get(eventId),
-//         totalOrders: 0,
-//       };
-//     }
-//     ongoingEventDetails[eventId].totalOrders++;
-//   }
-//   console.log({ ongoingEventDetails: ongoingEventDetails });
-
-//   return ongoingEventDetails;
-// };
 
 module.exports.getDistinctMonthsOfYear = async (req) => {
   const ownerId = req.id;
@@ -940,6 +931,7 @@ module.exports.createDiscountCoupon = async (req) => {
       endDate,
       entityId,
       userId,
+      description,
     },
   } = req;
 
@@ -962,6 +954,7 @@ module.exports.createDiscountCoupon = async (req) => {
     endDate,
     entityId,
     userId,
+    description,
     status: STATUS.ACTIVE,
   };
 

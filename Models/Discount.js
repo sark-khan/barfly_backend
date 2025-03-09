@@ -16,6 +16,7 @@ const DiscountSchema = new mongoose.Schema(
     status: { type: String, enum: Object.values(STATUS) },
     entityId: { type: ObjectId },
     userId: { type: ObjectId },
+    description: { type: String, required: true },
   },
   { timestamps: true, minimize: false }
 );
