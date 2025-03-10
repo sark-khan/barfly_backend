@@ -187,7 +187,7 @@ module.exports.login = async (req) => {
     });
   }
 
-  if (email != user.email || contactNumber != user.contactNumber) {
+  if (email != user.email && contactNumber != user.contactNumber) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message:
