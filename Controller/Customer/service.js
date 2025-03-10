@@ -284,7 +284,7 @@ module.exports.counterList = async (req) => {
   }
   const counters = await Counter.find(
     query,
-    { counterName: 1 },
+    { counterName: 1, totalTables: 1 },
     { sort: { _id: -1 }, lean: true }
   );
   const counterIds = counters.map((counter) => ObjectId(counter._id));
@@ -977,11 +977,16 @@ exports.createSearchLogs = async (req) => {
     body: { entityId },
   } = req;
 
-  const searchLogsObj = {
-    userId,
-    entityId,
-  };
-  return SearchLogs.create(searchLogsObj);
+  const existingLog = await SearchLogs.findOne({ userId, entityId });
+
+  if (existingLog) {
+    return SearchLogs.updateOne(
+      { _id: existingLog._id },
+      { $set: { createdAt: new Date() } }
+    );
+  }
+
+  return SearchLogs.create({ userId, entityId });
 };
 
 exports.getSearchLogs = async (req) => {
