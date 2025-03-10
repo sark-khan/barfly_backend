@@ -187,6 +187,14 @@ module.exports.login = async (req) => {
     });
   }
 
+  if (email != user.email && contactNumber != user.contactNumber) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message:
+        "Please enter correct details of email/contact number or password.",
+    });
+  }
+
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
