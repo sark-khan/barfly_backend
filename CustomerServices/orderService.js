@@ -74,6 +74,7 @@ const createOrder = async (req, session) => {
 
   if (couponCode) {
     const couponValidation = await validateCoupon(couponCode, originalAmount);
+    console.log({couponValidation});
     discountAmount = couponValidation.discountAmount;
   }
 
@@ -136,7 +137,7 @@ const updateStatusOfOrder = async (req) => {
     },
     data: {
       orderId: orderId,
-      screen: "status", // Custom data to open status screen
+      screen: "status-screen", // Custom data to open status screen
     },
     token: order.userId.fcmToken,
   };
@@ -226,7 +227,7 @@ const getLiveOrdersUsers = async (req) => {
   })
     .populate({
       path: "items.itemId",
-      select: "currency itemId itemName quantity isVegan",
+      select: "currency itemId itemName quantity isVegan price",
     })
     .populate({
       path: "entityId",
@@ -239,6 +240,7 @@ const getLiveOrdersUsers = async (req) => {
     if (order.entityId && order.entityId.image) {
       return {
         ...order.toObject(),
+        finalAmount: order.finalAmount+ 2.25,
         entityId: {
           ...order.entityId.toObject(),
           image: order.entityId.image.includes("X-Amz-Signature")
@@ -283,7 +285,11 @@ const particularOrderDetails = async (req) => {
 
       const itemPrice = itemDetail ? itemDetail.price : 0;
       item.totalPrice = itemPrice * (item.quantity || 1);
+      
     }
+    console.log({sss:order.finalAmount})
+    order.finalAmount= order.finalAmount+2.25;
+    console.log({qqq:order.finalAmount})
   }
 
   return orderDetails;
@@ -312,6 +318,7 @@ const particularOrderDetailsCustomer = async (req) => {
       updatedAt: 1,
       entityId: 1,
       note: 1,
+      finalAmount:1
     }
   )
     .populate({
@@ -336,6 +343,7 @@ const particularOrderDetailsCustomer = async (req) => {
     orderDetails.entityId.image = generatePresignedUrl(
       orderDetails.entityId.image
     );
+    orderDetails.finalAmount= orderDetails.finalAmount+2.25;
   }
   console.log({ orderDetails: orderDetails });
   return orderDetails;

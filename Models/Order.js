@@ -41,6 +41,8 @@ const orderSchme = new Schema(
     discountAmount: { type: Number, default: 0 },
     finalAmount: { type: Number, required: true },
     couponCode: { type: String },
+    tax: { type: Number, },
+    platformFee: { type: Number },
   },
   { timestamps: true, minimize: false }
 );
