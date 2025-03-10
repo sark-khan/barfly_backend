@@ -4,7 +4,6 @@ const OtpSessionSchema = new mongoose.Schema(
   {
     sessionId: { type: String, required: true, unique: true },
     contactNumber: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true, minimize: false }
 );
