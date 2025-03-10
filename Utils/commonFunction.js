@@ -171,9 +171,9 @@ const validateCoupon = async (couponCode, totalAmount) => {
 
   if (discount.type === "percentage") {
     discountAmount = (totalAmount * discount.value) / 100;
-    if (discount.maxDiscount) {
-      discountAmount = Math.min(discountAmount, discount.maxDiscount);
-    }
+    // if (discount.maxDiscount) {
+    //   discountAmount = Math.min(discountAmount, discount.maxDiscount);
+    // }
   } else if (discount.type === "fixed") {
     discountAmount = discount.value;
   }
