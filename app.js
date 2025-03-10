@@ -6,7 +6,6 @@ const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
 app.use(cors());
-// app.use(bodyParser.json());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
@@ -14,7 +13,7 @@ const orderController = require("./Controller/orderController");
 const Counter = require("./Models/Counter");
 const multer = require("multer");
 const {
-  uploadBufferToS3,
+  uploadBufferToS3, 
   generatePresignedUrl,
 } = require("./Controller/aws-service");
 const ItemDetails = require("./Models/ItemDetails");
@@ -26,6 +25,7 @@ const { sendFirebaseNotification } = require("./Utils/commonFunction");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 require("./seeder");
+// const admin = require("./firebaseConfig");
 
 const unProtectedApis = {
   "/api/customer/auth/login": true,
@@ -150,6 +150,22 @@ app.post("/send-firebase-notification", async (req, res) => {
   res.json({ success: true, message: "Notification sent!" });
 });
 
+app.post("/api/register-token", async (req, res) => {
+  const { fcmToken } = req.body;
+
+  try {
+    await User.findOneAndUpdate(
+      { _id: req.id },
+      { fcmToken },
+    );
+
+    console.log(`FCM Token registered for user ${userId}`);
+    res.status(200).send({ success: true, message: "FCM Token registered!" });
+  } catch (error) {
+    console.error("Error registering FCM Token:", error);
+    res.status(500).send({ success: false, message: "Failed to register FCM Token" });
+  }
+})
 const port = process.env.PORT;
 
 app.listen(port, () => {
