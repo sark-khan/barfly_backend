@@ -480,7 +480,7 @@ router.get("/entity-offers", async (req, res) => {
     const data = await entityOffers();
     return res.status(STATUS_CODES.OK).json({
       message: "Entities offers fetched successfully.",
-      data,
+      entityOffers:data,
     });
   } catch (error) {
     console.error("Error occured while getting entities offers: ", error);

@@ -1069,7 +1069,7 @@ module.exports.entityOffers = async () => {
   };
   const coupons = await Discount.find({}, projection).populate({
     path: "entityId",
-    select: "entityName image",
+    select: "entityName image city country",
     model: "EntityDetails",
   });
 
