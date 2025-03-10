@@ -117,33 +117,29 @@ const updateStatusOfOrder = async (req) => {
       message: "Not a valid status.",
     });
   }
-  const order = await Order.exists({ _id: orderId }).populate({
-    path: "userId",
-    select: "fcmToken",
-    // model: "Counter",
-  });
+  const order = await Order.exists({ _id: orderId });
+
   if (!order) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "No Such order exist.",
     });
   }
-  Order.findOneAndUpdate({ _id: orderId }, { $set: { status } });
-  const payload = {
-    notification: {
-      title: "Order Status Updated",
-      body: `Your order is now ${status}. Tap to view details.`,
-    },
-    data: {
-      orderId: orderId,
-      screen: "status", // Custom data to open status screen
-    },
-    token: order.userId.fcmToken,
-  };
+  await Order.findOneAndUpdate({ _id: orderId }, { $set: { status } });
+  // const payload = {
+  //   notification: {
+  //     title: "Order Status Updated",
+  //     body: `Your order is now ${status}. Tap to view details.`,
+  //   },
+  //   data: {
+  //     orderId: orderId,
+  //     screen: "status", // Custom data to open status screen
+  //   },
+  //   token: order.userId.fcmToken,
+  // };
 
-  await admin.messaging().send(payload);
-  console.log(`Push notification sent to user ${userId}`);
-
+  // await admin.messaging().send(payload);
+  // console.log(`Push notification sent to user ${userId}`);
 };
 
 const getEntityOrders = async (req) => {
