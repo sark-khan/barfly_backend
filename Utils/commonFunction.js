@@ -163,9 +163,9 @@ const validateCoupon = async (couponCode, totalAmount) => {
     throw new Error("Coupon usage limit reached");
   }
 
-  if (totalAmount < discount.minAmount) {
-    throw new Error(`Minimum order amount should be ${discount.minAmount}`);
-  }
+  // if (totalAmount < discount.minAmount) {
+  //   throw new Error(`Minimum order amount should be ${discount.minAmount}`);
+  // }
 
   let discountAmount = 0;
 

@@ -98,6 +98,13 @@ const createOrder = async (req, session) => {
     note,
   };
 
+  // if (tableNo) {
+  //   await Counter.findOneAndUpdate(
+  //     { _id: counterId, tableNo },
+  //     { $set: { tableStatus: TABLE_STATUS.OCCUPIED } }
+  //   );
+  // }
+
   const createdOrder = await Order.create([orderData], { session });
 
   if (couponCode) {
@@ -562,7 +569,7 @@ const getOrderGroupByYearsForEntity = async (req) => {
   const entityIds = [];
   let allOrders = await Order.find(
     { entityId },
-    { items: 1, tokenNumber: 1, updatedAt: 1 }
+    { items: 1, tokenNumber: 1, updatedAt: 1, status: 1 }
   ).lean();
   allOrders.forEach((doc) => {
     doc.items.forEach((item) => {
