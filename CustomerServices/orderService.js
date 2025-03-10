@@ -47,7 +47,9 @@ const createOrder = async (req, session) => {
     const menuItem = itemNameMapper[`${doc.itemId}`];
     if (menuItem) {
       entityId = menuItem?.entityId;
-      counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
+      // counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
+      counterId = menuItem?.menuCategoryId?.counterId;
+
       if (menuItem.availableQuantity < doc.quantity) {
         msg += `${menuItem.itemName}, `;
       }
