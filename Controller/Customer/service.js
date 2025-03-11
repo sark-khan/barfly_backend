@@ -982,7 +982,7 @@ exports.createSearchLogs = async (req) => {
   if (existingLog) {
     return SearchLogs.updateOne(
       { _id: existingLog._id },
-      { $set: { createdAt: new Date() } }
+      { $set: { createdAt: new Date(), isRemoved: false } }
     );
   }
 
