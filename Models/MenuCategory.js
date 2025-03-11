@@ -5,7 +5,13 @@ const { ObjectId } = mongoose.Types;
 
 const counterMenuCategory = new Schema(
   {
-    counterId: { type: ObjectId, ref: "Counter" },
+    counterIds: [
+      {
+        type: ObjectId,
+        ref: "Counter",
+        required: true,
+      },
+    ],
     categoryName: {
       type: String,
       required: true,
