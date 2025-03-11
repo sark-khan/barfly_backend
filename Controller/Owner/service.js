@@ -76,16 +76,26 @@ module.exports.createCounterMenuCategory = async (req) => {
   if (!counterIds || !categoryName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "CounterIds and category name is required.",
+      message: "CounterIds and category name are required.",
     });
   }
 
-  const categoryObj = {
-    counterIds,
+  if (!Array.isArray(counterIds) || counterIds.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "CounterIds must be a non-empty array.",
+    });
+  }
+
+  const categoryObjects = counterIds.map((counterId) => ({
+    counterId,
     categoryName,
     entityId,
-  };
-  return MenuCategory.create(categoryObj);
+  }));
+
+  const createdCategories = await MenuCategory.insertMany(categoryObjects);
+
+  return createdCategories;
 };
 
 module.exports.getInsiderElements = async (insiderId) => {

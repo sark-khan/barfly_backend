@@ -31,6 +31,7 @@ const multer = require("multer");
 const ItemDetails = require("../../Models/ItemDetails");
 const MenuItem = require("../../Models/MenuItem");
 const { addExistingItemToMenu } = require("../Customer/service");
+const MenuCategory = require("../../Models/MenuCategory");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 // router.use(verifyToken);
@@ -429,5 +430,50 @@ router.post("/get-discount-coupons", async (req, res) => {
       .json({ message: error.message });
   }
 });
+
+router.get("/get-counters-by-name", async (req, res) => {
+  try {
+    const { categoryName } = req.query;
+
+    if (!categoryName) {
+      return res.status(STATUS_CODES.BAD_REQUEST).json({
+        message: "Category name is required.",
+      });
+    }
+
+    // ✅ Fetch menu categories and populate counter details
+    const menuCategories = await MenuCategory.find({ categoryName })
+      .populate({
+        path: "counterId",
+        select: "counterName", // ✅ Only fetch `counterName`
+      })
+      .lean();
+
+    if (!menuCategories.length) {
+      return res.status(STATUS_CODES.NOT_FOUND).json({
+        message: "No menu categories found with this name.",
+      });
+    }
+
+    // ✅ Extract unique counter IDs and names
+    const counters = menuCategories
+      .filter((cat) => cat.counterId) // Ensure counter exists
+      .map((cat) => ({
+        counterId: cat.counterId._id.toString(),
+        counterName: cat.counterId.counterName,
+      }));
+
+    return res.status(STATUS_CODES.OK).json({ counters });
+  } catch (error) {
+    console.error("Error fetching counters by category name:", error);
+    res.status(STATUS_CODES.INTERNAL_SERVER_ERROR).json({
+      message: "An error occurred while fetching counters.",
+    });
+  }
+});
+
+module.exports = router;
+
+module.exports = router;
 
 module.exports = router;
