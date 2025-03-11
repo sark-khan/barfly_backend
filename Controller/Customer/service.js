@@ -109,10 +109,7 @@ module.exports.getEntities = async (req) => {
   // }
 
   currentRunningEntitiesDetails1.map((items) => {
-    console.log("Image key before generating URL:", items.image);
-
     if (!items.image) {
-      console.warn("Skipping entity because image is missing:", items);
       return items;
     }
 
@@ -148,10 +145,7 @@ module.exports.getEntities = async (req) => {
     { limit: limit, skip: skip, sort: sort }
   ).lean();
   remainingEntities.map((items) => {
-    console.log("Image key before generating URL:", items.image);
-
     if (!items.image) {
-      console.warn("Skipping entity because image is missing:", items);
       return items;
     }
 
@@ -365,7 +359,7 @@ module.exports.getMenuItems = async (req) => {
   //   menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
   // }
 
-  let filter = { menuCategoryId };
+  let filter = { menuCategoryId, isOutOfStock: false };
 
   if (searchTerm && searchTerm.trim()) {
     filter.itemName = { $regex: searchTerm, $options: "i" };
@@ -999,10 +993,7 @@ exports.getSearchLogs = async (req) => {
       model: "EntityDetails",
     });
   logs.map((items) => {
-    console.log("Image key before generating URL:", items.entityId.image);
-
     if (!items.entityId.image) {
-      console.warn("Skipping entity because image is missing:", items);
       return items;
     }
 

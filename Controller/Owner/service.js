@@ -478,10 +478,7 @@ module.exports.getUpcomingEvents = async (req) => {
   }).sort({ createdAt: -1 });
 
   upcomingEvents.map((logo) => {
-    console.log("Image key before generating URL:", logo.image);
-
     if (!logo.image) {
-      console.warn("Skipping entity because image is missing:", logo);
       return logo;
     }
 
