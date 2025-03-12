@@ -13,7 +13,7 @@ const orderController = require("./Controller/orderController");
 const Counter = require("./Models/Counter");
 const multer = require("multer");
 const {
-  uploadBufferToS3, 
+  uploadBufferToS3,
   generatePresignedUrl,
 } = require("./Controller/aws-service");
 const ItemDetails = require("./Models/ItemDetails");
@@ -41,6 +41,14 @@ const unProtectedApis = {
   "/api/customer/entities/get-menu-category-items": true,
   "/api/customer/entities/recommended-items": true,
 };
+
+app.use("/api/health-check", (req, res) => {
+  return res.status(STATUS_CODES.OK).json({
+    message: `Countr service running...!`,
+    time: new Date(),
+  });
+});
+
 app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();
 
@@ -154,18 +162,17 @@ app.post("/api/register-token", async (req, res) => {
   const { fcmToken } = req.body;
 
   try {
-    await User.findOneAndUpdate(
-      { _id: req.id },
-      { fcmToken },
-    );
+    await User.findOneAndUpdate({ _id: req.id }, { fcmToken });
 
     console.log(`FCM Token registered for user ${userId}`);
     res.status(200).send({ success: true, message: "FCM Token registered!" });
   } catch (error) {
     console.error("Error registering FCM Token:", error);
-    res.status(500).send({ success: false, message: "Failed to register FCM Token" });
+    res
+      .status(500)
+      .send({ success: false, message: "Failed to register FCM Token" });
   }
-})
+});
 const port = process.env.PORT;
 
 app.listen(port, () => {
