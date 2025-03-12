@@ -70,7 +70,7 @@ module.exports.createCounter = async (req) => {
 module.exports.createCounterMenuCategory = async (req) => {
   const {
     entityId,
-    body: { counterIds, categoryName },
+    body: { counterIds, categoryName, nutritionType },
   } = req;
 
   if (!counterIds || !categoryName) {
@@ -91,6 +91,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     counterId,
     categoryName,
     entityId,
+    nutritionType,
   }));
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
@@ -760,14 +761,23 @@ module.exports.getMonthlyEventDetails = async (req) => {
   };
 };
 
-module.exports.getEventsByMonthAndYear = async (month, year) => {
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 1);
+module.exports.getEventsByMonthAndYear = async (req) => {
+  const {
+    entityId,
+    query: { month, year },
+  } = req;
+  if (!month || !year) {
+    return res
+      .status(STATUS_CODES.BAD_REQUEST)
+      .json({ message: "Month and year are required" });
+  }
+
+  const currentDateTime = new Date();
 
   const events = await Event.find({
-    startingDate: {
-      $gte: startDate,
-      $lt: endDate,
+    entityId,
+    to: {
+      $lt: currentDateTime,
     },
   }).sort({ date: 1 });
 

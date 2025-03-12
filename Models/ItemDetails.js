@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
-const { FOOD_TYPE } = require("../Utils/globalConstants");
+const {
+  FOOD_TYPE,
+  NUTRITION_TYPE,
+  UNIT_TYPE,
+} = require("../Utils/globalConstants");
 
 const { ObjectId } = mongoose.Types;
 
@@ -16,8 +20,8 @@ const itemSchema = new Schema(
       type: ObjectId,
       ref: "EntityDetails",
     },
-    unit: { type: String },
-    nutritionType: { type: String, enum: Object.values(FOOD_TYPE) },
+    unit: { type: String, enum: Object.values(UNIT_TYPE) },
+    nutritionType: { type: String, enum: Object.values(NUTRITION_TYPE) },
     isVegan: { type: Boolean, default: false },
     itemName: { type: String, required: true },
     description: { type: String, required: true },

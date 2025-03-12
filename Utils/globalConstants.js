@@ -37,6 +37,17 @@ const FOOD_TYPE = {
   VEGAN: "Vegan",
 };
 
+const NUTRITION_TYPE = {
+  LIQUID: "Liquid",
+  FOOD: "Food",
+  SOLID: "Solid",
+};
+
+const UNIT_TYPE = {
+  ML: "Ml",
+  Litre: "Litre",
+};
+
 const DRINKS_SIZE = {
   SMALL: "Small",
   MEDIUM: "Medium",
@@ -274,6 +285,13 @@ const COUNTRY_ARRAY = [
   { code: "SS", country: "South Sudan", telePhoneCode: "+211" },
 ];
 
+const STRIPE_PAYMENT_STATUS = {
+  SUCCESSFUL: "Successful",
+  PENDING: "Pending",
+  FAILED: "Failed",
+  CANCELLED: "Cancelled",
+};
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -290,4 +308,7 @@ module.exports = {
   EXPERIENCE_TYPE,
   COUNTRY_ARRAY,
   COLOUR_THEME,
+  STRIPE_PAYMENT_STATUS,
+  NUTRITION_TYPE,
+  UNIT_TYPE,
 };

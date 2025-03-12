@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { FOOD_TYPE } = require("../Utils/globalConstants");
+const { FOOD_TYPE, NUTRITION_TYPE } = require("../Utils/globalConstants");
 const Schema = mongoose.Schema;
 const { ObjectId } = mongoose.Types;
 
@@ -14,6 +14,11 @@ const counterMenuCategory = new Schema(
       type: ObjectId,
       required: true,
       ref: "EntityDetails",
+    },
+    nutritionType: {
+      type: String,
+      enum: Object.values(NUTRITION_TYPE),
+      default: "",
     },
   },
   { timestamps: true }

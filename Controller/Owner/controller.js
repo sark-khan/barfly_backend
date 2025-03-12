@@ -303,15 +303,9 @@ router.get("/get-past-events-year-month", async (req, res) => {
 });
 
 router.get("/get-past-events-by-month", async (req, res) => {
-  const { month, year } = req.query;
-  if (!month || !year) {
-    return res
-      .status(STATUS_CODES.BAD_REQUEST)
-      .json({ message: "Month and year are required" });
-  }
-
   try {
-    const response = await getEventsByMonthAndYear(Number(month), Number(year));
+    const response = await getEventsByMonthAndYear(req);
+
     if (!response.length) {
       return res
         .status(STATUS_CODES.OK)
@@ -433,7 +427,10 @@ router.post("/get-discount-coupons", async (req, res) => {
 
 router.get("/get-counters-by-name", async (req, res) => {
   try {
-    const { categoryName } = req.query;
+    const {
+      entityId,
+      query: { categoryName },
+    } = req;
 
     if (!categoryName) {
       return res.status(STATUS_CODES.BAD_REQUEST).json({
@@ -441,11 +438,10 @@ router.get("/get-counters-by-name", async (req, res) => {
       });
     }
 
-    // ✅ Fetch menu categories and populate counter details
-    const menuCategories = await MenuCategory.find({ categoryName })
+    const menuCategories = await MenuCategory.find({ categoryName, entityId })
       .populate({
         path: "counterId",
-        select: "counterName", // ✅ Only fetch `counterName`
+        select: "counterName",
       })
       .lean();
 
@@ -457,7 +453,7 @@ router.get("/get-counters-by-name", async (req, res) => {
 
     // ✅ Extract unique counter IDs and names
     const counters = menuCategories
-      .filter((cat) => cat.counterId) // Ensure counter exists
+      .filter((cat) => cat.counterId)
       .map((cat) => ({
         counterId: cat.counterId._id.toString(),
         counterName: cat.counterId.counterName,
@@ -466,14 +462,10 @@ router.get("/get-counters-by-name", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({ counters });
   } catch (error) {
     console.error("Error fetching counters by category name:", error);
-    res.status(STATUS_CODES.INTERNAL_SERVER_ERROR).json({
+    res.status(STATUS_CODES.SERVER_ERROR).json({
       message: "An error occurred while fetching counters.",
     });
   }
 });
-
-module.exports = router;
-
-module.exports = router;
 
 module.exports = router;

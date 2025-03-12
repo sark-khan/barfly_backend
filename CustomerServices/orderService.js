@@ -342,7 +342,7 @@ const particularOrderDetailsCustomer = async (req) => {
       message: "No such Order found",
     });
   }
-  if (orderDetails.entityId) {
+  if (orderDetails.entityId && orderDetails.entityId.image) {
     orderDetails.entityId.image = generatePresignedUrl(
       orderDetails.entityId.image
     );
