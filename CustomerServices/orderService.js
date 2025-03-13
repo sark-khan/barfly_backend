@@ -192,7 +192,6 @@ const getEntityOrders = async (req) => {
       Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
       Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
     ]);
-  console.log({ data });
   return { data, orderProcessCount, readyOrders, completedOrders };
 };
 
@@ -280,7 +279,6 @@ const particularOrderDetails = async (req) => {
     .sort({ tokenNumber: -1 })
     .lean();
 
-  //Need to change this logic and we should get the price at the time of creating order.
   for (const order of orderDetails) {
     for (const item of order.items) {
       const itemDetail = await ItemDetails.findOne({ _id: item.itemId._id })
@@ -290,9 +288,7 @@ const particularOrderDetails = async (req) => {
       const itemPrice = itemDetail ? itemDetail.price : 0;
       item.totalPrice = itemPrice * (item.quantity || 1);
     }
-    console.log({ sss: order.finalAmount });
     order.finalAmount = order.finalAmount + 2.25;
-    console.log({ qqq: order.finalAmount });
   }
 
   return orderDetails;
@@ -348,7 +344,6 @@ const particularOrderDetailsCustomer = async (req) => {
     );
     orderDetails.finalAmount = orderDetails.finalAmount + 2.25;
   }
-  console.log({ orderDetails: orderDetails });
   return orderDetails;
 };
 
@@ -581,7 +576,6 @@ const getOrderGroupByYearsForEntity = async (req) => {
       path: "itemId",
     })
     .lean();
-  console.log({ allItemDetails });
   const itemDetailsMapper = {};
   allItemDetails.forEach((doc) => {
     itemDetailsMapper[`${doc._id}`] = {

@@ -216,15 +216,11 @@ router.post("/update-menu-item", upload.single("file"), async (req, res) => {
 router.get("/update-entity-items", async (req, res) => {
   try {
     const itemsId = await ItemDetails.find({ entityId: req.entityId }).lean();
-    console.log("Reached here");
-    console.log({ itemsId });
 
-    // Loop through each item in itemsId and update the corresponding MenuItem
     for (const item of itemsId) {
-      // Update each MenuItem with the corresponding price from ItemDetails
       await MenuItem.updateOne(
         { _id: item.itemId }, // Filter by itemId
-        { $set: { price: item.price, currency: "CHF" } } // Set price and currency
+        { $set: { price: item.price, currency: "CHF" } }
       );
     }
     return res.status(200).json({ message: "Updated all the doc" });
@@ -469,19 +465,23 @@ router.get("/get-counters-by-name", async (req, res) => {
   }
 });
 
-router.post("/edit-business-details", async (req, res) => {
-  try {
-    await editBusinessDetails(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Business details updated successfully." });
-  } catch (error) {
-    console.error("Error while updating the details", error);
-    return res
-      .status(STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message });
+router.post(
+  "/edit-business-details",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      await editBusinessDetails(req);
+      return res
+        .status(STATUS_CODES.OK)
+        .json({ message: "Business details updated successfully." });
+    } catch (error) {
+      console.error("Error while updating the details", error);
+      return res
+        .status(STATUS_CODES.SERVER_ERROR)
+        .json({ message: error.message });
+    }
   }
-});
+);
 
 router.get("/get-business-user-details", async (req, res) => {
   try {

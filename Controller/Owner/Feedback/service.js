@@ -14,8 +14,7 @@ const Feedback = require("../../../Models/Feedback");
 // }
 
 const createSurveyQuestion = async (req) => {
-  console.log("**************", req);
-  const {id, entityId} = req
+  const { id, entityId } = req;
   const { question, answerType, answerOptions } = req.body;
   const surveyQuestion = new Feedback({
     question,
@@ -28,9 +27,8 @@ const createSurveyQuestion = async (req) => {
 };
 
 const archiveSurveyQuestion = async (id) => {
-    return await Feedback.findByIdAndUpdate(id, { archive: true }, { new: true });
-  };
-  
+  return await Feedback.findByIdAndUpdate(id, { archive: true }, { new: true });
+};
 
 const getSurveyQuestions = async (archiveStatus) => {
   return await Feedback.find({ archive: archiveStatus });

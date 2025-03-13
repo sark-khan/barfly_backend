@@ -15,7 +15,6 @@ const createPaymentIntent = async (req) => {
     currency,
     payment_method_types: [paymentMethodType],
   });
-  console.log({ paymentIntent });
 
   const obj = {
     amount,

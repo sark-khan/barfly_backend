@@ -71,7 +71,6 @@ module.exports.getEntities = async (req) => {
   const query = {
     _id: { $in: entityIds },
   };
-  console.log({ isNewlyAdded });
   const sort = {};
   if (isNewlyAdded) {
     const fortyEightHoursago = new Date();
@@ -211,7 +210,6 @@ module.exports.getEntities = async (req) => {
 module.exports.addFavouriteEntity = async (req) => {
   const userId = req.id;
   const { entityId, isFavourite } = req.body;
-  console.log({ entityId, isFavourite });
 
   await FavouriteEntity.updateOne(
     { userId, entityId },
@@ -466,7 +464,6 @@ module.exports.updateLanguage = async (req) => {
 module.exports.updateFavouriteItem = async (req) => {
   const userId = req.userId;
   const { menuId, itemId, isFavourite } = req.body;
-  console.log({ isFavourite });
   const menuCategory = await MenuCategory.findById(menuId, { counterId: 1 });
   if (!menuCategory) {
     throwError({
@@ -503,7 +500,6 @@ module.exports.getFavouriteItems = async (req) => {
   const favouriteItemIds = favouriteItemList.map(
     (item) => item.favouriteItemId
   );
-  console.log({ favouriteItemIds });
 
   const menuItems = await ItemDetails.aggregate([
     // Match documents in `ItemDetails` based on `counterId`
@@ -566,8 +562,6 @@ module.exports.getFavouriteItems = async (req) => {
       $sort: { updatedAt: -1 },
     },
   ]);
-
-  console.log({ menuItems });
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     const itemDetails = menuItem.item;

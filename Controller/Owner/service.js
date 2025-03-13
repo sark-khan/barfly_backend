@@ -252,10 +252,7 @@ module.exports.updateMenuItem = async (req) => {
     },
   } = req;
 
-  console.log({ body: req.body });
-
   const item = await ItemDetails.findOne({ _id: itemId });
-  console.log({ item });
 
   if (!item) {
     return throwError({
@@ -293,7 +290,7 @@ module.exports.updateMenuItem = async (req) => {
         item.image = fileName;
       } catch (error) {
         return throwError({
-          status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+          status: STATUS_CODES.BAD_REQUEST,
           message: "File upload failed",
         });
       }
@@ -379,10 +376,8 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
-  console.log({ from, to, startingDate });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
-  console.log({ dateTimeFrom, dateTimeTo });
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -442,7 +437,7 @@ module.exports.createEvent = async (req) => {
       }
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        status: STATUS_CODES.BAD_REQUEST,
         message: "File upload failed",
       });
     }
@@ -618,8 +613,6 @@ module.exports.getOngoingEventDetails = async (req) => {
     { sort: { from: -1 }, lean: true }
   );
 
-  console.log({ events });
-
   const eventDetailsMap = new Map();
 
   const ongoingEvents = events?.filter((event) => {
@@ -687,8 +680,6 @@ module.exports.getDistinctMonthsOfYear = async (req) => {
       },
     },
   ]);
-
-  console.log({ distinctMonthsAndYears: distinctMonthsAndYears[0]._id });
 
   return distinctMonthsAndYears.map((doc) => ({
     year: doc._id.year,
@@ -841,12 +832,10 @@ module.exports.getOrderDetailsOfEvents = async (req) => {
     if (order.items && Array.isArray(order.items)) {
       for (const item of order.items) {
         if (!orderGrouped[item.itemId]) {
-          console.log({ itemId: item.itemId });
           const itemDetails = await MenuItem.findById(item.itemId, {
             price: 1,
             itemName: 1,
           }).lean();
-          console.log({ itemDetails });
 
           orderGrouped[item.itemId] = {
             totalAmount: 0,
@@ -876,7 +865,6 @@ module.exports.getCounterMenuQuantites = async (req) => {
     { counterId: 1, availableQuantity: 1 },
     { lean: 1 }
   );
-  console.log({ itemDetails });
   if (!itemDetails.length) {
     throwError({
       message: "This item does not belong to this entity",
@@ -1006,26 +994,27 @@ module.exports.editBusinessDetails = async (req) => {
     entityId,
     userId,
     file,
-    body: { email, contactNumber, password },
+    body: { email, entityContactNumber, password, action },
   } = req;
 
   const entity = await EntityDetails.findOne({
     _id: entityId,
     userId,
-  }).populate({
-    path: "userId",
-    select: "email password",
-    model: "User",
   });
+
+  const user = await User.findOne({ _id: userId });
+
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Restaurant doesn't exists.",
     });
   }
+
   let fileName = "";
 
-  if (file) {
+  if (action === EDIT_ACTION.EDIT && file) {
+    // Handle image upload
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
       / /g,
@@ -1040,18 +1029,40 @@ module.exports.editBusinessDetails = async (req) => {
           message: "Error occurred while uploading the file",
         });
       }
-      entity.image = fileName;
+
+      // Update entity image in DB
+      await EntityDetails.updateOne(
+        { _id: entityId },
+        { $set: { image: fileName } }
+      );
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        status: STATUS_CODES.BAD_REQUEST,
         message: "File upload failed",
       });
     }
+  } else if (action === EDIT_ACTION.DELETE) {
+    // Handle image deletion
+    try {
+      await EntityDetails.updateOne({ _id: entityId }, { $set: { image: "" } });
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Image deletion failed",
+      });
+    }
   }
-  if (email) entity.email = email;
-  if (contactNumber) entity.businessContactNumber = contactNumber;
+
+  if (email) {
+    user.email = email;
+    await user.save();
+  }
+  if (entityContactNumber) {
+    entity.entityContactNumber = entityContactNumber;
+    await entity.save();
+  }
   if (password) {
-    const oldPass = await comparePassword(password, entity.password);
+    const oldPass = await comparePassword(password, user.password);
     if (oldPass) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
@@ -1060,9 +1071,9 @@ module.exports.editBusinessDetails = async (req) => {
     }
     const hashPassword = bcrypt.hashSync(password, 10);
     entity.password = hashPassword;
-    await entity.save();
+    await user.save();
   }
-  return entity.save();
+  // return entity.save();
 };
 
 module.exports.getBusinessUserDetails = async (req) => {
