@@ -1082,6 +1082,7 @@ module.exports.getBusinessUserDetails = async (req) => {
   const user = await User.findOne({ _id: userId }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
+  delete user.password;
 
   return { ...entity, ...user };
 };
