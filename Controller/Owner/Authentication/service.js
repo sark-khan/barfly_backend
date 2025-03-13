@@ -104,12 +104,12 @@ module.exports.register = async (req) => {
 
   const sessionData = await OtpSession.findOne({ sessionId });
 
-  if (!sessionData || !sessionData.contactNumber) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Session expired or invalid sessionId. Please verify OTP again.",
-    });
-  }
+  // if (!sessionData || !sessionData.contactNumber) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message: "Session expired or invalid sessionId. Please verify OTP again.",
+  //   });
+  // }
 
   const newUser = {
     role: ROLES.STORE_OWNER,

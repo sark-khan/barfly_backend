@@ -24,6 +24,8 @@ const {
   getOrderDetailsOfEvents,
   createDiscountCoupon,
   getDiscountCoupon,
+  editBusinessDetails,
+  getBusinessUserDetails,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -451,7 +453,6 @@ router.get("/get-counters-by-name", async (req, res) => {
       });
     }
 
-    // ✅ Extract unique counter IDs and names
     const counters = menuCategories
       .filter((cat) => cat.counterId)
       .map((cat) => ({
@@ -465,6 +466,34 @@ router.get("/get-counters-by-name", async (req, res) => {
     res.status(STATUS_CODES.SERVER_ERROR).json({
       message: "An error occurred while fetching counters.",
     });
+  }
+});
+
+router.post("/edit-business-details", async (req, res) => {
+  try {
+    await editBusinessDetails(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Business details updated successfully." });
+  } catch (error) {
+    console.error("Error while updating the details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-business-user-details", async (req, res) => {
+  try {
+    const response = await getBusinessUserDetails(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Business details updated successfully.", response });
+  } catch (error) {
+    console.error("Error while updating the details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 

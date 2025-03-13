@@ -1,3 +1,5 @@
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
 const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
@@ -8,15 +10,19 @@ const {
   STATUS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
-const mongoose = require("mongoose");
 
 const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
 const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
-const { shiftArrayRight } = require("../../Utils/commonFunction");
+const {
+  shiftArrayRight,
+  comparePassword,
+} = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
 const Discount = require("../../Models/Discount");
+const EntityDetails = require("../../Models/EntityDetails");
+const User = require("../../Models/User");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -284,7 +290,7 @@ module.exports.updateMenuItem = async (req) => {
             message: "Error occurred while uploading the file",
           });
         }
-        item.image = fileName; // Save the file name in the document
+        item.image = fileName;
       } catch (error) {
         return throwError({
           status: STATUS_CODES.INTERNAL_SERVER_ERROR,
@@ -993,4 +999,78 @@ module.exports.getDiscountCoupon = async (req) => {
   });
 
   return coupons;
+};
+
+module.exports.editBusinessDetails = async (req) => {
+  const {
+    entityId,
+    userId,
+    file,
+    body: { email, contactNumber, password },
+  } = req;
+
+  const entity = await EntityDetails.findOne({
+    _id: entityId,
+    userId,
+  }).populate({
+    path: "userId",
+    select: "email password",
+    model: "User",
+  });
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Restaurant doesn't exists.",
+    });
+  }
+  let fileName = "";
+
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Error occurred while uploading the file",
+        });
+      }
+      entity.image = fileName;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+        message: "File upload failed",
+      });
+    }
+  }
+  if (email) entity.email = email;
+  if (contactNumber) entity.businessContactNumber = contactNumber;
+  if (password) {
+    const oldPass = await comparePassword(password, entity.password);
+    if (oldPass) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "We don't accept old password as new password.",
+      });
+    }
+    const hashPassword = bcrypt.hashSync(password, 10);
+    entity.password = hashPassword;
+    await entity.save();
+  }
+  return entity.save();
+};
+
+module.exports.getBusinessUserDetails = async (req) => {
+  const { entityId, userId } = req;
+  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
+  const user = await User.findOne({ _id: userId }).lean();
+
+  entity.image = generatePresignedUrl(entity.image);
+
+  return { ...entity, ...user };
 };

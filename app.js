@@ -10,6 +10,7 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 const orderController = require("./Controller/orderController");
+const StripeController = require("./Controller/stripeController");
 const Counter = require("./Models/Counter");
 const multer = require("multer");
 const {
@@ -68,6 +69,7 @@ app.use(
 app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 
 app.use("/api/orders", orderController);
+app.use("/api/stripe", StripeController);
 
 app.post("/api/update-menu-items", async (req, res) => {
   try {
