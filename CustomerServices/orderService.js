@@ -15,7 +15,7 @@ const { ObjectId } = mongoose.Types;
 
 const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
-const admin = require("../firebaseAdmin");
+const { messaging } = require("../firebaseAdmin");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
@@ -134,21 +134,28 @@ const updateStatusOfOrder = async (req) => {
       message: "No Such order exist.",
     });
   }
-  await Order.findOneAndUpdate({ _id: orderId }, { $set: { status } });
-  // const payload = {
-  //   notification: {
-  //     title: "Order Status Updated",
-  //     body: `Your order is now ${status}. Tap to view details.`,
-  //   },
-  //   data: {
-  //     orderId: orderId,
-  //     screen: "status", // Custom data to open status screen
-  //   },
-  //   token: order.userId.fcmToken,
-  // };
+  const updatedOrder = await Order.findOneAndUpdate(
+    { _id: orderId },
+    { $set: { status } },
+    { new: true } 
+  ).populate("userId");
+  console.log({ updatedOrder });
+  const payload = {
+    notification: {
+      title: "Order Status Updated",
+      body: `Your order is now ${status}. Tap to view details.`,
+    },
+    data: {
+      orderId: orderId,
+      screen: "status", // Custom data to open status screen
+    },
+    token: updatedOrder.userId.fcmToken,
+  };
 
-  // await admin.messaging().send(payload);
-  // console.log(`Push notification sent to user ${userId}`);
+  console.log({payload});
+
+  await messaging.send(payload);
+  console.log(`Push notification sent to user ${req.userId}`);
 };
 
 const getEntityOrders = async (req) => {
