@@ -26,6 +26,9 @@ const {
   getDiscountCoupon,
   editBusinessDetails,
   getBusinessUserDetails,
+  addingTables,
+  getTables,
+  getUsersFeedback,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -491,6 +494,62 @@ router.get("/get-business-user-details", async (req, res) => {
       .json({ message: "Business details updated successfully.", response });
   } catch (error) {
     console.error("Error while updating the details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/adding-tables", async (req, res) => {
+  try {
+    await addingTables(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Tables added successfully." });
+  } catch (error) {
+    console.error("Error while adding the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-tables", async (req, res) => {
+  try {
+    const response = await getTables(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Tables fetched successfully.", response });
+  } catch (error) {
+    console.error("Error while fetching the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-feedbacks-from users", async (req, res) => {
+  try {
+    const data = await getUsersFeedback(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Users feedback fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching the users feedback details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/add-feedback-questions", async (req, res) => {
+  try {
+    await addFeedbackQuestions(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Feedback questions added successfully." });
+  } catch (error) {
+    console.error("Error while adding the feedback questions.", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
