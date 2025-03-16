@@ -23,6 +23,7 @@ const { STATUS_CODES } = require("./Utils/globalConstants");
 const { ownerTrades } = require("./PdfServices/ownerTrades");
 const verifyToken = require("./Utils/verifyToken");
 const { sendFirebaseNotification } = require("./Utils/commonFunction");
+const User = require("./Models/User");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 require("./seeder");
@@ -164,10 +165,10 @@ app.post("/api/register-token", async (req, res) => {
   const { fcmToken } = req.body;
 
   try {
-    await User.findOneAndUpdate({ _id: req.id }, { fcmToken });
+    await User.findOneAndUpdate({ _id: req.id }, {$set:{ fcmToken} });
 
-    console.log(`FCM Token registered for user ${userId}`);
-    res.status(200).send({ success: true, message: "FCM Token registered!" });
+    console.log(`FCM Token registered for user ${req.id}`);
+    return res.status(200).send({ success: true, message: "FCM Token registered!" });
   } catch (error) {
     console.error("Error registering FCM Token:", error);
     res
