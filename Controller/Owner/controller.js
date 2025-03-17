@@ -29,6 +29,8 @@ const {
   addingTables,
   getTables,
   getUsersFeedback,
+  addFeedbackQuestions,
+  getCounters,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -95,10 +97,7 @@ router.post("/create-counter-menu-category", async (req, res) => {
 
 router.get("/get-counter", async (req, res) => {
   try {
-    const counter = await Counter.find(
-      { ownerId: req.userId },
-      { counterName: 1, updatedAt: 1 }
-    ).sort({ updatedAt: -1 });
+    const counter = await getCounters(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Counters fetched succesfully.", data: counter });
@@ -516,10 +515,10 @@ router.post("/adding-tables", async (req, res) => {
 
 router.get("/get-tables", async (req, res) => {
   try {
-    const response = await getTables(req);
+    const data = await getTables(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Tables fetched successfully.", response });
+      .json({ message: "Tables fetched successfully.", data });
   } catch (error) {
     console.error("Error while fetching the tables details", error);
     return res

@@ -108,6 +108,25 @@ module.exports.createCounterMenuCategory = async (req) => {
   return createdCategories;
 };
 
+module.exports.getCounters = async (req) => {
+  const {
+    userId,
+    entityId,
+    query: { counterId },
+  } = req;
+
+  const query = { counterIds: counterId };
+  const counter = await Counter.find(
+    { ownerId: userId, entityId },
+    { counterName: 1, isSelfPickUp: 1, isTableService: 1 }
+  ).sort({
+    createdAt: -1,
+  });
+  const items = await ItemDetails.find(query, { itemName: 1, isOutOfStock: 1 });
+
+  return [...counter, ...items];
+};
+
 module.exports.getInsiderElements = async (insiderId) => {
   try {
     if (!insiderId) {
@@ -1197,7 +1216,7 @@ module.exports.getBusinessUserDetails = async (req) => {
   const user = await User.findOne({ _id: userId }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
-  delete user.password;
+  user.password = "******";
 
   return { ...entity, ...user };
 };

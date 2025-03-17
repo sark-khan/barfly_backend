@@ -165,14 +165,16 @@ app.post("/api/register-token", async (req, res) => {
   const { fcmToken } = req.body;
 
   try {
-    await User.findOneAndUpdate({ _id: req.id }, {$set:{ fcmToken} });
+    await User.findOneAndUpdate({ _id: req.userId }, { $set: { fcmToken } });
 
-    console.log(`FCM Token registered for user ${req.id}`);
-    return res.status(200).send({ success: true, message: "FCM Token registered!" });
+    console.log(`FCM Token registered for user ${req.userId}`);
+    return res
+      .status(STATUS_CODES.OK)
+      .send({ success: true, message: "FCM Token registered!" });
   } catch (error) {
     console.error("Error registering FCM Token:", error);
     res
-      .status(500)
+      .status(STATUS_CODES.SERVER_ERROR)
       .send({ success: false, message: "Failed to register FCM Token" });
   }
 });

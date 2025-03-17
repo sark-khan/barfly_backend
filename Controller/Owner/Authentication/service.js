@@ -178,7 +178,6 @@ module.exports.login = async (req) => {
 
   const user = await User.findOne({ $or: [{ email }, { contactNumber }] });
   console.log({ user });
-  const entityDetails = await EntityDetails.findOne({ userId: user._id });
 
   if (email && contactNumber) {
     throwError({
@@ -186,20 +185,13 @@ module.exports.login = async (req) => {
       message: "Please enter either email or password.",
     });
   }
-
-  if (email != user.email && contactNumber != user.contactNumber) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message:
-        "Please enter correct details of email/contact number or password.",
-    });
-  }
-
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "User does not exist",
+      message: "Invlalid email or mobile number.",
     });
+
+  const entityDetails = await EntityDetails.findOne({ userId: user._id });
 
   if (!entityDetails)
     throwError({

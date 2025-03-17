@@ -167,12 +167,9 @@ router.get("/get-particular-live-order-details", async (req, res) => {
   }
 });
 
-
-
-
 router.get("/get-particular-live-order-details-customer", async (req, res) => {
   try {
-      const particularLiveOrder = await particularOrderDetailsCustomer(req);
+    const particularLiveOrder = await particularOrderDetailsCustomer(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Orders fetched successfully.", particularLiveOrder });
