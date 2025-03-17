@@ -2,6 +2,7 @@ const express = require("express");
 require("./db");
 require("./redis");
 require("./cron");
+require("./server");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
