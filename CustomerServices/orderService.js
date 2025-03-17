@@ -143,18 +143,40 @@ const updateStatusOfOrder = async (req) => {
   const payload = {
     notification: {
       title: "Order Status Updated",
-      body: `Your order is now ${status}. Tap to view details.`,
+      body: `Your order is now ${status}. Tap to view details.`
     },
     data: {
       orderId: orderId,
-      screen: "status", // Custom data to open status screen
+      status: status,
+      screen: "status", // Used in Flutter to navigate
+      click_action: "FLUTTER_NOTIFICATION_CLICK" // ✅ Moved inside `data`
     },
     token: updatedOrder.userId.fcmToken,
+    android: {
+      priority: "high",
+      notification: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK" // ✅ Required for Android
+      }
+    },
+    apns: {
+      payload: {
+        aps: {
+          content_available: true, // ✅ Ensures data messages are processed on iOS
+          category: "FLUTTER_NOTIFICATION_CLICK", // ✅ iOS requires a category for taps
+          mutableContent: 1,
+          alert: {
+            title: "Order Status Updated",
+            body: `Your order is now ${status}. Tap to view details.`,
+          }
+        }
+      }
+    }
   };
-
-  console.log({payload});
-
+  
+  console.log({ payload });
+  
   await messaging.send(payload);
+  
   console.log(`Push notification sent to user ${req.userId}`);
 };
 
