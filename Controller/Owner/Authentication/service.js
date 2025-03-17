@@ -170,6 +170,7 @@ module.exports.register = async (req) => {
     message: "Registration successful",
     entity: entityDetails,
     token,
+    isRegistered: true,
   };
 };
 
@@ -185,6 +186,7 @@ module.exports.login = async (req) => {
       message: "Please enter either email or password.",
     });
   }
+
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
