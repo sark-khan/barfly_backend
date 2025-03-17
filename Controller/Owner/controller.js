@@ -26,6 +26,11 @@ const {
   getDiscountCoupon,
   editBusinessDetails,
   getBusinessUserDetails,
+  addingTables,
+  getTables,
+  getUsersFeedback,
+  addFeedbackQuestions,
+  getCounters,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -92,10 +97,7 @@ router.post("/create-counter-menu-category", async (req, res) => {
 
 router.get("/get-counter", async (req, res) => {
   try {
-    const counter = await Counter.find(
-      { ownerId: req.userId },
-      { counterName: 1, updatedAt: 1 }
-    ).sort({ updatedAt: -1 });
+    const counter = await getCounters(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Counters fetched succesfully.", data: counter });
@@ -491,6 +493,62 @@ router.get("/get-business-user-details", async (req, res) => {
       .json({ message: "Business details updated successfully.", response });
   } catch (error) {
     console.error("Error while updating the details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/adding-tables", async (req, res) => {
+  try {
+    await addingTables(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Tables added successfully." });
+  } catch (error) {
+    console.error("Error while adding the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-tables", async (req, res) => {
+  try {
+    const data = await getTables(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Tables fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-feedbacks-from users", async (req, res) => {
+  try {
+    const data = await getUsersFeedback(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Users feedback fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching the users feedback details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/add-feedback-questions", async (req, res) => {
+  try {
+    await addFeedbackQuestions(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Feedback questions added successfully." });
+  } catch (error) {
+    console.error("Error while adding the feedback questions.", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

@@ -292,6 +292,18 @@ const STRIPE_PAYMENT_STATUS = {
   CANCELLED: "Cancelled",
 };
 
+module.exports.ANSWER_TYPES = {
+  RATING: Array.from({ length: 10 }, (_, i) => (i + 1).toString()),
+  FEEDBACK: ["Good", "Decent", "Bad"],
+  BOOLEAN: ["True", "False", "Neutral"],
+};
+
+module.exports.ALL_ANSWER_TYPES = [
+  ...module.exports.ANSWER_TYPES.RATING,
+  ...module.exports.ANSWER_TYPES.FEEDBACK,
+  ...module.exports.ANSWER_TYPES.BOOLEAN,
+];
+
 module.exports = {
   STATUS_CODES,
   ROLES,

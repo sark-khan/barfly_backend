@@ -23,6 +23,9 @@ const Order = require("../../Models/Order");
 const Discount = require("../../Models/Discount");
 const EntityDetails = require("../../Models/EntityDetails");
 const User = require("../../Models/User");
+const Tables = require("../../Models/Tables");
+const Feedbacks = require("../../Models/UserFeedback");
+const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
@@ -103,6 +106,25 @@ module.exports.createCounterMenuCategory = async (req) => {
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
   return createdCategories;
+};
+
+module.exports.getCounters = async (req) => {
+  const {
+    userId,
+    entityId,
+    query: { counterId },
+  } = req;
+
+  const query = { counterIds: counterId };
+  const counter = await Counter.find(
+    { ownerId: userId, entityId },
+    { counterName: 1, isSelfPickUp: 1, isTableService: 1 }
+  ).sort({
+    createdAt: -1,
+  });
+  const items = await ItemDetails.find(query, { itemName: 1, isOutOfStock: 1 });
+
+  return [...counter, ...items];
 };
 
 module.exports.getInsiderElements = async (insiderId) => {
@@ -989,52 +1011,162 @@ module.exports.getDiscountCoupon = async (req) => {
   return coupons;
 };
 
+// module.exports.editBusinessDetails = async (req) => {
+//   const {
+//     entityId,
+//     userId,
+//     file,
+//     body: {
+//       email,
+//       entityContactNumber,
+//       password,
+//       action,
+//       location,
+//       zipcode,
+//       floor,
+//       buildingName,
+//       landMark,
+//     },
+//   } = req;
+
+//   const entity = await EntityDetails.findOne({
+//     _id: entityId,
+//     userId,
+//   });
+
+//   const user = await User.findOne({ _id: userId });
+
+//   if (!entity) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Restaurant doesn't exists.",
+//     });
+//   }
+
+//   let fileName = "";
+
+//   if (action === EDIT_ACTION.EDIT && file) {
+//     // Handle image upload
+//     const fileBuffer = file.buffer;
+//     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+
+//     try {
+//       const data = await uploadBufferToS3(fileBuffer, fileName);
+//       if (!data.Location) {
+//         throwError({
+//           status: STATUS_CODES.BAD_REQUEST,
+//           message: "Error occurred while uploading the file",
+//         });
+//       }
+
+//       // Update entity image in DB
+//       await EntityDetails.updateOne(
+//         { _id: entityId },
+//         { $set: { image: fileName } }
+//       );
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   } else if (action === EDIT_ACTION.DELETE) {
+//     try {
+//       await EntityDetails.updateOne({ _id: entityId }, { $set: { image: "" } });
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Image deletion failed",
+//       });
+//     }
+//   }
+
+//   if (email) {
+//     user.email = email;
+//     await user.save();
+//   }
+//   if (entityContactNumber) {
+//     entity.entityContactNumber = entityContactNumber;
+//     await entity.save();
+//   }
+//   if (password) {
+//     const oldPass = await comparePassword(password, user.password);
+//     if (oldPass) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "We don't accept old password as new password.",
+//       });
+//     }
+//     const hashPassword = bcrypt.hashSync(password, 10);
+//     entity.password = hashPassword;
+//     await user.save();
+//   }
+//   if (location) {
+//     entity.location = location;
+//     await entity.save();
+//   }
+//   if (floor) {
+//     entity.floor = floor;
+//     await entity.save();
+//   }
+//   if (buildingName) {
+//     entity.buildingName = buildingName;
+//     await entity.save();
+//   }
+//   if (landMark) {
+//     entity.landMark = landMark;
+//     await entity.save();
+//   }
+//   if (zipcode) {
+//     entity.zipcode = zipcode;
+//     await entity.save();
+//   }
+// };
+
 module.exports.editBusinessDetails = async (req) => {
   const {
     entityId,
     userId,
     file,
-    body: { email, entityContactNumber, password, action },
+    body: {
+      email,
+      entityContactNumber,
+      password,
+      action,
+      location,
+      zipcode,
+      floor,
+      buildingName,
+      landMark,
+    },
   } = req;
 
-  const entity = await EntityDetails.findOne({
-    _id: entityId,
-    userId,
-  });
-
-  const user = await User.findOne({ _id: userId });
+  const [entity, user] = await Promise.all([
+    EntityDetails.findOne({ _id: entityId, userId }),
+    User.findById(userId),
+  ]);
 
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Restaurant doesn't exists.",
+      message: "Restaurant doesn't exist.",
     });
   }
 
-  let fileName = "";
+  const updateFields = {};
 
   if (action === EDIT_ACTION.EDIT && file) {
-    // Handle image upload
-    const fileBuffer = file.buffer;
-    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+    const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
       / /g,
       "_"
     )}`;
-
     try {
-      const data = await uploadBufferToS3(fileBuffer, fileName);
-      if (!data.Location) {
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
-        });
-      }
-
-      // Update entity image in DB
-      await EntityDetails.updateOne(
-        { _id: entityId },
-        { $set: { image: fileName } }
-      );
+      const { Location } = await uploadBufferToS3(file.buffer, fileName);
+      if (!Location) throw new Error("File upload failed");
+      updateFields.image = fileName;
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
@@ -1042,38 +1174,40 @@ module.exports.editBusinessDetails = async (req) => {
       });
     }
   } else if (action === EDIT_ACTION.DELETE) {
-    // Handle image deletion
-    try {
-      await EntityDetails.updateOne({ _id: entityId }, { $set: { image: "" } });
-    } catch (error) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Image deletion failed",
-      });
-    }
+    updateFields.image = "";
   }
 
-  if (email) {
-    user.email = email;
-    await user.save();
-  }
-  if (entityContactNumber) {
-    entity.entityContactNumber = entityContactNumber;
-    await entity.save();
-  }
   if (password) {
-    const oldPass = await comparePassword(password, user.password);
-    if (oldPass) {
+    const isSamePassword = await comparePassword(password, user.password);
+    if (isSamePassword) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "We don't accept old password as new password.",
       });
     }
-    const hashPassword = bcrypt.hashSync(password, 10);
-    entity.password = hashPassword;
-    await user.save();
+    updateFields.password = bcrypt.hashSync(password, 10);
   }
-  // return entity.save();
+
+  if (email) updateFields.email = email;
+  if (entityContactNumber)
+    updateFields.entityContactNumber = entityContactNumber;
+  if (location) updateFields.location = location;
+  if (floor) updateFields.floor = floor;
+  if (buildingName) updateFields.buildingName = buildingName;
+  if (landMark) updateFields.landMark = landMark;
+  if (zipcode) updateFields.zipcode = zipcode;
+
+  await Promise.all([
+    Object.keys(updateFields).length > 0
+      ? EntityDetails.updateOne({ _id: entityId }, { $set: updateFields })
+      : Promise.resolve(),
+    email || password
+      ? User.updateOne(
+          { _id: userId },
+          { $set: { email, password: updateFields.password } }
+        )
+      : Promise.resolve(),
+  ]);
 };
 
 module.exports.getBusinessUserDetails = async (req) => {
@@ -1082,7 +1216,96 @@ module.exports.getBusinessUserDetails = async (req) => {
   const user = await User.findOne({ _id: userId }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
-  delete user.password;
+  user.password = "******";
 
   return { ...entity, ...user };
+};
+
+module.exports.addingTables = async (req) => {
+  const {
+    userId,
+    entityId,
+    body: { tableFrom, tableTo, counterIds: counterId },
+  } = req;
+
+  const entity = await EntityDetails.findById(entityId);
+  const counters = await Counter.findOne({ _id: counterId });
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Entity doesn't exist.",
+    });
+  }
+
+  if (!counters) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Counter doesn't exist.",
+    });
+  }
+
+  if (tableFrom > tableTo) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid entry.",
+    });
+  }
+
+  const tableNumbers = Array.from({ length: tableTo - tableFrom + 1 }, (_, i) =>
+    String(tableFrom + i)
+  );
+
+  console.log({ tableNumbers });
+
+  const tableObj = {
+    tableCount: tableNumbers,
+    userId,
+    entityId,
+    counterIds: counterId,
+  };
+  console.log({ tableObj });
+
+  return Tables.create(tableObj);
+};
+
+module.exports.getTables = async (req) => {
+  const { entityId, userId } = req;
+  const tables = await Tables.find({ userId, entityId }, { tableCount: 1 });
+  if (!tables) return [];
+  return tables;
+};
+
+module.exports.getUsersFeedback = async (req) => {
+  const {
+    entityId,
+    query: { from, to },
+  } = req;
+
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+
+  toDate.setHours(23, 59, 59, 999);
+
+  const feedbacks = await Feedbacks.find({
+    entityId,
+    createdAt: { $gte: fromDate, $lte: toDate },
+  }).sort({ createdAt: -1 });
+  return feedbacks;
+};
+
+module.exports.addFeedbackQuestions = async (req) => {
+  const {
+    entityId,
+    userId,
+    body: { question, answerType, comment },
+  } = req;
+
+  const questionObj = {
+    userId,
+    entityId,
+    question,
+    answerType,
+    comment,
+  };
+  return FeedbackQuestions.create(questionObj);
 };

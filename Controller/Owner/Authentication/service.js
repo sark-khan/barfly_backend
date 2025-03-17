@@ -43,8 +43,19 @@ module.exports.register = async (req) => {
       sessionId,
     },
   } = req;
+  const userEmail = email ? email.trim() : "";
+  const userContactNumber = contactNumber ? contactNumber.trim() : "";
 
-  const userExist = await User.findOne({ $or: [{ email }, { contactNumber }] });
+  console.log("Checking user with:", { userEmail, userContactNumber });
+
+  const userExist = await User.findOne({
+    $or: [
+      { email: { $regex: `^${userEmail}$`, $options: "i" } },
+      { contactNumber: userContactNumber },
+    ],
+  });
+
+  console.log({ userExist });
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -53,27 +64,26 @@ module.exports.register = async (req) => {
   }
 
   let message = "";
+  let otpRecord = await Otp.findOne({ contactNumber });
 
-  if (contactNumber) {
-    let otpRecord = await Otp.findOne({ contactNumber });
+  // Resend OTP logic
+  if (!enteredOtp && contactNumber) {
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    if (!otpRecord || otpRecord.expiresAt < Date.now()) {
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    otpRecord = await Otp.findOneAndUpdate(
+      { contactNumber },
+      { otp, expiresAt },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
-      otpRecord = await Otp.findOneAndUpdate(
-        { contactNumber },
-        { otp, expiresAt },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+    const msg = `Your verification code is: ${otp}`;
+    await sendSMS({ toPhoneNumber: contactNumber, message: msg });
 
-      const msg = `Your verification code is: ${otp}`;
-      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+    return { otpSent: true, message: "OTP resent successfully.", otp };
+  }
 
-      message = "OTP sent successfully.";
-      return { otpSent: true, message, otp };
-    }
-
+  if (otpRecord) {
     if (otpRecord.expiresAt < Date.now()) {
       await Otp.deleteOne({ contactNumber });
       throwError({
@@ -91,25 +101,27 @@ module.exports.register = async (req) => {
 
     if (enteredOtp && enteredOtp == otpRecord.otp) {
       await Otp.deleteOne({ contactNumber });
-      const sessionId = crypto.randomUUID();
+      const newSessionId = crypto.randomUUID();
 
-      await OtpSession.create({ sessionId, contactNumber });
+      await OtpSession.create({ sessionId: newSessionId, contactNumber });
+
       return {
         otpVerified: true,
         message: "OTP verified successfully.",
-        sessionId,
+        sessionId: newSessionId,
       };
     }
   }
 
+  // Fetch session data
   const sessionData = await OtpSession.findOne({ sessionId });
 
-  // if (!sessionData || !sessionData.contactNumber) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "Session expired or invalid sessionId. Please verify OTP again.",
-  //   });
-  // }
+  if (!sessionData || !sessionData.contactNumber) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Session expired or invalid sessionId. Please verify OTP again.",
+    });
+  }
 
   const newUser = {
     role: ROLES.STORE_OWNER,
@@ -170,6 +182,7 @@ module.exports.register = async (req) => {
     message: "Registration successful",
     entity: entityDetails,
     token,
+    isRegistered: true,
   };
 };
 
@@ -178,7 +191,6 @@ module.exports.login = async (req) => {
 
   const user = await User.findOne({ $or: [{ email }, { contactNumber }] });
   console.log({ user });
-  const entityDetails = await EntityDetails.findOne({ userId: user._id });
 
   if (email && contactNumber) {
     throwError({
@@ -187,19 +199,13 @@ module.exports.login = async (req) => {
     });
   }
 
-  if (email != user.email && contactNumber != user.contactNumber) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message:
-        "Please enter correct details of email/contact number or password.",
-    });
-  }
-
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "User does not exist",
+      message: "Invlalid email or mobile number.",
     });
+
+  const entityDetails = await EntityDetails.findOne({ userId: user._id });
 
   if (!entityDetails)
     throwError({

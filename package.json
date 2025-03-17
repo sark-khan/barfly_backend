@@ -16,7 +16,7 @@
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "country-state-city": "^3.2.1",
-    "express": "^4.19.2",
+    "express": "^4.21.2",
     "firebase-admin": "^13.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "5.11.15",
@@ -26,6 +26,7 @@
     "pdfkit": "^0.15.1",
     "pm2": "^5.4.0",
     "redis": "^4.6.15",
+    "socket.io": "^4.8.1",
     "stripe": "^17.7.0",
     "svg-to-pdfkit": "^0.1.8",
     "twilio": "^5.4.3"

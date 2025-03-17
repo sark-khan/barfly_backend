@@ -32,6 +32,7 @@ const {
   newlyAddedEntities,
   popularEntities,
   entityOffers,
+  getFeedbackQuestions,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -480,12 +481,28 @@ router.get("/entity-offers", async (req, res) => {
     const data = await entityOffers();
     return res.status(STATUS_CODES.OK).json({
       message: "Entities offers fetched successfully.",
-      entityOffers:data,
+      entityOffers: data,
     });
   } catch (error) {
     console.error("Error occured while getting entities offers: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error occured while getting entities offers",
+    });
+  }
+});
+
+router.get("/get-feedback-questions", async (req, res) => {
+  try {
+    const data = await getFeedbackQuestions(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Feedback questions fetched successfully.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting feedback questions: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message:
+        error.message || "Error occured while getting feedback questions",
     });
   }
 });

@@ -21,6 +21,7 @@ const {
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
 const verifyToken = require("../Utils/verifyToken");
+const { io } = require("../server");
 
 router.use((req, res, next) => {
   req.userId = req.id;
@@ -35,9 +36,11 @@ router.post("/create-order", async (req, res) => {
       response = await createOrder(req, session);
     });
 
+    const sock = io.emit("newOrder", response);
+    console.log({ sock });
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Order create Successfully.", response });
+      .json({ message: "Order created successfully.", response });
   } catch (error) {
     console.error("Error while adding order", error);
     return res
@@ -167,12 +170,9 @@ router.get("/get-particular-live-order-details", async (req, res) => {
   }
 });
 
-
-
-
 router.get("/get-particular-live-order-details-customer", async (req, res) => {
   try {
-      const particularLiveOrder = await particularOrderDetailsCustomer(req);
+    const particularLiveOrder = await particularOrderDetailsCustomer(req);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Orders fetched successfully.", particularLiveOrder });

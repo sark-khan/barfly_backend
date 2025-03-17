@@ -33,6 +33,7 @@ const CountRTags = require("../../Models/CountRTags");
 const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
 const Discount = require("../../Models/Discount");
+const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -1070,4 +1071,12 @@ module.exports.entityOffers = async () => {
   });
 
   return coupons;
+};
+
+module.exports.getFeedbackQuestions = async (req) => {
+  const { entityId } = req.query;
+
+  const feedbackQuestions = await FeedbackQuestions.find({ entityId });
+  if (!feedbackQuestions) return [];
+  return feedbackQuestions;
 };
