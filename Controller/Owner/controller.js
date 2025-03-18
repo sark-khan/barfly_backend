@@ -309,7 +309,7 @@ router.get("/get-past-events-by-month", async (req, res) => {
     if (!response.length) {
       return res
         .status(STATUS_CODES.OK)
-        .json({ message: `No events found for ${month}/${year}` });
+        .json({ message: `No past events found` });
     }
     return res.status(STATUS_CODES.OK).json({
       message: "Past events successfully fetched",
