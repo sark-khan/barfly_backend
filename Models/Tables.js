@@ -13,6 +13,7 @@ const tableSchema = new mongoose.Schema(
         required: true,
       },
     ],
+    tableSetionNo: { type: Number, default: 0 },
   },
   { timestamps: true, minimize: false }
 );

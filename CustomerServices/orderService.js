@@ -137,26 +137,25 @@ const updateStatusOfOrder = async (req) => {
   const updatedOrder = await Order.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
-    { new: true } 
+    { new: true }
   ).populate("userId");
-  console.log({ updatedOrder });
   const payload = {
     notification: {
       title: "Order Status Updated",
-      body: `Your order is now ${status}. Tap to view details.`
+      body: `Your order is now ${status}. Tap to view details.`,
     },
     data: {
       orderId: orderId,
       status: status,
       screen: "status", // Used in Flutter to navigate
-      click_action: "FLUTTER_NOTIFICATION_CLICK" // ✅ Moved inside `data`
+      click_action: "FLUTTER_NOTIFICATION_CLICK", // ✅ Moved inside `data`
     },
     token: updatedOrder.userId.fcmToken,
     android: {
       priority: "high",
       notification: {
-        click_action: "FLUTTER_NOTIFICATION_CLICK" // ✅ Required for Android
-      }
+        click_action: "FLUTTER_NOTIFICATION_CLICK", // ✅ Required for Android
+      },
     },
     apns: {
       payload: {
@@ -167,16 +166,14 @@ const updateStatusOfOrder = async (req) => {
           alert: {
             title: "Order Status Updated",
             body: `Your order is now ${status}. Tap to view details.`,
-          }
-        }
-      }
-    }
+          },
+        },
+      },
+    },
   };
-  
-  console.log({ payload });
-  
+
   await messaging.send(payload);
-  
+
   console.log(`Push notification sent to user ${req.userId}`);
 };
 

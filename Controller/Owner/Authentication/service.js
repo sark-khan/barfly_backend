@@ -46,8 +46,6 @@ module.exports.register = async (req) => {
   const userEmail = email ? email.trim() : "";
   const userContactNumber = contactNumber ? contactNumber.trim() : "";
 
-  console.log("Checking user with:", { userEmail, userContactNumber });
-
   const userExist = await User.findOne({
     $or: [
       { email: { $regex: `^${userEmail}$`, $options: "i" } },
