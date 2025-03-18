@@ -837,22 +837,41 @@ module.exports.getEventsByMonthAndYear = async (req) => {
     entityId,
     query: { month, year },
   } = req;
+
   if (!month || !year) {
     return res
       .status(STATUS_CODES.BAD_REQUEST)
       .json({ message: "Month and year are required" });
   }
 
-  const currentDateTime = new Date();
+  const monthNum = parseInt(month, 10);
+  const yearNum = parseInt(year, 10);
+
+  if (isNaN(monthNum) || isNaN(yearNum)) {
+    return res
+      .status(STATUS_CODES.BAD_REQUEST)
+      .json({ message: "Invalid month or year format" });
+  }
+
+  const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0);
+  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
   const events = await Event.find({
     entityId,
     to: {
-      $lt: currentDateTime,
+      $gte: startDate,
+      $lte: endDate,
     },
-  }).sort({ date: 1 });
+  }).sort({ to: -1 });
 
-  return events;
+  const eventsWithOrders = await Promise.all(
+    events.map(async (event) => {
+      const totalOrders = await Order.countDocuments({ eventId: event._id });
+      return { ...event.toObject(), totalOrders };
+    })
+  );
+
+  return eventsWithOrders;
 };
 
 module.exports.getMenuCategory = async (req) => {
