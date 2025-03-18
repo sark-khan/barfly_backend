@@ -576,7 +576,6 @@ module.exports.getFavouriteItems = async (req) => {
     });
     return acc;
   }, []);
-  console.log({ menuItemsResp });
   return menuItemsResp;
 };
 
@@ -719,7 +718,6 @@ module.exports.updateUserDetails = async (req) => {
     return message;
   }
 
-  // Now, check if email or contact number exists
   const query = { status: STATUS.ACTIVE };
   if (email) {
     query.email = email;
@@ -728,7 +726,6 @@ module.exports.updateUserDetails = async (req) => {
     query.contactNumber = contactNumber;
   }
 
-  console.log({ query });
   const user = await User.findOne(query);
   if (user) {
     throwError({

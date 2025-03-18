@@ -79,30 +79,46 @@ module.exports.createCounter = async (req) => {
 module.exports.createCounterMenuCategory = async (req) => {
   const {
     entityId,
-    body: { counterIds, categoryName, nutritionType },
+    body: { categories },
   } = req;
 
-  if (!counterIds || !categoryName) {
+  // Validate categories array
+  if (!Array.isArray(categories) || categories.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "CounterIds and category name are required.",
+      message: "Categories must be a non-empty array.",
     });
   }
 
-  if (!Array.isArray(counterIds) || counterIds.length === 0) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "CounterIds must be a non-empty array.",
+  // Validate each category
+  const categoryObjects = [];
+  for (const category of categories) {
+    const { categoryName, nutritionType, counterIds } = category;
+
+    if (
+      !categoryName ||
+      !Array.isArray(counterIds) ||
+      counterIds.length === 0
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message:
+          "Each category must have a categoryName and a non-empty counterIds array.",
+      });
+    }
+
+    // Create objects for each counterId
+    counterIds.forEach((counterId) => {
+      categoryObjects.push({
+        categoryName,
+        nutritionType,
+        counterId,
+        entityId,
+      });
     });
   }
 
-  const categoryObjects = counterIds.map((counterId) => ({
-    counterId,
-    categoryName,
-    entityId,
-    nutritionType,
-  }));
-
+  // Insert all categories in bulk
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
   return createdCategories;
@@ -386,8 +402,8 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
-      startingDate,
-      endDate,
+      // startingDate,
+      // endDate,
       isRepetitive,
       repetitiveDays,
       from,
@@ -397,7 +413,6 @@ module.exports.createEvent = async (req) => {
       location,
     },
   } = req;
-
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
@@ -469,8 +484,8 @@ module.exports.createEvent = async (req) => {
     eventName,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
-    startingDate: new Date(startingDate),
-    endDate: new Date(endDate),
+    // startingDate: new Date(startingDate),
+    // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
@@ -493,22 +508,59 @@ module.exports.createEvent = async (req) => {
 
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
-  const { ownerId, entityId } = req;
+  const {
+    ownerId,
+    entityId,
+    query: { filterBy },
+  } = req; // Accept `filterBy` as "week" or "month"
+
+  let startDate = currentDateTime;
+  let endDate = null;
+
+  if (filterBy === "week") {
+    // Get start and end of the current week
+    const dayOfWeek = currentDateTime.getDay(); // 0 (Sunday) - 6 (Saturday)
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Monday as start
+    startDate = new Date(currentDateTime);
+    startDate.setDate(currentDateTime.getDate() + diffToMonday);
+    startDate.setHours(0, 0, 0, 0);
+
+    endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+  } else if (filterBy === "month") {
+    // Get start and end of the current month
+    startDate = new Date(
+      currentDateTime.getFullYear(),
+      currentDateTime.getMonth(),
+      1
+    );
+    endDate = new Date(
+      currentDateTime.getFullYear(),
+      currentDateTime.getMonth() + 1,
+      0
+    );
+    endDate.setHours(23, 59, 59, 999);
+  }
+
+  const dateFilter = endDate
+    ? { $gte: startDate, $lte: endDate }
+    : { $gte: startDate };
+
+  console.log({ dateFilter });
 
   const upcomingEvents = await Event.find({
     ownerId,
     entityId,
-    from: { $gte: currentDateTime },
+    from: dateFilter,
   }).sort({ createdAt: -1 });
 
-  upcomingEvents.map((logo) => {
-    if (!logo.image) {
-      return logo;
+  upcomingEvents.forEach((event) => {
+    if (event.image) {
+      event.image = generatePresignedUrl(event.image);
     }
-
-    logo.image = generatePresignedUrl(logo.image);
-    return logo;
   });
+  console.log({ sssss: upcomingEvents });
 
   return upcomingEvents;
 };
@@ -1229,7 +1281,6 @@ module.exports.addingTables = async (req) => {
   } = req;
 
   const entity = await EntityDetails.findById(entityId);
-  const counters = await Counter.findOne({ _id: counterId });
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1237,6 +1288,7 @@ module.exports.addingTables = async (req) => {
     });
   }
 
+  const counters = await Counter.findOne({ _id: counterId });
   if (!counters) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1255,13 +1307,18 @@ module.exports.addingTables = async (req) => {
     String(tableFrom + i)
   );
 
-  console.log({ tableNumbers });
+  const lastTable = await Tables.findOne(
+    { entityId },
+    { tableSetionNo: 1 }
+  ).sort({ createdAt: -1 });
+  const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
 
   const tableObj = {
     tableCount: tableNumbers,
     userId,
     entityId,
     counterIds: counterId,
+    tableSetionNo: newTableSectionNo,
   };
   console.log({ tableObj });
 
@@ -1270,7 +1327,11 @@ module.exports.addingTables = async (req) => {
 
 module.exports.getTables = async (req) => {
   const { entityId, userId } = req;
-  const tables = await Tables.find({ userId, entityId }, { tableCount: 1 });
+  const tables = await Tables.find({ userId, entityId }).populate({
+    path: "counterIds",
+    select: "counterName",
+    model: "Counter",
+  });
   if (!tables) return [];
   return tables;
 };
