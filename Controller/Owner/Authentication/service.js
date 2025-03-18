@@ -113,7 +113,6 @@ module.exports.register = async (req) => {
     }
   }
 
-  // Fetch session data
   const sessionData = await OtpSession.findOne({ sessionId });
 
   if (!sessionData || !sessionData.contactNumber) {
@@ -189,15 +188,17 @@ module.exports.register = async (req) => {
 module.exports.login = async (req) => {
   const { email, contactNumber, password } = req.body;
 
-  const user = await User.findOne({ $or: [{ email }, { contactNumber }] });
-  console.log({ user });
-
-  if (email && contactNumber) {
+  const query = {};
+  if (email) query.email = email;
+  if (contactNumber) query.contactNumber = contactNumber;
+  if (!Object.keys(query)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Please enter either email or password.",
+      message: "Phone number or email is required.",
     });
   }
+
+  const user = await User.findOne(query);
 
   if (!user)
     throwError({
