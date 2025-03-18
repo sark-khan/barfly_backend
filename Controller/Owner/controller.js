@@ -316,6 +316,7 @@ router.get("/get-past-events-by-month", async (req, res) => {
       data: response,
     });
   } catch (error) {
+    console.error("Error occured while getting past events by month", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

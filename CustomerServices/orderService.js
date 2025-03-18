@@ -1,11 +1,8 @@
-const MenuItem = require("../Models/MenuItem");
 const EntityDetails = require("../Models/EntityDetails");
-const Counter = require("../Models/Counter");
 const Order = require("../Models/Order");
 const {
   STATUS_CODES,
   ORDER_STATUS,
-  ROLES,
 } = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
