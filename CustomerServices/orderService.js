@@ -1,9 +1,6 @@
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
-const {
-  STATUS_CODES,
-  ORDER_STATUS,
-} = require("../Utils/globalConstants");
+const { STATUS_CODES, ORDER_STATUS } = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
@@ -48,7 +45,7 @@ const createOrder = async (req, session) => {
       counterId = menuItem?.menuCategoryId?.counterId;
 
       if (menuItem.availableQuantity < doc.quantity) {
-        msg += `${menuItem.itemName}, `;
+        msg += `${menuItem.itemName}, not in stock, Please add less item aur wait for restock.`;
       }
       amount += doc.quantity * menuItem.price;
     }
@@ -136,7 +133,6 @@ const updateStatusOfOrder = async (req) => {
     { $set: { status } },
     { new: true }
   ).populate("userId");
-  console.log({sss: updatedOrder.userId})
   const payload = {
     notification: {
       title: "Order Status Updated",
@@ -346,7 +342,7 @@ const particularOrderDetailsCustomer = async (req) => {
   )
     .populate({
       path: "items.itemId",
-      select: "currency itemId itemName quantity isVegan",
+      select: "currency itemId itemName quantity isVegan price",
     })
     .populate({
       path: "entityId",
