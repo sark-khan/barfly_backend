@@ -13,6 +13,7 @@ const {
   STATUS_CODES,
   ROLES,
   STATUS,
+  KEY_TYPE_PREFIXES,
 } = require("../../../Utils/globalConstants");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
@@ -43,18 +44,14 @@ module.exports.register = async (req) => {
       sessionId,
     },
   } = req;
-  const userEmail = email ? email.trim() : "";
-  const userContactNumber = contactNumber ? contactNumber.trim() : "";
 
-  const userExist = await User.findOne({
-    $or: [
-      { email: { $regex: `^${userEmail}$`, $options: "i" } },
-      { contactNumber: userContactNumber },
-    ],
-  });
+  const query = {};
+  if (email) query.email = email;
+  if (contactNumber) query.contactNumber = contactNumber;
 
-  console.log({ userExist });
-  if (userExist) {
+  const user = await User.findOne(query);
+
+  if (user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "User already registered",
@@ -232,4 +229,11 @@ module.exports.login = async (req) => {
   const token = getJwtToken(user, false);
 
   return { user, entityDetails, token };
+};
+
+module.exports.logoutEntity = async (req) => {
+  const { entityId } = req;
+  const entity = await EntityDetails.findById(entityId, { _id: 1 });
+  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+  await redisClient.del(`${prefix}:${entity._id}`);
 };

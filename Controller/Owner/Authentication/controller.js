@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
-const { register, login } = require("./service");
+const { register, login, logoutEntity } = require("./service");
 
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
@@ -33,4 +33,19 @@ router.post("/register", upload.single("file"), async (req, res) => {
       .json({ message: error.message || "Error while registering the user" });
   }
 });
+
+router.post("/logout", async (req, res) => {
+  try {
+    const response = await logoutEntity(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Entity Logged out sucessfully.", response });
+  } catch (error) {
+    console.error("Error while logging out the entity: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while logging out the entity" });
+  }
+});
+
 module.exports = router;
