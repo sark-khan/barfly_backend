@@ -136,6 +136,7 @@ const updateStatusOfOrder = async (req) => {
     { $set: { status } },
     { new: true }
   ).populate("userId");
+  console.log({sss: updatedOrder.userId})
   const payload = {
     notification: {
       title: "Order Status Updated",
