@@ -128,19 +128,45 @@ module.exports.getCounters = async (req) => {
   const {
     userId,
     entityId,
-    query: { counterId },
+    query: { isItemRequired = "false" },
   } = req;
 
-  const query = { counterIds: counterId };
   const counter = await Counter.find(
     { ownerId: userId, entityId },
     { counterName: 1, isSelfPickUp: 1, isTableService: 1 }
-  ).sort({
-    createdAt: -1,
-  });
-  const items = await ItemDetails.find(query, { itemName: 1, isOutOfStock: 1 });
+  )
+    .sort({
+      createdAt: -1,
+    })
+    .lean();
 
-  return [...counter, ...items];
+  if (isItemRequired != "true") {
+    return counter;
+  }
+  const items = await ItemDetails.find(
+    { entityId },
+    { itemName: 1, isOutOfStock: 1, counterIds: 1 }
+  );
+
+  const itemMapping = {};
+
+  items.forEach((element) => {
+    element.counterIds.map((counterId) => {
+      if (!itemMapping[counterId]) {
+        itemMapping[counterId] = [];
+      }
+      itemMapping[counterId].push({
+        itemName: element.itemName,
+        isOutOfStock: element.isOutOfStock,
+      });
+    });
+  });
+
+  const counterDetails = counter.map((counter) => {
+    counter.items = itemMapping[counter._id];
+    return counter;
+  });
+  return counterDetails;
 };
 
 module.exports.getInsiderElements = async (insiderId) => {
@@ -879,7 +905,7 @@ module.exports.getMenuCategory = async (req) => {
     { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 },
     { sort: { _id: -1 }, lean: true }
-  );
+  ).populate({ path: "counterId", select: "counterName", model: "Counter" });
 
   return menuCategories;
 };
@@ -1300,6 +1326,7 @@ module.exports.addingTables = async (req) => {
   } = req;
 
   const entity = await EntityDetails.findById(entityId);
+  console.log({ entity });
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1308,6 +1335,7 @@ module.exports.addingTables = async (req) => {
   }
 
   const counters = await Counter.findOne({ _id: counterId });
+  console.log({ counters });
   if (!counters) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,

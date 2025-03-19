@@ -41,6 +41,7 @@ const NUTRITION_TYPE = {
   LIQUID: "Liquid",
   FOOD: "Food",
   SOLID: "Solid",
+  DEFAULT: "",
 };
 
 const UNIT_TYPE = {
