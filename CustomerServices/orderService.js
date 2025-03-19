@@ -343,6 +343,7 @@ const particularOrderDetailsCustomer = async (req) => {
     .populate({
       path: "items.itemId",
       select: "currency itemId itemName quantity isVegan price",
+      model: "ItemDetails",
     })
     .populate({
       path: "entityId",
