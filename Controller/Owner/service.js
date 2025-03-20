@@ -603,14 +603,27 @@ module.exports.getUpcomingEvents = async (req) => {
   let endDate = null;
 
   if (year && month) {
-    // Monthly filter: Start from today (if in the same month) until the end of the month
-    const firstDayOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const lastDayOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+    // Convert year & month to numbers
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
 
-    startDate =
-      currentDateTime.getMonth() + 1 === month
-        ? currentDateTime
-        : firstDayOfMonth;
+    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      throw new Error("Invalid year or month format.");
+    }
+
+    const firstDayOfMonth = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
+    const lastDayOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+
+    // If the requested month is the current month, start from today
+    if (
+      yearNum === currentDateTime.getFullYear() &&
+      monthNum === currentDateTime.getMonth() + 1
+    ) {
+      startDate = currentDateTime;
+    } else {
+      startDate = firstDayOfMonth; // If it's a future month, start from its first day
+    }
+
     endDate = lastDayOfMonth;
   } else if (filterBy === "week") {
     const dayOfWeek = currentDateTime.getDay(); // Get today's weekday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
