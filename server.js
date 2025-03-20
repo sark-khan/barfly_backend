@@ -1,22 +1,8 @@
-// const express = require("express");
-// const http = require("http");
-// const { Server } = require("socket.io");
-// const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
 
 const User = require("./Models/User");
-// const verifyToken = require("./Utils/verifyToken");
 const { SECRET_KEY } = require("./Utils/commonFunction");
 
-// const app = express();
-// const server = http.createServer(app);
-// const io = new Server(server);
-// function()=>{
-//   token webkitURL
-
-//   socket.userId=decod.userId
-
-// }
 const verifyToken = async (token) => {
   return new Promise((resolve, reject) => {
     jwt.verify(token, SECRET_KEY, (err, decoded) => {
@@ -29,8 +15,8 @@ const verifyToken = async (token) => {
 const orderSocket = async (io) => {
   io.on("connection", async (socket) => {
     const token =
-      socket.handshake.headers.token ||
-      socket.handshake.headers.token?.split(" ")[1];
+      socket.handshake.headers.token || socket.handshake.query.token;
+    // socket.handshake.headers.token?.split(" ")[1];
 
     if (!token) {
       console.log("No token provided, disconnecting...");
@@ -50,9 +36,9 @@ const orderSocket = async (io) => {
 
       await User.updateOne({ _id: userId }, { $set: { socketId: socket.id } });
 
-      socket.on("newOrder", async () => {
-        console.log(`New order event received from ${userId}`);
-      });
+      // socket.on("newOrder", async () => {
+      //   console.log(`New order event received from ${userId}`);
+      // });
 
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
