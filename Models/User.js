@@ -22,6 +22,7 @@ const userSchema = new Schema(
     status: { type: String, enum: Object.values(STATUS) },
     isRegistrationCompleted: { type: Boolean, default: false },
     fcmToken: { type: String },
+    socketId: { type: String },
   },
   { timestamps: true, minimize: false }
 );

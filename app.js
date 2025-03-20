@@ -10,6 +10,20 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
+const http = require("http");
+const { Server } = require("socket.io");
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+  transports: ["websocket", "polling"],
+});
+
+const { orderSocket } = require("./server");
+orderSocket(io);
+module.exports = { io };
+
 const orderController = require("./Controller/orderController");
 const StripeController = require("./Controller/stripeController");
 const Counter = require("./Models/Counter");
@@ -43,6 +57,7 @@ const unProtectedApis = {
 
   "/api/customer/entities/get-menu-category-items": true,
   "/api/customer/entities/recommended-items": true,
+  "/api/get-trade-pdf": true,
 };
 
 app.use("/api/health-check", (req, res) => {
@@ -132,7 +147,7 @@ app.post("/update-entity-items", async (req, res) => {
   }
 });
 
-app.get("/get-trade-pdf", async (req, res) => {
+app.get("/api/get-trade-pdf", async (req, res) => {
   try {
     res.setHeader(
       "Content-Disposition",
@@ -181,6 +196,6 @@ app.post("/api/register-token", async (req, res) => {
 });
 const port = process.env.PORT;
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is listening at http://localhost:${port}`);
 });

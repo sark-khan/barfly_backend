@@ -21,7 +21,8 @@ const {
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
 const verifyToken = require("../Utils/verifyToken");
-const { io } = require("../server");
+const { orderSocket } = require("../server");
+const { io } = require("../app");
 
 router.use((req, res, next) => {
   req.userId = req.id;
@@ -36,8 +37,8 @@ router.post("/create-order", async (req, res) => {
       response = await createOrder(req, session);
     });
 
-    const sock = io.emit("newOrder", response);
-    console.log({ sock });
+    const data = io.emit("newOrder", response);
+    consol.log({ data });
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Order created successfully.", response });

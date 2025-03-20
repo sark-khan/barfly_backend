@@ -532,41 +532,123 @@ module.exports.createEvent = async (req) => {
   return savedEvent;
 };
 
+// module.exports.getUpcomingEvents = async (req) => {
+//   const currentDateTime = new Date();
+//   const {
+//     ownerId,
+//     entityId,
+//     query: { filterBy },
+//   } = req;
+
+//   let startDate = currentDateTime;
+//   let endDate = null;
+
+//   if (filterBy === "week") {
+//     const dayOfWeek = currentDateTime.getDay();
+//     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+//     startDate = new Date(currentDateTime);
+//     startDate.setDate(currentDateTime.getDate() + diffToMonday);
+//     startDate.setHours(0, 0, 0, 0);
+
+//     endDate = new Date(startDate);
+//     endDate.setDate(startDate.getDate() + 6);
+//     endDate.setHours(23, 59, 59, 999);
+//   } else if (filterBy === "month") {
+//     startDate = new Date(
+//       currentDateTime.getFullYear(),
+//       currentDateTime.getMonth(),
+//       1
+//     );
+//     endDate = new Date(
+//       currentDateTime.getFullYear(),
+//       currentDateTime.getMonth() + 1,
+//       0
+//     );
+//     endDate.setHours(23, 59, 59, 999);
+//   }
+
+//   const dateFilter = endDate
+//     ? { $gte: startDate, $lte: endDate }
+//     : { $gte: startDate };
+
+//   console.log({ dateFilter });
+
+//   const upcomingEvents = await Event.find({
+//     ownerId,
+//     entityId,
+//     from: dateFilter,
+//   }).sort({ createdAt: -1 });
+
+//   upcomingEvents.forEach((event) => {
+//     if (event.image) {
+//       event.image = generatePresignedUrl(event.image);
+//     }
+//   });
+//   console.log({ sssss: upcomingEvents });
+
+//   return upcomingEvents;
+// };
+
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
   const {
     ownerId,
     entityId,
-    query: { filterBy },
-  } = req; // Accept `filterBy` as "week" or "month"
+    query: { filterBy, year, month },
+  } = req;
 
-  let startDate = currentDateTime;
-  let endDate = null;
+  let startDate, endDate;
 
-  if (filterBy === "week") {
-    // Get start and end of the current week
-    const dayOfWeek = currentDateTime.getDay(); // 0 (Sunday) - 6 (Saturday)
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Monday as start
-    startDate = new Date(currentDateTime);
-    startDate.setDate(currentDateTime.getDate() + diffToMonday);
-    startDate.setHours(0, 0, 0, 0);
+  if (year && month) {
+    const firstDayOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const lastDayOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
-    endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    // Ensure startDate is at least today
+    startDate =
+      firstDayOfMonth < currentDateTime ? currentDateTime : firstDayOfMonth;
+    endDate = lastDayOfMonth;
+  } else if (filterBy === "week") {
+    const dayOfWeek = currentDateTime.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+    const mondayOfWeek = new Date(currentDateTime);
+    mondayOfWeek.setDate(currentDateTime.getDate() + diffToMonday);
+    mondayOfWeek.setHours(0, 0, 0, 0);
+
+    // Ensure startDate is at least today
+    startDate = mondayOfWeek < currentDateTime ? currentDateTime : mondayOfWeek;
+
+    endDate = new Date(mondayOfWeek);
+    endDate.setDate(mondayOfWeek.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
   } else if (filterBy === "month") {
-    // Get start and end of the current month
-    startDate = new Date(
+    const firstDayOfMonth = new Date(
       currentDateTime.getFullYear(),
       currentDateTime.getMonth(),
-      1
-    );
-    endDate = new Date(
-      currentDateTime.getFullYear(),
-      currentDateTime.getMonth() + 1,
+      1,
+      0,
+      0,
+      0,
       0
     );
-    endDate.setHours(23, 59, 59, 999);
+
+    const lastDayOfMonth = new Date(
+      currentDateTime.getFullYear(),
+      currentDateTime.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
+    // Ensure startDate is at least today
+    startDate =
+      firstDayOfMonth < currentDateTime ? currentDateTime : firstDayOfMonth;
+    endDate = lastDayOfMonth;
+  } else {
+    startDate = currentDateTime;
+    endDate = null;
   }
 
   const dateFilter = endDate
@@ -586,7 +668,6 @@ module.exports.getUpcomingEvents = async (req) => {
       event.image = generatePresignedUrl(event.image);
     }
   });
-  console.log({ sssss: upcomingEvents });
 
   return upcomingEvents;
 };
