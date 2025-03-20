@@ -73,7 +73,7 @@ const createOrder = async (req, session) => {
     discountAmount = couponValidation.discountAmount;
   }
 
-  const finalAmount = originalAmount - discountAmount;
+  const finalAmount = originalAmount - discountAmount - 2.25;
 
   const orderData = {
     status: ORDER_STATUS.WAITING,
@@ -263,7 +263,7 @@ const getLiveOrdersUsers = async (req) => {
     if (order.entityId && order.entityId.image) {
       return {
         ...order.toObject(),
-        finalAmount: order.finalAmount + 2.25,
+        finalAmount: order.finalAmount,
         entityId: {
           ...order.entityId.toObject(),
           image: order.entityId.image.includes("X-Amz-Signature")
@@ -308,7 +308,7 @@ const particularOrderDetails = async (req) => {
       const itemPrice = itemDetail ? itemDetail.price : 0;
       item.totalPrice = itemPrice * (item.quantity || 1);
     }
-    order.finalAmount = order.finalAmount + 2.25;
+    order.finalAmount = order.finalAmount;
   }
 
   return orderDetails;
@@ -363,7 +363,7 @@ const particularOrderDetailsCustomer = async (req) => {
     orderDetails.entityId.image = generatePresignedUrl(
       orderDetails.entityId.image
     );
-    orderDetails.finalAmount = orderDetails.finalAmount + 2.25;
+    orderDetails.finalAmount = orderDetails.finalAmount;
   }
   return orderDetails;
 };

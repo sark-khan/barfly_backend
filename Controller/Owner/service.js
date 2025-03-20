@@ -440,6 +440,8 @@ module.exports.createEvent = async (req) => {
       location,
     },
   } = req;
+
+  console.log({ body: req.body });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
