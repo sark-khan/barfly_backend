@@ -133,7 +133,7 @@ module.exports.getCounters = async (req) => {
   } = req;
 
   const counter = await Counter.find(
-    { ownerId: userId, entityId },
+    { ownerId: userId, entityId, status: STATUS.ACTIVE },
     { counterName: 1, isSelfPickUp: 1, isTableService: 1 }
   )
     .sort({
