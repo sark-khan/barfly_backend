@@ -372,7 +372,7 @@ router.post("/update-counter-settings", async (req, res) => {
   try {
     const counterSettings = await updateCounterSettings(req);
     return res.status(STATUS_CODES.OK).json({
-      message: "Counter Settings Updated",
+      message: "Counter updated successfully.",
       counterSettings,
     });
   } catch (error) {

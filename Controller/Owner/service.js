@@ -57,6 +57,7 @@ module.exports.createCounter = async (req) => {
       isTableService,
       isSelfPickUp,
       totalTables,
+      status: STATUS.ACTIVE,
     },
     { new: true, upsert: true, lean: true }
   );
@@ -597,72 +598,72 @@ module.exports.getUpcomingEvents = async (req) => {
     query: { filterBy, year, month },
   } = req;
 
-  let startDate, endDate;
+  let startDate = new Date(currentDateTime); // Default to today
+  startDate.setHours(0, 0, 0, 0);
+  let endDate = null;
 
   if (year && month) {
+    // Monthly filter: Start from today (if in the same month) until the end of the month
     const firstDayOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
     const lastDayOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Ensure startDate is at least today
     startDate =
-      firstDayOfMonth < currentDateTime ? currentDateTime : firstDayOfMonth;
+      currentDateTime.getMonth() + 1 === month
+        ? currentDateTime
+        : firstDayOfMonth;
     endDate = lastDayOfMonth;
   } else if (filterBy === "week") {
-    const dayOfWeek = currentDateTime.getDay();
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const dayOfWeek = currentDateTime.getDay(); // Get today's weekday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const diffToNextDay = 1; // Start from tomorrow
 
-    const mondayOfWeek = new Date(currentDateTime);
-    mondayOfWeek.setDate(currentDateTime.getDate() + diffToMonday);
-    mondayOfWeek.setHours(0, 0, 0, 0);
+    const startFromTomorrow = new Date(currentDateTime);
+    startFromTomorrow.setDate(currentDateTime.getDate() + diffToNextDay);
+    startFromTomorrow.setHours(0, 0, 0, 0);
 
-    // Ensure startDate is at least today
-    startDate = mondayOfWeek < currentDateTime ? currentDateTime : mondayOfWeek;
+    const endOfWeek = new Date(currentDateTime);
+    const remainingDays = 7 - dayOfWeek; // Days left in the week including today
+    endOfWeek.setDate(currentDateTime.getDate() + remainingDays - 1); // Move to Sunday
+    endOfWeek.setHours(23, 59, 59, 999);
 
-    endDate = new Date(mondayOfWeek);
-    endDate.setDate(mondayOfWeek.getDate() + 6);
-    endDate.setHours(23, 59, 59, 999);
+    startDate = startFromTomorrow; // Start from tomorrow
+    endDate = endOfWeek;
   } else if (filterBy === "month") {
-    const firstDayOfMonth = new Date(
-      currentDateTime.getFullYear(),
-      currentDateTime.getMonth(),
-      1,
-      0,
-      0,
-      0,
-      0
-    );
+    const currentYear = currentDateTime.getFullYear();
+    const currentMonth = currentDateTime.getMonth(); // 0-based (Jan = 0, Feb = 1, ...)
 
-    const lastDayOfMonth = new Date(
-      currentDateTime.getFullYear(),
-      currentDateTime.getMonth() + 1,
+    const startFromTomorrow = new Date(currentDateTime);
+    startFromTomorrow.setDate(currentDateTime.getDate() + 1); // Start from tomorrow
+    startFromTomorrow.setHours(0, 0, 0, 0);
+
+    const endOfMonth = new Date(
+      currentYear,
+      currentMonth + 1,
       0,
       23,
       59,
       59,
       999
-    );
+    ); // Last day of the month
 
-    // Ensure startDate is at least today
-    startDate =
-      firstDayOfMonth < currentDateTime ? currentDateTime : firstDayOfMonth;
-    endDate = lastDayOfMonth;
-  } else {
-    startDate = currentDateTime;
-    endDate = null;
+    startDate = startFromTomorrow; // Start from tomorrow
+    endDate = endOfMonth; // End of the month
   }
 
-  const dateFilter = endDate
-    ? { $gte: startDate, $lte: endDate }
-    : { $gte: startDate };
+  // Ensure only future events are included
+  const dateFilter = { $gte: startDate };
+  if (endDate) {
+    dateFilter.$lte = endDate;
+  }
 
   console.log({ dateFilter });
 
   const upcomingEvents = await Event.find({
     ownerId,
     entityId,
-    from: dateFilter,
-  }).sort({ createdAt: -1 });
+    from: dateFilter, // Filters based on "from" key
+  }).sort({ from: 1 });
 
+  // Generate presigned URLs for event images
   upcomingEvents.forEach((event) => {
     if (event.image) {
       event.image = generatePresignedUrl(event.image);
@@ -939,7 +940,7 @@ module.exports.getMonthlyEventDetails = async (req) => {
   };
 };
 
-module.exports.getEventsByMonthAndYear = async (req) => {
+module.exports.getEventsByMonthAndYear = async (req, res) => {
   const {
     entityId,
     query: { month, year },
@@ -960,17 +961,26 @@ module.exports.getEventsByMonthAndYear = async (req) => {
       .json({ message: "Invalid month or year format" });
   }
 
-  const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0);
-  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+  // Get current date and time
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0); // Normalize time to start of today
 
+  // Get the first day of the selected month
+  const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
+
+  // Ensure today’s date falls within the month; otherwise, use the last day of the month
+  const todayOrEndOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+  const endDate =
+    currentDate < todayOrEndOfMonth ? currentDate : todayOrEndOfMonth;
+
+  // Fetch only past events within the selected month **up to today**
   const events = await Event.find({
     entityId,
-    to: {
-      $gte: startDate,
-      $lte: endDate,
-    },
-  }).sort({ to: -1 });
+    from: { $gte: startDate, $lte: endDate }, // Events should be within the selected month
+    to: { $lt: currentDate }, // Only past events
+  }).sort({ from: -1 });
 
+  // Fetch order count for each event
   const eventsWithOrders = await Promise.all(
     events.map(async (event) => {
       const totalOrders = await Order.countDocuments({ eventId: event._id });
@@ -1105,16 +1115,28 @@ module.exports.getCounterMenuQuantites = async (req) => {
 };
 
 module.exports.updateCounterSettings = async (req) => {
-  const { isTableService, isSelfPickUp, counterId, totalTables } = req.body;
+  const { isTableService, isSelfPickUp, counterId, totalTables, action } =
+    req.body;
 
-  const counter = await Counter.updateOne(
-    { _id: counterId },
-    { $set: { isTableService, isSelfPickUp, totalTables } }
-  );
-  if (counter.matchedCount == 0) {
-    throwError({ message: "No Such counter exists", status: 404 });
+  const counter = await Counter.findOne({ _id: counterId });
+  if (!counter) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Counter doesn't exist.",
+    });
   }
-  return counter;
+  if (action === EDIT_ACTION.EDIT) {
+    if (isTableService) counter.isTableService = isTableService;
+    if (isSelfPickUp) counter.isSelfPickUp = isSelfPickUp;
+    if (totalTables) counter.totalTables = totalTables;
+
+    await counter.save();
+  } else if (action === EDIT_ACTION.DELETE) {
+    await Counter.updateOne(
+      { _id: counterId },
+      { $set: { status: STATUS.DELETED } }
+    );
+  }
 };
 
 module.exports.getCounterSettings = async (req) => {
@@ -1482,19 +1504,48 @@ module.exports.getUsersFeedback = async (req) => {
   return feedbacks;
 };
 
-module.exports.addFeedbackQuestions = async (req) => {
-  const {
-    entityId,
-    userId,
-    body: { question, answerType, comment },
-  } = req;
+const globalConstants = require("../../Utils/globalConstants"); // Import entire module
 
-  const questionObj = {
+const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES; // ✅ Ensure it's defined
+
+console.log("ALL_ANSWER_TYPES in addFeedbackQuestions:", ALL_ANSWER_TYPES); // Debugging log
+
+module.exports.addFeedbackQuestions = async (req) => {
+  const { entityId, userId, body } = req;
+
+  if (!body) {
+    throw new Error("Invalid request: body is missing.");
+  }
+
+  const { question, answerType, comment } = body;
+
+  if (!ALL_ANSWER_TYPES || !Array.isArray(ALL_ANSWER_TYPES)) {
+    console.error("🚨 ERROR: ALL_ANSWER_TYPES is undefined or not an array!");
+    throw new Error("Internal error: Answer type list is not available.");
+  }
+
+  if (!Array.isArray(answerType)) {
+    throw new Error(
+      "Invalid answerType. Expected an array of valid answer types."
+    );
+  }
+
+  const invalidAnswers = answerType.filter(
+    (ans) => !ALL_ANSWER_TYPES.includes(ans)
+  );
+  if (invalidAnswers.length > 0) {
+    throw new Error(
+      `Invalid answerType values: ${invalidAnswers.join(
+        ", "
+      )}. Allowed values are: ${ALL_ANSWER_TYPES.join(", ")}`
+    );
+  }
+
+  return FeedbackQuestions.create({
     userId,
     entityId,
     question,
     answerType,
     comment,
-  };
-  return FeedbackQuestions.create(questionObj);
+  });
 };

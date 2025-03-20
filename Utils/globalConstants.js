@@ -293,16 +293,17 @@ const STRIPE_PAYMENT_STATUS = {
   CANCELLED: "Cancelled",
 };
 
-module.exports.ANSWER_TYPES = {
-  RATING: Array.from({ length: 10 }, (_, i) => (i + 1).toString()),
+const ANSWER_TYPES = {
+  RATING: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
   FEEDBACK: ["Good", "Decent", "Bad"],
   BOOLEAN: ["True", "False", "Neutral"],
 };
 
-module.exports.ALL_ANSWER_TYPES = [
-  ...module.exports.ANSWER_TYPES.RATING,
-  ...module.exports.ANSWER_TYPES.FEEDBACK,
-  ...module.exports.ANSWER_TYPES.BOOLEAN,
+// ✅ Explicitly define ALL_ANSWER_TYPES
+const ALL_ANSWER_TYPES = [
+  ...ANSWER_TYPES.RATING,
+  ...ANSWER_TYPES.FEEDBACK,
+  ...ANSWER_TYPES.BOOLEAN,
 ];
 
 module.exports = {
@@ -324,4 +325,8 @@ module.exports = {
   STRIPE_PAYMENT_STATUS,
   NUTRITION_TYPE,
   UNIT_TYPE,
+  ANSWER_TYPES,
+  ALL_ANSWER_TYPES,
 };
+
+console.log("ALL_ANSWER_TYPES Loaded:", module.exports.ALL_ANSWER_TYPES); // Debugging log
