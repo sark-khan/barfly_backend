@@ -38,7 +38,6 @@ router.post("/create-order", async (req, res) => {
     });
 
     const data = io.emit("newOrder", response);
-    consol.log({ data });
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Order created successfully.", response });
