@@ -33,6 +33,7 @@ const {
   getCounters,
   emailExist,
   restaurantOpen,
+  deleteEntityAccount,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
