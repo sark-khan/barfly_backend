@@ -43,7 +43,8 @@ const orderSocket = async (io) => {
       // socket.on("newOrder", async () => {
       //   console.log(`New order event received from ${userId}`);
       // });
-
+      socket.join(userId);
+      console.log(`User ${userId} joined room: ${userId}`);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
         await User.updateOne({ _id: userId }, { $unset: { socketId: "" } });

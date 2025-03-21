@@ -37,10 +37,11 @@ router.post("/create-order", async (req, res) => {
     await session.withTransaction(async () => {
       response = await createOrder(req, session);
     });
-    const userDetails = await User.findById(req.userId, { socketId: 1 });
-    if (userDetails && userDetails.socketId) {
-      io.to(userDetails.socketId).emit("newOrder", response);
-    }
+    // const userDetails = await User.findById(req.userId, { socketId: 1 });
+    // if (userDetails && userDetails.socketId) {
+    io.to(req.userId).emit("newOrder", response);
+    // }
+
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Order created successfully.", response });
