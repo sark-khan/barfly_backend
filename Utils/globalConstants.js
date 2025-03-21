@@ -47,6 +47,7 @@ const NUTRITION_TYPE = {
 const UNIT_TYPE = {
   ML: "ML",
   Litre: "L",
+  GRAM: "G",
 };
 
 const DRINKS_SIZE = {
