@@ -1183,11 +1183,10 @@ module.exports.updateCounterSettings = async (req) => {
       status: STATUS_CODES.BAD_REQUEST,
       message: "Counter doesn't exist.",
     });
-    return; // Ensure execution stops
+    return;
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    // Ensure false or 0 values are not skipped
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (totalTables !== undefined) counter.totalTables = totalTables;
