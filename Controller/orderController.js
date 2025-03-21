@@ -23,6 +23,7 @@ const { STATUS_CODES } = require("../Utils/globalConstants");
 const verifyToken = require("../Utils/verifyToken");
 const { orderSocket } = require("../server");
 const { io } = require("../app");
+const User = require("../Models/User");
 
 router.use((req, res, next) => {
   req.userId = req.id;
@@ -36,7 +37,7 @@ router.post("/create-order", async (req, res) => {
     await session.withTransaction(async () => {
       response = await createOrder(req, session);
     });
-    const userDetails = await User.findById(req.id, { socketId: 1 });
+    const userDetails = await User.findById(req.userId, { socketId: 1 });
     if (userDetails && userDetails.socketId) {
       io.to(userDetails.socketId).emit("newOrder", response);
     }
