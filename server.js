@@ -14,6 +14,10 @@ const verifyToken = async (token) => {
 
 const orderSocket = async (io) => {
   io.on("connection", async (socket) => {
+    console.log(socket.handshake.headers);
+    console.log(">>>>>>>>>>>>>>.");
+    console.log(socket.handshake.query);
+    console.log(socket.id);
     const token =
       socket.handshake.headers.token || socket.handshake.query.token;
     // socket.handshake.headers.token?.split(" ")[1];
