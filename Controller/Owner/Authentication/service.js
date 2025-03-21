@@ -7,6 +7,7 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
+const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
 const {

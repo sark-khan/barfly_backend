@@ -5,8 +5,8 @@ const { ObjectId } = mongoose.Types;
 const eventSchema = new Schema(
   {
     eventName: { type: String, required: true },
-    startingDate: { type: Date },
-    endDate: { type: Date },
+    // startingDate: { type: Date },
+    // endDate: { type: Date },
     isRepetitive: { type: Boolean, default: false },
     repetitiveDays: { type: [Number] },
     from: { type: Date, required: true },

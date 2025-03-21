@@ -26,18 +26,28 @@ const User = require("../../Models/User");
 const Tables = require("../../Models/Tables");
 const Feedbacks = require("../../Models/UserFeedback");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
+const globalConstants = require("../../Utils/globalConstants");
+
+const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
 module.exports.createCounter = async (req) => {
   const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
+
   if (!counterName) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Couter name is required",
+      message: "Counter name is required",
     };
   }
 
+  // Check if a counter with the same name already exists for this owner
   const existingCounter = await Counter.findOne(
-    { counterName, ownerId: req.userId },
+    {
+      counterName,
+      ownerId: req.userId,
+      entityId: req.entityId,
+      status: STATUS.ACTIVE,
+    },
     { _id: 1 }
   );
 
@@ -48,33 +58,17 @@ module.exports.createCounter = async (req) => {
     };
   }
 
-  const newCounter = await Counter.findOneAndUpdate(
-    { counterName, ownerId: req.id, entityId: req.entityId },
-    {
-      counterName,
-      ownerId: req.userId,
-      entityId: req.entityId,
-      isTableService,
-      isSelfPickUp,
-      totalTables,
-      status: STATUS.ACTIVE,
-    },
-    { new: true, upsert: true, lean: true }
-  );
+  const newCounter = await Counter.create({
+    counterName,
+    ownerId: req.userId,
+    entityId: req.entityId,
+    isTableService,
+    isSelfPickUp,
+    totalTables,
+    status: STATUS.ACTIVE,
+  });
 
-  if (!newCounter) {
-    throw {
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Failed to create a counter",
-    };
-  }
-
-  // const response = newCounter;
-  // delete response.createdAt;
-  // delete response.updatedAt;
-  // delete response.ownerId;
-
-  return newCounter;
+  return newCounter.toObject(); // Convert to plain object for response
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
@@ -83,7 +77,6 @@ module.exports.createCounterMenuCategory = async (req) => {
     body: { categories },
   } = req;
 
-  // Validate categories array
   if (!Array.isArray(categories) || categories.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -91,8 +84,6 @@ module.exports.createCounterMenuCategory = async (req) => {
     });
   }
 
-  // Validate each category
-  const categoryObjects = [];
   for (const category of categories) {
     const { categoryName, nutritionType, counterIds } = category;
 
@@ -108,18 +99,29 @@ module.exports.createCounterMenuCategory = async (req) => {
       });
     }
 
-    // Create objects for each counterId
-    counterIds.forEach((counterId) => {
-      categoryObjects.push({
+    const existingCategory = await MenuCategory.findOne({
+      entityId,
+      categoryName,
+    });
+
+    if (existingCategory) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: `Category name '${categoryName}' already exists.`,
+      });
+    }
+  }
+
+  const categoryObjects = categories.flatMap(
+    ({ categoryName, nutritionType, counterIds }) =>
+      counterIds.map((counterId) => ({
         categoryName,
         nutritionType,
         counterId,
         entityId,
-      });
-    });
-  }
+      }))
+  );
 
-  // Insert all categories in bulk
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
   return createdCategories;
@@ -132,41 +134,54 @@ module.exports.getCounters = async (req) => {
     query: { isItemRequired = "false" },
   } = req;
 
-  const counter = await Counter.find(
+  // Fetch only active counters
+  const counters = await Counter.find(
     { ownerId: userId, entityId, status: STATUS.ACTIVE },
-    { counterName: 1, isSelfPickUp: 1, isTableService: 1, totalTables:1 }
+    { counterName: 1, isSelfPickUp: 1, isTableService: 1, totalTables: 1 }
   )
-    .sort({
-      createdAt: -1,
-    })
+    .sort({ createdAt: -1 })
     .lean();
 
-  if (isItemRequired != "true") {
-    return counter;
+  if (isItemRequired !== "true") {
+    return counters;
   }
+
+  // Fetch active counters' IDs
+  const activeCounterIds = counters.map((counter) => counter._id.toString());
+
+  // Fetch items that have at least one active counter
   const items = await ItemDetails.find(
     { entityId },
     { itemName: 1, isOutOfStock: 1, counterIds: 1 }
-  );
+  ).lean();
 
   const itemMapping = {};
 
-  items.forEach((element) => {
-    element.counterIds.map((counterId) => {
-      if (!itemMapping[counterId]) {
-        itemMapping[counterId] = [];
-      }
-      itemMapping[counterId].push({
-        itemName: element.itemName,
-        isOutOfStock: element.isOutOfStock,
+  items.forEach((item) => {
+    // Check if all counterIds for this item are in activeCounterIds
+    const validCounterIds = item.counterIds.filter((id) =>
+      activeCounterIds.includes(id.toString())
+    );
+
+    if (validCounterIds.length === item.counterIds.length) {
+      validCounterIds.forEach((counterId) => {
+        if (!itemMapping[counterId]) {
+          itemMapping[counterId] = [];
+        }
+        itemMapping[counterId].push({
+          itemName: item.itemName,
+          isOutOfStock: item.isOutOfStock,
+        });
       });
-    });
+    }
   });
 
-  const counterDetails = counter.map((counter) => {
-    counter.items = itemMapping[counter._id];
-    return counter;
-  });
+  // Attach only items belonging to active counters
+  const counterDetails = counters.map((counter) => ({
+    ...counter,
+    items: itemMapping[counter._id] || [],
+  }));
+
   return counterDetails;
 };
 
@@ -389,13 +404,22 @@ module.exports.getCreatedItems = async (req) => {
     .lean()
     .populate({
       path: "menuCategoryId",
-      select: "categoryName",
+      select: "categoryName counterId",
       model: "CounterMenuCategory",
+      populate: {
+        path: "counterId",
+        select: "status",
+        model: "Counter",
+      },
     })
     .skip(skip)
     .limit(limit);
 
-  const itemsList = createdItems.map((item) => {
+  const filteredItems = createdItems.filter(
+    (item) => item.menuCategoryId?.counterId?.status === STATUS.ACTIVE
+  );
+
+  const itemsList = filteredItems.map((item) => {
     if (!item.image) {
       console.warn(`⚠️ Warning: Missing image for item ${item._id}`);
       return item;
@@ -407,7 +431,7 @@ module.exports.getCreatedItems = async (req) => {
     };
   });
 
-  return { itemsList, totalCount };
+  return { itemsList, totalCount: filteredItems.length };
 };
 
 module.exports.getParticularItemDetail = async (req) => {
@@ -811,11 +835,23 @@ module.exports.getOngoingEventDetails = async (req) => {
   );
 
   const eventDetailsMap = new Map();
-
   const ongoingEvents = events?.filter((event) => {
     if (event.isRepetitive) {
-      const day = currentTime.getDay();
-      if (!event.repetitiveDays || !event.repetitiveDays[day]) {
+      const currentUTCday = currentTime.getUTCDay(); // Get today's index (Sunday = 0, Monday = 1, ...)
+
+      const adjustedRepetitiveDays = [
+        event.repetitiveDays[6], // Sunday (move last element to index 0)
+        ...event.repetitiveDays.slice(0, 6), // Rest stays same
+      ];
+
+      if (
+        !Array.isArray(adjustedRepetitiveDays) ||
+        adjustedRepetitiveDays.length !== 7
+      ) {
+        return false;
+      }
+
+      if (adjustedRepetitiveDays[currentUTCday] !== 1) {
         return false;
       }
     }
@@ -1011,9 +1047,17 @@ module.exports.getMenuCategory = async (req) => {
     { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 },
     { sort: { _id: -1 }, lean: true }
-  ).populate({ path: "counterId", select: "counterName", model: "Counter" });
+  ).populate({
+    path: "counterId",
+    select: "counterName status",
+    model: "Counter",
+  });
 
-  return menuCategories;
+  const filteredCategories = menuCategories.filter(
+    (category) => category.counterId?.status === STATUS.ACTIVE
+  );
+
+  return filteredCategories;
 };
 
 module.exports.getMenuCategoryItems = async (req) => {
@@ -1139,11 +1183,14 @@ module.exports.updateCounterSettings = async (req) => {
       status: STATUS_CODES.BAD_REQUEST,
       message: "Counter doesn't exist.",
     });
+    return; // Ensure execution stops
   }
+
   if (action === EDIT_ACTION.EDIT) {
-    if (isTableService) counter.isTableService = isTableService;
-    if (isSelfPickUp) counter.isSelfPickUp = isSelfPickUp;
-    if (totalTables) counter.totalTables = totalTables;
+    // Ensure false or 0 values are not skipped
+    if (isTableService !== undefined) counter.isTableService = isTableService;
+    if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
+    if (totalTables !== undefined) counter.totalTables = totalTables;
 
     await counter.save();
   } else if (action === EDIT_ACTION.DELETE) {
@@ -1519,12 +1566,6 @@ module.exports.getUsersFeedback = async (req) => {
   return feedbacks;
 };
 
-const globalConstants = require("../../Utils/globalConstants"); // Import entire module
-
-const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES; // ✅ Ensure it's defined
-
-console.log("ALL_ANSWER_TYPES in addFeedbackQuestions:", ALL_ANSWER_TYPES); // Debugging log
-
 module.exports.addFeedbackQuestions = async (req) => {
   const { entityId, userId, body } = req;
 
@@ -1563,4 +1604,11 @@ module.exports.addFeedbackQuestions = async (req) => {
     answerType,
     comment,
   });
+};
+
+module.exports.emailExist = async (req) => {
+  const emailExist = await User.distinct("email");
+  const phoneExist = await User.distinct("contactNumber");
+
+  return { emailExist, phoneExist };
 };

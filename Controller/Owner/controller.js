@@ -31,6 +31,7 @@ const {
   getUsersFeedback,
   addFeedbackQuestions,
   getCounters,
+  emailExist,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -550,6 +551,34 @@ router.post("/add-feedback-questions", async (req, res) => {
       .json({ message: "Feedback questions added successfully." });
   } catch (error) {
     console.error("Error while adding the feedback questions.", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/restaurant-open", async (req, res) => {
+  try {
+    await restaurantOpen(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Restaurant updated successfully." });
+  } catch (error) {
+    console.error("Error while updating the restaurant.", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/email-exist", async (req, res) => {
+  try {
+    const data = await emailExist(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Emails fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching the emails.", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
