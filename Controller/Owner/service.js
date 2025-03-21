@@ -99,11 +99,10 @@ module.exports.createCounterMenuCategory = async (req) => {
       });
     }
 
-    // Check if the category name already exists for any of the provided counterIds
     const existingCategory = await MenuCategory.findOne({
       entityId,
       categoryName,
-      counterId: { $in: counterIds }, // Ensures name uniqueness per counterId
+      counterId: { $in: counterIds },
     });
 
     if (existingCategory) {

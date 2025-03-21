@@ -675,6 +675,89 @@ const cancelOrder = async (req) => {
   );
 };
 
+const getEventOrderSummary = async (req) => {
+  const { eventId, counterId } = req.query;
+
+  const query = { eventId };
+  if (counterId) {
+    query.counterId = counterId;
+  }
+
+  const orders = await Order.find(query)
+    .populate({
+      path: "counterId",
+      select: "counterName",
+      model: "Counter",
+    })
+    .populate({
+      path: "items.itemId",
+      select: "itemName price",
+      model: "ItemDetails",
+    })
+    .lean();
+
+  const counterSummary = {};
+  let totalOrders = 0;
+  let totalAmount = 0;
+
+  const orderDetails = orders
+    .map((order) => {
+      const { counterId, finalAmount, tokenNumber, items } = order;
+
+      if (!counterId) return null;
+
+      const counterKey = counterId._id.toString();
+      const counterName = counterId.counterName;
+
+      if (!counterSummary[counterKey]) {
+        counterSummary[counterKey] = {
+          counterName,
+          totalOrders: 0,
+          totalAmount: 0,
+        };
+      }
+
+      counterSummary[counterKey].totalOrders += 1;
+      counterSummary[counterKey].totalAmount += finalAmount;
+
+      totalOrders += 1;
+      totalAmount += finalAmount;
+
+      return {
+        orderId: order._id,
+        tokenNumber,
+        finalAmount,
+        counterId: counterKey,
+        counterName,
+        items: items.map((item) => ({
+          itemId: item.itemId?._id,
+          itemName: item.itemId?.itemName,
+          price: item.itemId?.price,
+          quantity: item.quantity,
+          totalPrice: item.quantity * item.itemId?.price,
+        })),
+      };
+    })
+    .filter(Boolean);
+
+  const counters = Object.entries(counterSummary).map(([counterId, data]) => ({
+    counterId,
+    counterName: data.counterName,
+    totalOrders: data.totalOrders,
+    totalAmount: data.totalAmount,
+  }));
+
+  const result = {
+    eventId,
+    totalOrders,
+    totalAmount,
+    counters,
+    orders: orderDetails,
+  };
+
+  return result;
+};
+
 module.exports = {
   createOrder,
   updateStatusOfOrder,
@@ -688,4 +771,5 @@ module.exports = {
   getOrderGroupByMonths,
   getRestaurantOrdersAndCount,
   particularOrderDetailsCustomer,
+  getEventOrderSummary,
 };

@@ -16,6 +16,7 @@ const {
   getOrderGroupByMonths,
   getRestaurantOrdersAndCount,
   particularOrderDetailsCustomer,
+  getEventOrderSummary,
 } = require("../CustomerServices/orderService");
 
 const { STATUS_CODES } = require("../Utils/globalConstants");
@@ -39,6 +40,7 @@ router.post("/create-order", async (req, res) => {
     });
     // const userDetails = await User.findById(req.userId, { socketId: 1 });
     // if (userDetails && userDetails.socketId) {
+    console.log({ io, userId: req.userId });
     io.to(req.userId.toString()).emit("newOrder", response);
     // }
 
@@ -213,6 +215,20 @@ router.post("/cancel-order", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while cancelling the order" });
+  }
+});
+
+router.get("/get-event-order-summary", async (req, res) => {
+  try {
+    const data = await getEventOrderSummary(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Revenue generated successfully.", data });
+  } catch (error) {
+    console.error("Error while generating the revenue", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while generating the revenue" });
   }
 });
 
