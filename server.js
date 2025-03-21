@@ -44,7 +44,7 @@ const orderSocket = async (io) => {
       // socket.on("newOrder", async () => {
       //   console.log(`New order event received from ${userId}`);
       // });
-      console.log({entityId});
+      console.log({entityId, sss: socket.id});
       socket.join(entityId);
       console.log(`User ${userId} joined room: ${entityId}`);
       socket.on("disconnect", async () => {

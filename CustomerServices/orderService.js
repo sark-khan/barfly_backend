@@ -106,6 +106,7 @@ const createOrder = async (req, session) => {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
   console.log({r: req.userId});
+  console.log({entityId});
   io.to(entityId).emit("newOrder", createdOrder);
   return createdOrder;
 };
