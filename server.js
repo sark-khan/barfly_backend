@@ -30,6 +30,7 @@ const orderSocket = async (io) => {
     try {
       const decoded = await verifyToken(token);
       const userId = decoded.userId;
+      const entityId= decoded.entityId;
 
       if (!userId) {
         console.log("Invalid token, disconnecting...");
@@ -43,8 +44,9 @@ const orderSocket = async (io) => {
       // socket.on("newOrder", async () => {
       //   console.log(`New order event received from ${userId}`);
       // });
-      socket.join(userId);
-      console.log(`User ${userId} joined room: ${userId}`);
+      console.log({entityId});
+      socket.join(entityId);
+      console.log(`User ${userId} joined room: ${entityId}`);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
         await User.updateOne({ _id: userId }, { $unset: { socketId: "" } });

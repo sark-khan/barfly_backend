@@ -39,6 +39,7 @@ router.post("/create-order", async (req, res) => {
     });
     // const userDetails = await User.findById(req.userId, { socketId: 1 });
     // if (userDetails && userDetails.socketId) {
+    console.log({r: req.userId});
     io.to(req.userId.toString()).emit("newOrder", response);
     // }
 
