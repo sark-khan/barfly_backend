@@ -32,6 +32,7 @@ const {
   addFeedbackQuestions,
   getCounters,
   emailExist,
+  restaurantOpen,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -582,6 +583,20 @@ router.get("/email-exist", async (req, res) => {
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
+  }
+});
+
+router.post("/delete-entity-account", async (req, res) => {
+  try {
+    await deleteEntityAccount(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Entity account deleted successfully." });
+  } catch (error) {
+    console.error("Error while deleting the account: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while deleting the account." });
   }
 });
 

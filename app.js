@@ -58,6 +58,7 @@ const unProtectedApis = {
   "/api/customer/entities/get-menu-category-items": true,
   "/api/customer/entities/recommended-items": true,
   "/api/get-trade-pdf": true,
+  "/api/owner/restaurant/email-exist": true,
 };
 
 app.use("/api/health-check", (req, res) => {

@@ -99,19 +99,22 @@ module.exports.createCounterMenuCategory = async (req) => {
       });
     }
 
+    // Check if the category name already exists for any of the provided counterIds
     const existingCategory = await MenuCategory.findOne({
       entityId,
       categoryName,
+      counterId: { $in: counterIds }, // Ensures name uniqueness per counterId
     });
 
     if (existingCategory) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: `Category name '${categoryName}' already exists.`,
+        message: `Category name '${categoryName}' already exists for one of the selected counters.`,
       });
     }
   }
 
+  // Creating category objects for each counterId
   const categoryObjects = categories.flatMap(
     ({ categoryName, nutritionType, counterIds }) =>
       counterIds.map((counterId) => ({
@@ -171,6 +174,7 @@ module.exports.getCounters = async (req) => {
         itemMapping[counterId].push({
           itemName: item.itemName,
           isOutOfStock: item.isOutOfStock,
+          _id: item._id,
         });
       });
     }
@@ -1417,8 +1421,10 @@ module.exports.editBusinessDetails = async (req) => {
     });
   }
 
-  const updateFields = {};
+  const updateEntityFields = {};
+  const updateUserFields = {};
 
+  // Handle file upload
   if (action === EDIT_ACTION.EDIT && file) {
     const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
       / /g,
@@ -1427,7 +1433,7 @@ module.exports.editBusinessDetails = async (req) => {
     try {
       const { Location } = await uploadBufferToS3(file.buffer, fileName);
       if (!Location) throw new Error("File upload failed");
-      updateFields.image = fileName;
+      updateEntityFields.image = fileName;
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
@@ -1435,9 +1441,10 @@ module.exports.editBusinessDetails = async (req) => {
       });
     }
   } else if (action === EDIT_ACTION.DELETE) {
-    updateFields.image = "";
+    updateEntityFields.image = "";
   }
 
+  // Handle password update
   if (password) {
     const isSamePassword = await comparePassword(password, user.password);
     if (isSamePassword) {
@@ -1446,35 +1453,48 @@ module.exports.editBusinessDetails = async (req) => {
         message: "We don't accept old password as new password.",
       });
     }
-    updateFields.password = bcrypt.hashSync(password, 10);
+    updateUserFields.password = bcrypt.hashSync(password, 10);
   }
 
-  if (email) updateFields.email = email;
-  if (entityContactNumber)
-    updateFields.entityContactNumber = entityContactNumber;
-  if (location) updateFields.location = location;
-  if (floor) updateFields.floor = floor;
-  if (buildingName) updateFields.buildingName = buildingName;
-  if (landMark) updateFields.landMark = landMark;
-  if (zipcode) updateFields.zipcode = zipcode;
+  // Handle email update
+  if (email) {
+    updateEntityFields.email = email;
+    updateUserFields.email = email;
+  }
+
+  // Handle entityContactNumber update & update contactNumber in User collection
+  if (entityContactNumber) {
+    updateEntityFields.entityContactNumber = entityContactNumber;
+    updateUserFields.contactNumber = entityContactNumber; // Updating in User collection
+  }
+
+  if (location) updateEntityFields.location = location;
+  if (floor) updateEntityFields.floor = floor;
+  if (buildingName) updateEntityFields.buildingName = buildingName;
+  if (landMark) updateEntityFields.landMark = landMark;
+  if (zipcode) updateEntityFields.zipcode = zipcode;
 
   await Promise.all([
-    Object.keys(updateFields).length > 0
-      ? EntityDetails.updateOne({ _id: entityId }, { $set: updateFields })
+    Object.keys(updateEntityFields).length > 0
+      ? EntityDetails.updateOne({ _id: entityId }, { $set: updateEntityFields })
       : Promise.resolve(),
-    email || password
-      ? User.updateOne(
-          { _id: userId },
-          { $set: { email, password: updateFields.password } }
-        )
+    Object.keys(updateUserFields).length > 0
+      ? User.updateOne({ _id: userId }, { $set: updateUserFields })
       : Promise.resolve(),
   ]);
 };
 
 module.exports.getBusinessUserDetails = async (req) => {
   const { entityId, userId } = req;
-  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
-  const user = await User.findOne({ _id: userId }).lean();
+  const entity = await EntityDetails.findOne({
+    _id: entityId,
+    userId,
+    status: STATUS.ACTIVE,
+  }).lean();
+  const user = await User.findOne({
+    _id: userId,
+    status: STATUS.ACTIVE,
+  }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
   user.password = "******";
@@ -1605,9 +1625,36 @@ module.exports.addFeedbackQuestions = async (req) => {
   });
 };
 
+module.exports.restaurantOpen = async (req) => {
+  const {
+    entityId,
+    body: { isOpen },
+  } = req;
+  const restaurant = await EntityDetails.findById(entityId);
+  if (!restaurant) {
+    throwError({ status: STATUS_CODES, message: "Entity doesn't exist." });
+  }
+  await EntityDetails.updateOne({ _id: entityId }, { $set: { isOpen } });
+};
+
 module.exports.emailExist = async (req) => {
   const emailExist = await User.distinct("email");
   const phoneExist = await User.distinct("contactNumber");
 
   return { emailExist, phoneExist };
+};
+
+module.exports.deleteEntityAccount = async (req) => {
+  const { entityId } = req;
+  const entity = await EntityDetails.findById(entityId);
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "User doesn't exist.",
+    });
+  }
+  await EntityDetails.updateOne(
+    { _id: entity },
+    { $set: { status: STATUS.DELETED } }
+  );
 };

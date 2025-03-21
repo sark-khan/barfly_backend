@@ -71,6 +71,8 @@ module.exports.getEntities = async (req) => {
 
   const query = {
     _id: { $in: entityIds },
+    isOpen: true,
+    status: STATUS.ACTIVE,
   };
   const sort = {};
   if (isNewlyAdded) {
@@ -97,6 +99,8 @@ module.exports.getEntities = async (req) => {
     .lean();
   const query2 = {
     _id: { $nin: entityIds },
+    isOpen: true,
+    status: STATUS.ACTIVE,
   };
 
   if (isNewlyAdded) {
