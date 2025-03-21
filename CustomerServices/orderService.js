@@ -10,6 +10,7 @@ const { ObjectId } = mongoose.Types;
 const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging } = require("../firebaseAdmin");
+const { io } = require("../app");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
@@ -104,7 +105,9 @@ const createOrder = async (req, session) => {
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
-
+  console.log({r: req.userId});
+  console.log({entityId});
+  io.to(entityId).emit("newOrder", createdOrder);
   return createdOrder;
 };
 
