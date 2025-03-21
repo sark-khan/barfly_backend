@@ -3,8 +3,6 @@ const globalConstants = require("../Utils/globalConstants"); // Import entire mo
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES; // ✅ Ensure it's defined
 
-console.log("ALL_ANSWER_TYPES in Schema:", ALL_ANSWER_TYPES); // Debugging log
-
 const { ObjectId } = mongoose.Types;
 
 const feedbackQuestionSchema = new mongoose.Schema({

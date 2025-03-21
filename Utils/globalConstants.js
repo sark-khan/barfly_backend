@@ -329,5 +329,3 @@ module.exports = {
   ANSWER_TYPES,
   ALL_ANSWER_TYPES,
 };
-
-console.log("ALL_ANSWER_TYPES Loaded:", module.exports.ALL_ANSWER_TYPES); // Debugging log
