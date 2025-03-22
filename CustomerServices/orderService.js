@@ -106,10 +106,7 @@ const createOrder = async (req, session) => {
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
-  console.log({r: req.userId});
-  console.log({entityId});
-  // const socketId=seeder.getSocketId();
-  // console.log({socketId});
+
   io.to(entityId.toString()).emit("newOrder", createdOrder);
   return createdOrder;
 };
@@ -119,7 +116,8 @@ const updateStatusOfOrder = async (req) => {
   if (
     status !== ORDER_STATUS.COMPLETED &&
     status !== ORDER_STATUS.READY &&
-    status !== ORDER_STATUS.IN_PROGRESS
+    status !== ORDER_STATUS.IN_PROGRESS &&
+    status !== ORDER_STATUS.CANCELLED
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -189,36 +187,56 @@ const getEntityOrders = async (req) => {
   const query = { entityId };
   query.status = status
     ? status
-    : { $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING] };
+    : {
+        $in: [
+          ORDER_STATUS.IN_PROGRESS,
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.CANCELLED,
+        ],
+      };
 
   if (counterId) {
     query.counterId = counterId;
   }
 
-  const [data, orderProcessCount, readyOrders, completedOrders] =
-    await Promise.all([
-      Order.find(query)
-        .populate({
-          path: "items.itemId",
-          select: "itemName quantity description type currency image createdAt",
-          model: "ItemDetails",
-        })
-        .populate({
-          path: "counterId",
-          select: "counterName",
-          model: "Counter",
-        })
-        .sort({ tokenNumber: -1 })
-        .skip(skip)
-        .limit(limit),
-      Order.countDocuments({
-        entityId,
-        status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-      }),
-      Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
-      Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
-    ]);
-  return { data, orderProcessCount, readyOrders, completedOrders };
+  const [
+    data,
+    orderProcessCount,
+    readyOrders,
+    completedOrders,
+    cancelledOrders,
+  ] = await Promise.all([
+    Order.find(query)
+      .populate({
+        path: "items.itemId",
+        select: "itemName quantity description type currency image createdAt",
+        model: "ItemDetails",
+      })
+      .populate({
+        path: "counterId",
+        select: "counterName",
+        model: "Counter",
+      })
+      .sort({ tokenNumber: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments({
+      entityId,
+      status: {
+        $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
+      },
+    }),
+    Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
+    Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
+    Order.countDocuments({ entityId, status: ORDER_STATUS.CANCELLED }),
+  ]);
+  return {
+    data,
+    orderProcessCount,
+    readyOrders,
+    completedOrders,
+    cancelledOrders,
+  };
 };
 
 const getLiveOrdersUsers = async (req) => {
@@ -328,7 +346,13 @@ const particularOrderDetailsCustomer = async (req) => {
   const orderDetails = await Order.findOne(
     {
       userId,
-      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY] },
+      status: {
+        $in: [
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.IN_PROGRESS,
+          ORDER_STATUS.READY,
+        ],
+      },
       _id: orderId,
     },
     {
@@ -344,7 +368,7 @@ const particularOrderDetailsCustomer = async (req) => {
       entityId: 1,
       note: 1,
       finalAmount: 1,
-      discountAmount: 1
+      discountAmount: 1,
     }
   )
     .populate({
