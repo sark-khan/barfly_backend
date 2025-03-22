@@ -46,9 +46,12 @@ const orderSocket = async (io) => {
       //   console.log(`New order event received from ${userId}`);
       // });
       console.log({entityId, sss: socket.id});
-      socket.join(entityId);
+      socket.join(entityId.toString());
+
       console.log(`User ${userId} joined room: ${entityId}`);
-      seeder.setSocketId(socket.id);
+      const sockets = await io.in(entityId.toString()).fetchSockets();
+      console.log(`Sockets in room ${entityId}:`, sockets.map(s => s.id));
+      // seeder.setSocketId(socket.id);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
         await User.updateOne({ _id: userId }, { $unset: { socketId: "" } });

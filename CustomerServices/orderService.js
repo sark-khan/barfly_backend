@@ -108,9 +108,9 @@ const createOrder = async (req, session) => {
   }
   console.log({r: req.userId});
   console.log({entityId});
-  const socketId=seeder.getSocketId();
-  console.log({socketId});
-  io.to(socketId).emit("newOrder", createdOrder);
+  // const socketId=seeder.getSocketId();
+  // console.log({socketId});
+  io.to(entityId.toString()).emit("newOrder", createdOrder);
   return createdOrder;
 };
 
