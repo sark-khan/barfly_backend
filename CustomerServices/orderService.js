@@ -110,7 +110,7 @@ const createOrder = async (req, session) => {
   console.log({entityId});
   // const socketId=seeder.getSocketId();
   // console.log({socketId});
-  io.to(entityId.toString()).emit("newOrder", createdOrder);
+  io.to(entityId).emit("newOrder", createdOrder);
   return createdOrder;
 };
 
