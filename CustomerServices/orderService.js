@@ -344,6 +344,7 @@ const particularOrderDetailsCustomer = async (req) => {
       entityId: 1,
       note: 1,
       finalAmount: 1,
+      discountAmount: 1
     }
   )
     .populate({
