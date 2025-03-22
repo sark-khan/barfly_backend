@@ -174,16 +174,81 @@ const updateStatusOfOrder = async (req) => {
   console.log(`Push notification sent to user ${req.userId}`);
 };
 
+// const getEntityOrders = async (req) => {
+//   const {
+//     entityId,
+//     query: { pageNo = 1, pageLimit = 10, status, counterId },
+//   } = req;
+
+//   const limit = Math.max(Number(pageLimit), 1);
+//   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
+
+//   const query = { entityId };
+//   query.status = status
+//     ? status
+//     : {
+//         $in: [
+//           ORDER_STATUS.IN_PROGRESS,
+//           ORDER_STATUS.WAITING,
+//           ORDER_STATUS.CANCELLED,
+//         ],
+//       };
+
+//   if (counterId) {
+//     query.counterId = counterId;
+//   }
+
+//   const [
+//     data,
+//     orderProcessCount,
+//     readyOrders,
+//     completedOrders,
+//     cancelledOrders,
+//   ] = await Promise.all([
+//     Order.find(query)
+//       .populate({
+//         path: "items.itemId",
+//         select: "itemName quantity description type currency image createdAt",
+//         model: "ItemDetails",
+//       })
+//       .populate({
+//         path: "counterId",
+//         select: "counterName",
+//         model: "Counter",
+//       })
+//       .sort({ tokenNumber: -1 })
+//       .skip(skip)
+//       .limit(limit),
+//     Order.countDocuments({
+//       entityId,
+//       status: {
+//         $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
+//       },
+//     }),
+//     Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
+//     Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
+//     Order.countDocuments({ entityId, status: ORDER_STATUS.CANCELLED }),
+//   ]);
+//   return {
+//     data,
+//     orderProcessCount,
+//     readyOrders,
+//     completedOrders,
+//     cancelledOrders,
+//   };
+// };
+
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    query: { pageNo = 1, pageLimit = 10, status, counterId },
+    query: { pageNo = 1, pageLimit = 10, status, counterId, searchTerm },
   } = req;
 
   const limit = Math.max(Number(pageLimit), 1);
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
+
   query.status = status
     ? status
     : {
@@ -196,6 +261,33 @@ const getEntityOrders = async (req) => {
 
   if (counterId) {
     query.counterId = counterId;
+  }
+
+  // Search logic for orderId or itemName
+  if (searchTerm) {
+    const searchRegex = new RegExp(searchTerm, "i"); // Case-insensitive search
+    const searchConditions = [];
+
+    // Check if searchTerm is a valid ObjectId for orderId
+    if (mongoose.Types.ObjectId.isValid(searchTerm)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
+    }
+
+    // Step 1: Find item IDs that match the search term
+    const matchingItems = await ItemDetails.find(
+      { itemName: { $regex: searchRegex } },
+      { _id: 1 }
+    ).lean();
+
+    if (matchingItems.length > 0) {
+      const matchingItemIds = matchingItems.map((item) => item._id);
+      searchConditions.push({ "items.itemId": { $in: matchingItemIds } });
+    }
+
+    // Apply search conditions only if we found matching results
+    if (searchConditions.length > 0) {
+      query.$or = searchConditions;
+    }
   }
 
   const [
@@ -229,6 +321,7 @@ const getEntityOrders = async (req) => {
     Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
     Order.countDocuments({ entityId, status: ORDER_STATUS.CANCELLED }),
   ]);
+
   return {
     data,
     orderProcessCount,
