@@ -328,7 +328,7 @@ const particularOrderDetailsCustomer = async (req) => {
   const orderDetails = await Order.findOne(
     {
       userId,
-      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+      status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY] },
       _id: orderId,
     },
     {
