@@ -75,7 +75,7 @@ const createOrder = async (req, session) => {
     discountAmount = couponValidation.discountAmount;
   }
 
-  const finalAmount = originalAmount - discountAmount - 2.25;
+  const finalAmount = originalAmount - discountAmount + 2.25;
 
   const orderData = {
     status: ORDER_STATUS.WAITING,
