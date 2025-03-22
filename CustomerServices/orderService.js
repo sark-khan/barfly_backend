@@ -11,6 +11,7 @@ const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging } = require("../firebaseAdmin");
 const { io } = require("../app");
+const seeder = require("../seeder");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
@@ -107,7 +108,7 @@ const createOrder = async (req, session) => {
   }
   console.log({r: req.userId});
   console.log({entityId});
-  io.to(entityId).emit("newOrder", createdOrder);
+  io.to(seeder.getSocketId()).emit("newOrder", createdOrder);
   return createdOrder;
 };
 

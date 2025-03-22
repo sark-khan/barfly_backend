@@ -1,7 +1,17 @@
-const { performEndOfDayTask } = require("./Utils/commonFunction");
-
-// performEndOfDayTask()
-//   .then(() => console.log("Entities with live event occuring today seeded "))
-//   .catch((err) => {
-//     console.log("error occured while seeding live events entities ");
-//   });
+// socketStore.js
+class SocketStore {
+    constructor() {
+      this.socketId = "";
+    }
+  
+    setSocketId(id) {
+      this.socketId = id;
+    }
+  
+    getSocketId() {
+      return this.socketId;
+    }
+  }
+  
+  module.exports = new SocketStore();
+  

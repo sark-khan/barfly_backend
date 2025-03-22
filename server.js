@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 
 const User = require("./Models/User");
 const { SECRET_KEY } = require("./Utils/commonFunction");
+const seeder = require("./seeder");
 
 const verifyToken = async (token) => {
   return new Promise((resolve, reject) => {
@@ -47,6 +48,7 @@ const orderSocket = async (io) => {
       console.log({entityId, sss: socket.id});
       socket.join(entityId);
       console.log(`User ${userId} joined room: ${entityId}`);
+      seeder.setSocketId(socket.id);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
         await User.updateOne({ _id: userId }, { $unset: { socketId: "" } });
