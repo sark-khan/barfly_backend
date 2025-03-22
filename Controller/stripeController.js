@@ -12,7 +12,6 @@ const {
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
 router.post("/create-payment", async (req, res) => {
-  console.log("aa rha kya????????????<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
   try {
     const paymentIntent = await createPaymentIntent(req);
     return res
