@@ -41,7 +41,6 @@ const { sendFirebaseNotification } = require("./Utils/commonFunction");
 const User = require("./Models/User");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-require("./seeder");
 // const admin = require("./firebaseConfig");
 
 const unProtectedApis = {

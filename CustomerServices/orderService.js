@@ -11,7 +11,6 @@ const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging } = require("../firebaseAdmin");
 const { io } = require("../app");
-const seeder = require("../seeder");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
