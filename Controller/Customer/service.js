@@ -275,13 +275,13 @@ module.exports.visitorCount = async (req) => {
 
 module.exports.counterList = async (req) => {
   const { entityId, searchTerm } = req.query;
-  const query = { entityId };
+  const query = { entityId, status: STATUS.ACTIVE };
   if (searchTerm) {
     query.counterName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
   }
   const counters = await Counter.find(
     query,
-    { counterName: 1, totalTables: 1, status: STATUS.ACTIVE },
+    { counterName: 1, totalTables: 1 },
     { sort: { _id: -1 }, lean: true }
   );
   const counterIds = counters.map((counter) => ObjectId(counter._id));

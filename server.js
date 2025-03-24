@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 
 const User = require("./Models/User");
 const { SECRET_KEY } = require("./Utils/commonFunction");
-const seeder = require("./seeder");
 
 const verifyToken = async (token) => {
   return new Promise((resolve, reject) => {
@@ -31,7 +30,7 @@ const orderSocket = async (io) => {
     try {
       const decoded = await verifyToken(token);
       const userId = decoded.userId;
-      const entityId= decoded.entityId;
+      const entityId = decoded.entityId;
 
       if (!userId) {
         console.log("Invalid token, disconnecting...");
@@ -45,12 +44,15 @@ const orderSocket = async (io) => {
       // socket.on("newOrder", async () => {
       //   console.log(`New order event received from ${userId}`);
       // });
-      console.log({entityId, sss: socket.id});
+      console.log({ entityId, sss: socket.id });
       socket.join(entityId.toString());
 
       console.log(`User ${userId} joined room: ${entityId}`);
       const sockets = await io.in(entityId.toString()).fetchSockets();
-      console.log(`Sockets in room ${entityId}:`, sockets.map(s => s.id));
+      console.log(
+        `Sockets in room ${entityId}:`,
+        sockets.map((s) => s.id)
+      );
       // seeder.setSocketId(socket.id);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
