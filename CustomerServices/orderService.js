@@ -30,6 +30,7 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
+    console.log({item});
     itemNameMapper[`${item._id}`] = item;
   });
 
