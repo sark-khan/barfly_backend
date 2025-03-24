@@ -1059,7 +1059,13 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
   const events = await Event.find({
     entityId,
     from: { $gte: startDate, $lte: endDate },
-  }).sort({ from: -1 });
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ from: -1 });
 
   const pastEvents = events.filter((event) => new Date(event.to) < currentDate);
 
