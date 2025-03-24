@@ -434,7 +434,7 @@ module.exports.getCreatedItems = async (req) => {
     };
   });
 
-  return { itemsList, totalCount: filteredItems.length };
+  return { itemsList, totalCount: totalCount };
 };
 
 module.exports.getParticularItemDetail = async (req) => {
