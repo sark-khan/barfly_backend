@@ -1525,7 +1525,7 @@ module.exports.getBusinessUserDetails = async (req) => {
   }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
-  user.password = "******";
+  user.password = "";
 
   return { ...entity, ...user };
 };
