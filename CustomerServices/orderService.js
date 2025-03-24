@@ -1,6 +1,10 @@
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
-const { STATUS_CODES, ORDER_STATUS } = require("../Utils/globalConstants");
+const {
+  STATUS_CODES,
+  ORDER_STATUS,
+  STATUS,
+} = require("../Utils/globalConstants");
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
@@ -30,8 +34,11 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
-    if(item.isOutOfStock){
-      throwError({message:`Item ${item.itemName} is out of Stock`, status: STATUS_CODES.BAD_REQUEST})
+    if (item.isOutOfStock) {
+      throwError({
+        message: `Item ${item.itemName} is out of Stock`,
+        status: STATUS_CODES.BAD_REQUEST,
+      });
     }
     itemNameMapper[`${item._id}`] = item;
   });
@@ -827,7 +834,7 @@ const getEventOrderSummary = async (req) => {
   const orders = await Order.find(query)
     .populate({
       path: "counterId",
-      select: "counterName",
+      select: "counterName status",
       model: "Counter",
     })
     .populate({
@@ -842,6 +849,7 @@ const getEventOrderSummary = async (req) => {
   let totalAmount = 0;
 
   const orderDetails = orders
+    .filter((order) => order.counterId?.status === STATUS.ACTIVE)
     .map((order) => {
       const { counterId, finalAmount, tokenNumber, items } = order;
 
@@ -893,7 +901,7 @@ const getEventOrderSummary = async (req) => {
     totalOrders,
     totalAmount,
     counters,
-    orders: orderDetails,
+    orders: counterId ? orderDetails : [],
   };
 
   return result;
