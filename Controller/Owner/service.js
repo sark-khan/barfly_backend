@@ -214,8 +214,8 @@ module.exports.createMenuItem = async (req) => {
       price,
       description,
       currency,
-      menuCategoryId,
-      availableQuantity,
+      menuCategoryIds,
+      quantity,
       isVegan,
       unit,
       nutritionType,
@@ -248,43 +248,58 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  const menuCategory = await MenuCategory.findById(menuCategoryId);
-  if (!menuCategory) {
-    throw {
-      status: STATUS_CODES.NOT_FOUND,
-      message: "Menu Category not found",
-    };
-  }
-
-  const existingItem = await ItemDetails.findOne(
-    { itemName, menuCategoryId },
-    { _id: 1 }
-  );
-  if (existingItem) {
+  if (!Array.isArray(menuCategoryIds) || menuCategoryIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Same item exists in this menu",
+      message: "At least one menu category is required",
     });
   }
 
-  const itemDetails = await ItemDetails.create({
-    itemName,
-    price,
-    availableQuantity,
-    currency: "CHF",
-    menuCategoryId,
-    entityId: req.entityId,
-    counterId: menuCategory.counterId,
-    counterIds,
-    image: fileName,
-    isVegan,
-    unit,
-    description,
-    nutritionType,
-    isOutOfStock: false,
+  const menuCategories = await MenuCategory.find({
+    _id: { $in: menuCategoryIds },
   });
 
-  return itemDetails;
+  if (menuCategories.length !== menuCategoryIds.length) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "One or more menu categories not found",
+    });
+  }
+
+  const existingItem = await ItemDetails.findOne({
+    itemName,
+    menuCategoryId: { $in: menuCategoryIds },
+  });
+
+  if (existingItem) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Same item exists in one of the selected menu categories",
+    });
+  }
+
+  const createdItems = await Promise.all(
+    menuCategories.map(async (category) => {
+      return ItemDetails.create({
+        itemName,
+        price,
+        currency: "CHF",
+        menuCategoryId: category._id,
+        entityId: req.entityId,
+        counterId: category.counterId,
+        counterIds,
+        image: fileName,
+        isVegan,
+        unit,
+        description,
+        nutritionType,
+        isOutOfStock: false,
+        quantity,
+      });
+    })
+  );
+
+  return createdItems;
 };
 
 // module.exports.createItems = async (req) => {
@@ -328,7 +343,7 @@ module.exports.updateMenuItem = async (req) => {
       description,
       nutritionType,
       currency,
-      availableQuantity,
+      quantity,
       action,
       isOutOfStock,
       counterIds,
@@ -351,8 +366,7 @@ module.exports.updateMenuItem = async (req) => {
     if (description !== undefined) item.description = description;
     if (nutritionType !== undefined) item.nutritionType = nutritionType;
     if (currency !== undefined) item.currency = currency;
-    if (availableQuantity !== undefined)
-      item.availableQuantity = availableQuantity;
+    if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
     if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
 
@@ -392,49 +406,45 @@ module.exports.getCreatedItems = async (req) => {
   } = req;
 
   const query = { entityId };
+
   if (menuCategoryId) {
     query.menuCategoryId = menuCategoryId;
   }
+
   if (isOutOfStock) {
     query.isOutOfStock = isOutOfStock;
   }
 
-  const limit = Math.max(Number(pageLimit), 1);
-  const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
-
-  const totalCount = await ItemDetails.countDocuments(query);
   const createdItems = await ItemDetails.find(query)
-    .lean()
     .populate({
       path: "menuCategoryId",
       select: "categoryName counterId",
       model: "CounterMenuCategory",
       populate: {
         path: "counterId",
-        select: "status",
+        select: "status counterName",
         model: "Counter",
       },
     })
-    .skip(skip)
-    .limit(limit);
+    .lean();
 
   const filteredItems = createdItems.filter(
     (item) => item.menuCategoryId?.counterId?.status === STATUS.ACTIVE
   );
 
-  const itemsList = filteredItems.map((item) => {
-    if (!item.image) {
-      console.warn(`⚠️ Warning: Missing image for item ${item._id}`);
-      return item;
-    }
+  const totalCount = filteredItems.length;
 
-    return {
-      ...item,
-      image: generatePresignedUrl(item.image),
-    };
-  });
+  const paginatedItems = filteredItems.slice(
+    (pageNo - 1) * pageLimit,
+    pageNo * pageLimit
+  );
 
-  return { itemsList, totalCount: totalCount };
+  const itemsList = paginatedItems.map((item) => ({
+    ...item,
+    image: item.image ? generatePresignedUrl(item.image) : null,
+  }));
+
+  return { itemsList, totalCount };
 };
 
 module.exports.getParticularItemDetail = async (req) => {
@@ -1126,7 +1136,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
   const { itemId } = req.query;
   const itemDetails = await ItemDetails.find(
     { entityId: req.entityId, itemId },
-    { counterId: 1, availableQuantity: 1 },
+    { counterId: 1, quantity: 1 },
     { lean: 1 }
   );
   if (!itemDetails.length) {
@@ -1148,7 +1158,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
         if (itemDetail.counterId.toString() === id) {
           acc.push({
             counterName: counterDetails.counterName,
-            availableQuantity: itemDetail.availableQuantity,
+            quantity: itemDetail.quantity,
             _id: counterDetails._id,
           });
           return;
@@ -1157,7 +1167,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
       if (length == acc.length) {
         acc.push({
           counterName: counterDetails.counterName,
-          availableQuantity: 0,
+          quantity: 0,
           _id: counterDetails._id,
         });
       }
@@ -1169,8 +1179,14 @@ module.exports.getCounterMenuQuantites = async (req) => {
 };
 
 module.exports.updateCounterSettings = async (req) => {
-  const { isTableService, isSelfPickUp, counterId, totalTables, action } =
-    req.body;
+  const {
+    isTableService,
+    isSelfPickUp,
+    counterId,
+    totalTables,
+    action,
+    counterName,
+  } = req.body;
 
   const counter = await Counter.findOne({ _id: counterId });
   if (!counter) {
@@ -1185,9 +1201,28 @@ module.exports.updateCounterSettings = async (req) => {
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (totalTables !== undefined) counter.totalTables = totalTables;
+    if (counterName !== undefined) counter.counterName = counterName;
 
     await counter.save();
   } else if (action === EDIT_ACTION.DELETE) {
+    const activeOrders = await Order.findOne({
+      counterId,
+      status: {
+        $nin: [
+          globalConstants.ORDER_STATUS.COMPLETED,
+          globalConstants.ORDER_STATUS.CANCELLED,
+        ],
+      },
+    });
+
+    if (activeOrders) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Counter cannot be deleted as it has active orders.",
+      });
+      return;
+    }
+
     await Counter.updateOne(
       { _id: counterId },
       { $set: { status: STATUS.DELETED } }

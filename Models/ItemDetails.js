@@ -41,6 +41,7 @@ const itemSchema = new Schema(
       },
     ],
     isOutOfStock: { type: Boolean, default: false },
+    quantity: { type: String },
   },
   { timestamps: true, minimize: false }
 );

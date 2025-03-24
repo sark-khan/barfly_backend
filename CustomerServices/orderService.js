@@ -45,9 +45,9 @@ const createOrder = async (req, session) => {
       // counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
       counterId = menuItem?.menuCategoryId?.counterId;
 
-      if (menuItem.availableQuantity < doc.quantity) {
-        msg += `${menuItem.itemName}, not in stock, Please add less item aur wait for restock.`;
-      }
+      // if (menuItem.availableQuantity < doc.quantity) {
+      //   msg += `${menuItem.itemName}, not in stock, Please add less item aur wait for restock.`;
+      // }
       amount += doc.quantity * menuItem.price;
     }
   });
@@ -56,6 +56,16 @@ const createOrder = async (req, session) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: msg + "these items do not have sufficient stock.",
+    });
+  }
+
+  const entityDetails = await EntityDetails.findOne({
+    _id: req.entityId,
+  }).lean();
+  if (entityDetails && !entityDetails.isOpen) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Restaurant is currently closed. Orders cannot be placed.",
     });
   }
 
@@ -766,6 +776,7 @@ const pastTicketYears = async (req) => {
 
 const cancelOrder = async (req) => {
   const { orderId } = req.body;
+
   const order = await Order.findOne({
     _id: orderId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
@@ -779,19 +790,27 @@ const cancelOrder = async (req) => {
   }
 
   if (
-    order.status === ORDER_STATUS.READY ||
-    order.status === ORDER_STATUS.COMPLETED ||
-    order.status === ORDER_STATUS.CANCELLED
+    [
+      ORDER_STATUS.READY,
+      ORDER_STATUS.COMPLETED,
+      ORDER_STATUS.CANCELLED,
+    ].includes(order.status)
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Apologies! order cannot be cancelled now.",
     });
   }
+
   await Order.updateOne(
     { _id: orderId },
     { $set: { status: ORDER_STATUS.CANCELLED } }
   );
+
+  io.to(order.entityId.toString()).emit("cancelOrder", {
+    orderId: order._id,
+    status: ORDER_STATUS.CANCELLED,
+  });
 };
 
 const getEventOrderSummary = async (req) => {
