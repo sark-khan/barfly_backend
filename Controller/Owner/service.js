@@ -402,7 +402,13 @@ module.exports.updateMenuItem = async (req) => {
 module.exports.getCreatedItems = async (req) => {
   const {
     entityId,
-    query: { menuCategoryId, pageNo = 1, pageLimit = 8, isOutOfStock },
+    query: {
+      menuCategoryId,
+      pageNo = 1,
+      pageLimit = 8,
+      isOutOfStock,
+      searchTerm,
+    },
   } = req;
 
   const query = { entityId };
@@ -413,6 +419,10 @@ module.exports.getCreatedItems = async (req) => {
 
   if (isOutOfStock) {
     query.isOutOfStock = isOutOfStock;
+  }
+
+  if (searchTerm) {
+    query.itemName = { $regex: searchTerm, $options: "i" };
   }
 
   const createdItems = await ItemDetails.find(query)
@@ -637,12 +647,11 @@ module.exports.getUpcomingEvents = async (req) => {
     query: { filterBy, year, month },
   } = req;
 
-  let startDate = new Date(currentDateTime); // Default to today
+  let startDate = new Date(currentDateTime);
   startDate.setHours(0, 0, 0, 0);
   let endDate = null;
 
   if (year && month) {
-    // Convert year & month to numbers
     const yearNum = parseInt(year, 10);
     const monthNum = parseInt(month, 10);
 
@@ -653,38 +662,33 @@ module.exports.getUpcomingEvents = async (req) => {
     const firstDayOfMonth = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
     const lastDayOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
 
-    // If the requested month is the current month, start from today
-    if (
+    startDate =
       yearNum === currentDateTime.getFullYear() &&
       monthNum === currentDateTime.getMonth() + 1
-    ) {
-      startDate = currentDateTime;
-    } else {
-      startDate = firstDayOfMonth; // If it's a future month, start from its first day
-    }
+        ? currentDateTime
+        : firstDayOfMonth;
 
     endDate = lastDayOfMonth;
   } else if (filterBy === "week") {
-    const dayOfWeek = currentDateTime.getDay(); // Get today's weekday (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const diffToNextDay = 1; // Start from tomorrow
-
+    const diffToNextDay = 1;
     const startFromTomorrow = new Date(currentDateTime);
     startFromTomorrow.setDate(currentDateTime.getDate() + diffToNextDay);
     startFromTomorrow.setHours(0, 0, 0, 0);
 
     const endOfWeek = new Date(currentDateTime);
-    const remainingDays = 7 - dayOfWeek; // Days left in the week including today
-    endOfWeek.setDate(currentDateTime.getDate() + remainingDays - 1); // Move to Sunday
+    endOfWeek.setDate(
+      currentDateTime.getDate() + (7 - currentDateTime.getDay()) - 1
+    );
     endOfWeek.setHours(23, 59, 59, 999);
 
-    startDate = startFromTomorrow; // Start from tomorrow
+    startDate = startFromTomorrow;
     endDate = endOfWeek;
   } else if (filterBy === "month") {
     const currentYear = currentDateTime.getFullYear();
-    const currentMonth = currentDateTime.getMonth(); // 0-based (Jan = 0, Feb = 1, ...)
+    const currentMonth = currentDateTime.getMonth();
 
     const startFromTomorrow = new Date(currentDateTime);
-    startFromTomorrow.setDate(currentDateTime.getDate() + 1); // Start from tomorrow
+    startFromTomorrow.setDate(currentDateTime.getDate() + 1);
     startFromTomorrow.setHours(0, 0, 0, 0);
 
     const endOfMonth = new Date(
@@ -695,13 +699,12 @@ module.exports.getUpcomingEvents = async (req) => {
       59,
       59,
       999
-    ); // Last day of the month
+    );
 
-    startDate = startFromTomorrow; // Start from tomorrow
-    endDate = endOfMonth; // End of the month
+    startDate = startFromTomorrow;
+    endDate = endOfMonth;
   }
 
-  // Ensure only future events are included
   const dateFilter = { $gte: startDate };
   if (endDate) {
     dateFilter.$lte = endDate;
@@ -712,14 +715,25 @@ module.exports.getUpcomingEvents = async (req) => {
   const upcomingEvents = await Event.find({
     ownerId,
     entityId,
-    from: dateFilter, // Filters based on "from" key
-  }).sort({ from: 1 });
+    from: dateFilter,
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ from: 1 })
+    .lean();
 
-  // Generate presigned URLs for event images
   upcomingEvents.forEach((event) => {
     if (event.image) {
       event.image = generatePresignedUrl(event.image);
     }
+    event.counters = event.counterIds.map((counter) => ({
+      counterId: counter._id,
+      counterName: counter.counterName,
+    }));
+    delete event.counterIds;
   });
 
   return upcomingEvents;
@@ -836,7 +850,6 @@ module.exports.getDistinctYears = async (req) => {
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
 
-  // Fetch ongoing events
   const events = await Event.find(
     {
       from: { $lte: currentTime },
@@ -844,25 +857,32 @@ module.exports.getOngoingEventDetails = async (req) => {
       entityId: req.entityId,
     },
     null,
-    { sort: { from: -1 }, lean: true }
-  );
+    { sort: { from: -1 } }
+  )
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .lean();
 
   const eventDetailsMap = new Map();
-  const ongoingEvents = events?.filter((event) => {
-    if (event.isRepetitive) {
-      const currentUTCday = currentTime.getUTCDay(); // Get today's index (Sunday = 0, Monday = 1, ...)
 
-      const adjustedRepetitiveDays = [
-        event.repetitiveDays[6], // Sunday (move last element to index 0)
-        ...event.repetitiveDays.slice(0, 6), // Rest stays same
-      ];
+  const ongoingEvents = events.filter((event) => {
+    if (event.isRepetitive) {
+      const currentUTCday = currentTime.getUTCDay();
 
       if (
-        !Array.isArray(adjustedRepetitiveDays) ||
-        adjustedRepetitiveDays.length !== 7
+        !Array.isArray(event.repetitiveDays) ||
+        event.repetitiveDays.length !== 7
       ) {
         return false;
       }
+
+      const adjustedRepetitiveDays = [
+        event.repetitiveDays[6],
+        ...event.repetitiveDays.slice(0, 6),
+      ];
 
       if (adjustedRepetitiveDays[currentUTCday] !== 1) {
         return false;
@@ -878,10 +898,16 @@ module.exports.getOngoingEventDetails = async (req) => {
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
       totalOrders: 0,
+      counters: event.counterIds.map((counter) => ({
+        counterId: counter._id,
+        counterName: counter.counterName,
+      })),
     });
 
     return true;
   });
+
+  if (!eventDetailsMap.size) return [];
 
   const orders = await Order.find({
     eventId: { $in: Array.from(eventDetailsMap.keys()) },
@@ -1433,7 +1459,7 @@ module.exports.editBusinessDetails = async (req) => {
       zipcode,
       floor,
       buildingName,
-      landMark,
+      landmark,
     },
   } = req;
 
@@ -1452,7 +1478,6 @@ module.exports.editBusinessDetails = async (req) => {
   const updateEntityFields = {};
   const updateUserFields = {};
 
-  // Handle file upload
   if (action === EDIT_ACTION.EDIT && file) {
     const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
       / /g,
@@ -1472,7 +1497,6 @@ module.exports.editBusinessDetails = async (req) => {
     updateEntityFields.image = "";
   }
 
-  // Handle password update
   if (password) {
     const isSamePassword = await comparePassword(password, user.password);
     if (isSamePassword) {
@@ -1484,22 +1508,20 @@ module.exports.editBusinessDetails = async (req) => {
     updateUserFields.password = bcrypt.hashSync(password, 10);
   }
 
-  // Handle email update
   if (email) {
     updateEntityFields.email = email;
     updateUserFields.email = email;
   }
 
-  // Handle entityContactNumber update & update contactNumber in User collection
   if (entityContactNumber) {
     updateEntityFields.entityContactNumber = entityContactNumber;
-    updateUserFields.contactNumber = entityContactNumber; // Updating in User collection
+    updateUserFields.contactNumber = entityContactNumber;
   }
 
   if (location) updateEntityFields.location = location;
   if (floor) updateEntityFields.floor = floor;
   if (buildingName) updateEntityFields.buildingName = buildingName;
-  if (landMark) updateEntityFields.landMark = landMark;
+  if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
 
   await Promise.all([

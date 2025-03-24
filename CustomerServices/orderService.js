@@ -834,7 +834,7 @@ const getEventOrderSummary = async (req) => {
   const orders = await Order.find(query)
     .populate({
       path: "counterId",
-      select: "counterName status",
+      select: "counterName status isTableService isSelfPickUp",
       model: "Counter",
     })
     .populate({
@@ -851,12 +851,22 @@ const getEventOrderSummary = async (req) => {
   const orderDetails = orders
     .filter((order) => order.counterId?.status === STATUS.ACTIVE)
     .map((order) => {
-      const { counterId, finalAmount, tokenNumber, items } = order;
+      const {
+        counterId,
+        finalAmount,
+        tokenNumber,
+        items,
+        tableNo,
+        status,
+        isSelfPickup,
+      } = order;
 
       if (!counterId) return null;
 
       const counterKey = counterId._id.toString();
       const counterName = counterId.counterName;
+      const counterTableService = counterId.isTableService;
+      const counterSelfPickup = counterId.isSelfPickUp;
 
       if (!counterSummary[counterKey]) {
         counterSummary[counterKey] = {
@@ -878,6 +888,12 @@ const getEventOrderSummary = async (req) => {
         finalAmount,
         counterId: counterKey,
         counterName,
+        tableNo,
+        status,
+        isSelfPickUp: counterSelfPickup,
+        isTableService: counterTableService,
+        isSelfPickup,
+        currency: "CHF",
         items: items.map((item) => ({
           itemId: item.itemId?._id,
           itemName: item.itemId?.itemName,
