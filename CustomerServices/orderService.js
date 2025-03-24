@@ -30,6 +30,9 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
+    if(item.isOutOfStock){
+      throwError({message:`Item ${item.itemName} is out of Stock`, status: STATUS_CODES.BAD_REQUEST})
+    }
     itemNameMapper[`${item._id}`] = item;
   });
 

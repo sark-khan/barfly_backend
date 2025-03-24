@@ -1159,6 +1159,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
           acc.push({
             counterName: counterDetails.counterName,
             quantity: itemDetail.quantity,
+            // availableQuantity: itemDetail.availableQuantity,
             _id: counterDetails._id,
           });
           return;
@@ -1168,6 +1169,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
         acc.push({
           counterName: counterDetails.counterName,
           quantity: 0,
+          // availableQuantity: 0,
           _id: counterDetails._id,
         });
       }
