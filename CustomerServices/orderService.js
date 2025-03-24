@@ -51,6 +51,9 @@ const createOrder = async (req, session) => {
       }
       amount += doc.quantity * menuItem.price;
     }
+    if(doc.isOutOfStock){
+      throwError({message:`Item ${doc.itemName} is out of Stock`, status: STATUS_CODES.BAD_REQUEST})
+    }
   });
 
   if (msg) {
