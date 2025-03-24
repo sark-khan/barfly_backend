@@ -48,12 +48,11 @@ const createOrder = async (req, session) => {
       // counterId = menuItem?.menuCategoryId?.counterId || menuItems?.counterId;
       counterId = menuItem?.menuCategoryId?.counterId;
 
-      if (menuItem.availableQuantity < doc.quantity) {
-        msg += `${menuItem.itemName}, not in stock, Please add less item aur wait for restock.`;
-      }
+      // if (menuItem.availableQuantity < doc.quantity) {
+      //   msg += `${menuItem.itemName}, not in stock, Please add less item aur wait for restock.`;
+      // }
       amount += doc.quantity * menuItem.price;
     }
-   
   });
 
   if (msg) {

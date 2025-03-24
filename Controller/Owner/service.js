@@ -1148,7 +1148,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
         if (itemDetail.counterId.toString() === id) {
           acc.push({
             counterName: counterDetails.counterName,
-            availableQuantity: itemDetail.availableQuantity,
+            // availableQuantity: itemDetail.availableQuantity,
             _id: counterDetails._id,
           });
           return;
@@ -1157,7 +1157,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
       if (length == acc.length) {
         acc.push({
           counterName: counterDetails.counterName,
-          availableQuantity: 0,
+          // availableQuantity: 0,
           _id: counterDetails._id,
         });
       }
