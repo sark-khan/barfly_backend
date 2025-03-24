@@ -252,11 +252,7 @@ const getEntityOrders = async (req) => {
   query.status = status
     ? status
     : {
-        $in: [
-          ORDER_STATUS.IN_PROGRESS,
-          ORDER_STATUS.WAITING,
-          ORDER_STATUS.CANCELLED,
-        ],
+        $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
       };
 
   if (counterId) {
