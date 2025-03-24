@@ -30,7 +30,9 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
-    console.log({item});
+    if(item.isOutOfStock){
+      throwError({message:`Item ${doc.itemName} is out of Stock`, status: STATUS_CODES.BAD_REQUEST})
+    }
     itemNameMapper[`${item._id}`] = item;
   });
 
@@ -51,10 +53,7 @@ const createOrder = async (req, session) => {
       }
       amount += doc.quantity * menuItem.price;
     }
-    console.log({doc});
-    if(doc.isOutOfStock){
-      throwError({message:`Item ${doc.itemName} is out of Stock`, status: STATUS_CODES.BAD_REQUEST})
-    }
+   
   });
 
   if (msg) {
