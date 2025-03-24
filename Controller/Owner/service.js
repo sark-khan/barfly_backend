@@ -1015,28 +1015,20 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
       .json({ message: "Invalid month or year format" });
   }
 
-  // Get current date and time
-  const currentDate = new Date();
-  currentDate.setHours(0, 0, 0, 0); // Normalize time to start of today
-
-  // Get the first day of the selected month
   const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
 
-  // Ensure today’s date falls within the month; otherwise, use the last day of the month
-  const todayOrEndOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
-  const endDate =
-    currentDate < todayOrEndOfMonth ? currentDate : todayOrEndOfMonth;
+  const currentDate = new Date();
 
-  // Fetch only past events within the selected month **up to today**
   const events = await Event.find({
     entityId,
-    from: { $gte: startDate, $lte: endDate }, // Events should be within the selected month
-    to: { $lt: currentDate }, // Only past events
+    from: { $gte: startDate, $lte: endDate },
   }).sort({ from: -1 });
 
-  // Fetch order count for each event
+  const pastEvents = events.filter((event) => new Date(event.to) < currentDate);
+
   const eventsWithOrders = await Promise.all(
-    events.map(async (event) => {
+    pastEvents.map(async (event) => {
       const totalOrders = await Order.countDocuments({ eventId: event._id });
       return { ...event.toObject(), totalOrders };
     })
