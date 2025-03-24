@@ -1690,6 +1690,24 @@ module.exports.restaurantOpen = async (req) => {
   if (!restaurant) {
     throwError({ status: STATUS_CODES, message: "Entity doesn't exist." });
   }
+  if (!isOpen) {
+    const activeOrders = await Order.countDocuments({
+      entityId,
+      status: {
+        $nin: [
+          globalConstants.ORDER_STATUS.COMPLETED,
+          globalConstants.ORDER_STATUS.CANCELLED,
+        ],
+      },
+    });
+
+    if (activeOrders > 0) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Restaurant cannot be closed while orders are still active.",
+      });
+    }
+  }
   await EntityDetails.updateOne({ _id: entityId }, { $set: { isOpen } });
 };
 
