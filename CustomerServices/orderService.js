@@ -455,6 +455,7 @@ const particularOrderDetailsCustomer = async (req) => {
           ORDER_STATUS.WAITING,
           ORDER_STATUS.IN_PROGRESS,
           ORDER_STATUS.READY,
+          ORDER_STATUS.COMPLETED,
         ],
       },
       _id: orderId,
