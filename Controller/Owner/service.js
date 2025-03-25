@@ -476,8 +476,6 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
-      // startingDate,
-      // endDate,
       isRepetitive,
       repetitiveDays,
       from,
@@ -488,7 +486,6 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
-  console.log({ body: req.body });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
@@ -505,23 +502,23 @@ module.exports.createEvent = async (req) => {
     });
   }
 
-  const existingEvent = await Event.findOne({
-    eventName,
-    ownerId,
+  const conflictingEvent = await Event.findOne({
     entityId: req.entityId,
+    counterIds: { $in: counterIds },
+    $or: [{ from: { $lt: dateTimeTo }, to: { $gt: dateTimeFrom } }],
   });
 
-  if (existingEvent) {
+  if (conflictingEvent) {
     throwError({
-      status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "An event with the same details already exists",
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "An event with the same time and counter already exists.",
     });
   }
-  let repetitiveDaysArr = [];
 
+  let repetitiveDaysArr = [];
   if (isRepetitive && repetitiveDays) {
     try {
-      repetitiveDaysArr = JSON.parse(repetitiveDays); // Convert string to array
+      repetitiveDaysArr = JSON.parse(repetitiveDays);
     } catch (error) {
       console.error("Error parsing repetitiveDays:", error);
       throwError({
@@ -532,7 +529,6 @@ module.exports.createEvent = async (req) => {
   }
 
   let fileName = "";
-
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -560,8 +556,6 @@ module.exports.createEvent = async (req) => {
     eventName,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
-    // startingDate: new Date(startingDate),
-    // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
@@ -890,7 +884,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     }
 
     eventDetailsMap.set(event._id.toString(), {
-      eventId: event._id,
+      _id: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
