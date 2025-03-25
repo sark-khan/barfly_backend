@@ -352,7 +352,6 @@ module.exports.updateMenuItem = async (req) => {
       action,
       isOutOfStock,
       counterIds,
-      isVegan,
     },
   } = req;
 
@@ -366,6 +365,7 @@ module.exports.updateMenuItem = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    // Update fields only if they exist (handle falsy values correctly)
     if (itemName !== undefined) item.itemName = itemName;
     if (price !== undefined) item.price = price;
     if (description !== undefined) item.description = description;
@@ -374,7 +374,6 @@ module.exports.updateMenuItem = async (req) => {
     if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
     if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
-    if (isVegan !== undefined) item.isVegan = isVegan;
 
     if (file) {
       const fileBuffer = file.buffer;
@@ -399,7 +398,7 @@ module.exports.updateMenuItem = async (req) => {
       }
     }
 
-    await item.save();
+    await item.save(); // Save the updated item
   } else if (action === EDIT_ACTION.DELETE) {
     await ItemDetails.deleteOne({ _id: itemId });
   }
@@ -482,6 +481,8 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
+      // startingDate,
+      // endDate,
       isRepetitive,
       repetitiveDays,
       from,
@@ -492,6 +493,7 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
+  console.log({ body: req.body });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
@@ -508,23 +510,23 @@ module.exports.createEvent = async (req) => {
     });
   }
 
-  const conflictingEvent = await Event.findOne({
+  const existingEvent = await Event.findOne({
+    eventName,
+    ownerId,
     entityId: req.entityId,
-    counterIds: { $in: counterIds },
-    $or: [{ from: { $lt: dateTimeTo }, to: { $gt: dateTimeFrom } }],
   });
 
-  if (conflictingEvent) {
+  if (existingEvent) {
     throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "An event with the same time and counter already exists.",
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "An event with the same details already exists",
     });
   }
-
   let repetitiveDaysArr = [];
+
   if (isRepetitive && repetitiveDays) {
     try {
-      repetitiveDaysArr = JSON.parse(repetitiveDays);
+      repetitiveDaysArr = JSON.parse(repetitiveDays); // Convert string to array
     } catch (error) {
       console.error("Error parsing repetitiveDays:", error);
       throwError({
@@ -535,6 +537,7 @@ module.exports.createEvent = async (req) => {
   }
 
   let fileName = "";
+
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -562,6 +565,8 @@ module.exports.createEvent = async (req) => {
     eventName,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
+    // startingDate: new Date(startingDate),
+    // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
@@ -866,14 +871,12 @@ module.exports.getOngoingEventDetails = async (req) => {
     })
     .lean();
 
-  console.log({events});
-
   const eventDetailsMap = new Map();
 
   const ongoingEvents = events.filter((event) => {
     if (event.isRepetitive) {
       const currentUTCday = currentTime.getUTCDay();
-      console.log({currentUTCday});
+
       if (
         !Array.isArray(event.repetitiveDays) ||
         event.repetitiveDays.length !== 7
@@ -894,7 +897,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     
 
     eventDetailsMap.set(event._id.toString(), {
-      _id: event._id,
+      eventId: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
@@ -1725,21 +1728,16 @@ module.exports.emailExist = async (req) => {
 };
 
 module.exports.deleteEntityAccount = async (req) => {
-  const { entityId, userId } = req;
-
-  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
+  const { entityId } = req;
+  const entity = await EntityDetails.findById(entityId);
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Entity doesn't exist.",
+      message: "User doesn't exist.",
     });
   }
-
-  await Promise.all([
-    EntityDetails.updateOne(
-      { _id: entityId },
-      { $set: { status: STATUS.DELETED } }
-    ),
-    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
-  ]);
+  await EntityDetails.updateOne(
+    { _id: entity },
+    { $set: { status: STATUS.DELETED } }
+  );
 };
