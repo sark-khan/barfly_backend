@@ -184,7 +184,7 @@ module.exports.register = async (req) => {
 module.exports.login = async (req) => {
   const { email, contactNumber, password } = req.body;
 
-  const query = {};
+  const query = { status: STATUS.ACTIVE };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
   if (!Object.keys(query)) {
