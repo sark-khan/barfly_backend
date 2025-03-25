@@ -347,6 +347,7 @@ module.exports.updateMenuItem = async (req) => {
       action,
       isOutOfStock,
       counterIds,
+      isVegan,
     },
   } = req;
 
@@ -360,7 +361,6 @@ module.exports.updateMenuItem = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    // Update fields only if they exist (handle falsy values correctly)
     if (itemName !== undefined) item.itemName = itemName;
     if (price !== undefined) item.price = price;
     if (description !== undefined) item.description = description;
@@ -369,6 +369,7 @@ module.exports.updateMenuItem = async (req) => {
     if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
     if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
+    if (isVegan !== undefined) item.isVegan = isVegan;
 
     if (file) {
       const fileBuffer = file.buffer;
@@ -393,7 +394,7 @@ module.exports.updateMenuItem = async (req) => {
       }
     }
 
-    await item.save(); // Save the updated item
+    await item.save();
   } else if (action === EDIT_ACTION.DELETE) {
     await ItemDetails.deleteOne({ _id: itemId });
   }
