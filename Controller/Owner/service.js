@@ -352,6 +352,7 @@ module.exports.updateMenuItem = async (req) => {
       action,
       isOutOfStock,
       counterIds,
+      isVegan,
     },
   } = req;
 
@@ -365,7 +366,6 @@ module.exports.updateMenuItem = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    // Update fields only if they exist (handle falsy values correctly)
     if (itemName !== undefined) item.itemName = itemName;
     if (price !== undefined) item.price = price;
     if (description !== undefined) item.description = description;
@@ -374,6 +374,7 @@ module.exports.updateMenuItem = async (req) => {
     if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
     if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
+    if (isVegan !== undefined) item.isVegan = isVegan;
 
     if (file) {
       const fileBuffer = file.buffer;
@@ -398,7 +399,7 @@ module.exports.updateMenuItem = async (req) => {
       }
     }
 
-    await item.save(); // Save the updated item
+    await item.save();
   } else if (action === EDIT_ACTION.DELETE) {
     await ItemDetails.deleteOne({ _id: itemId });
   }
@@ -481,8 +482,6 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
-      // startingDate,
-      // endDate,
       isRepetitive,
       repetitiveDays,
       from,
@@ -493,7 +492,6 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
-  console.log({ body: req.body });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
@@ -510,23 +508,23 @@ module.exports.createEvent = async (req) => {
     });
   }
 
-  const existingEvent = await Event.findOne({
-    eventName,
-    ownerId,
+  const conflictingEvent = await Event.findOne({
     entityId: req.entityId,
+    counterIds: { $in: counterIds },
+    $or: [{ from: { $lt: dateTimeTo }, to: { $gt: dateTimeFrom } }],
   });
 
-  if (existingEvent) {
+  if (conflictingEvent) {
     throwError({
-      status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "An event with the same details already exists",
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "An event with the same time and counter already exists.",
     });
   }
-  let repetitiveDaysArr = [];
 
+  let repetitiveDaysArr = [];
   if (isRepetitive && repetitiveDays) {
     try {
-      repetitiveDaysArr = JSON.parse(repetitiveDays); // Convert string to array
+      repetitiveDaysArr = JSON.parse(repetitiveDays);
     } catch (error) {
       console.error("Error parsing repetitiveDays:", error);
       throwError({
@@ -537,7 +535,6 @@ module.exports.createEvent = async (req) => {
   }
 
   let fileName = "";
-
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -565,8 +562,6 @@ module.exports.createEvent = async (req) => {
     eventName,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
-    // startingDate: new Date(startingDate),
-    // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
     ageLimit,
@@ -899,7 +894,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     
 
     eventDetailsMap.set(event._id.toString(), {
-      eventId: event._id,
+      _id: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
@@ -1730,16 +1725,21 @@ module.exports.emailExist = async (req) => {
 };
 
 module.exports.deleteEntityAccount = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId);
+  const { entityId, userId } = req;
+
+  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: "Entity doesn't exist.",
     });
   }
-  await EntityDetails.updateOne(
-    { _id: entity },
-    { $set: { status: STATUS.DELETED } }
-  );
+
+  await Promise.all([
+    EntityDetails.updateOne(
+      { _id: entityId },
+      { $set: { status: STATUS.DELETED } }
+    ),
+    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+  ]);
 };

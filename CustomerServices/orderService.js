@@ -279,17 +279,14 @@ const getEntityOrders = async (req) => {
     query.counterId = counterId;
   }
 
-  // Search logic for orderId or itemName
   if (searchTerm) {
-    const searchRegex = new RegExp(searchTerm, "i"); // Case-insensitive search
+    const searchRegex = new RegExp(searchTerm, "i");
     const searchConditions = [];
 
-    // Check if searchTerm is a valid ObjectId for orderId
     if (mongoose.Types.ObjectId.isValid(searchTerm)) {
       searchConditions.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
     }
 
-    // Step 1: Find item IDs that match the search term
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
       { _id: 1 }
@@ -300,7 +297,6 @@ const getEntityOrders = async (req) => {
       searchConditions.push({ "items.itemId": { $in: matchingItemIds } });
     }
 
-    // Apply search conditions only if we found matching results
     if (searchConditions.length > 0) {
       query.$or = searchConditions;
     }

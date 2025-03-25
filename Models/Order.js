@@ -39,9 +39,13 @@ const orderSchme = new Schema(
     isSelfPickup: { type: Boolean },
     note: { type: String },
     discountAmount: { type: Number, default: 0 },
-    finalAmount: { type: Number, required: true },
+    finalAmount: {
+      type: Number,
+      required: true,
+      set: (value) => Number(value.toFixed(2)),
+    },
     couponCode: { type: String },
-    tax: { type: Number, },
+    tax: { type: Number },
     platformFee: { type: Number },
   },
   { timestamps: true, minimize: false }

@@ -14,7 +14,7 @@ const {
 
 router.post("/login", async (req, res) => {
   try {
-    const response=await login(req);
+    const response = await login(req);
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
       token: response.token,
