@@ -164,21 +164,21 @@ const updateStatusOfOrder = async (req) => {
     data: {
       orderId: orderId,
       status: status,
-      screen: "status", // Used in Flutter to navigate
-      click_action: "FLUTTER_NOTIFICATION_CLICK", // ✅ Moved inside `data`
+      screen: "status",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
     token: updatedOrder.userId.fcmToken,
     android: {
       priority: "high",
       notification: {
-        click_action: "FLUTTER_NOTIFICATION_CLICK", // ✅ Required for Android
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
     },
     apns: {
       payload: {
         aps: {
-          content_available: true, // ✅ Ensures data messages are processed on iOS
-          category: "FLUTTER_NOTIFICATION_CLICK", // ✅ iOS requires a category for taps
+          content_available: true,
+          category: "FLUTTER_NOTIFICATION_CLICK",
           mutableContent: 1,
           alert: {
             title: "Order Status Updated",

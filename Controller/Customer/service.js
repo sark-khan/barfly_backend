@@ -415,6 +415,29 @@ module.exports.getMenuItems = async (req) => {
   return menuItemsResp;
 };
 
+// module.exports.getRecommendedItems = async (req) => {
+//   const { entityId, counterId, searchTerm } = req.query;
+
+//   const query = { entityId, counterIds: counterId };
+
+//   if (searchTerm) {
+//     query.itemName = { $regex: searchTerm, $options: "i" };
+//   }
+
+//   const allItems = await ItemDetails.find(query).populate("menuCategoryId");
+
+//   const categoryMap = {};
+
+//   allItems.forEach((item) => {
+//     item.image = generatePresignedUrl(item.image);
+//     if (!categoryMap[item.menuCategoryId]) {
+//       categoryMap[item.menuCategoryId] = item;
+//     }
+//   });
+
+//   return Object.values(categoryMap);
+// };
+
 module.exports.getRecommendedItems = async (req) => {
   const { entityId, counterId, searchTerm } = req.query;
 
@@ -424,18 +447,22 @@ module.exports.getRecommendedItems = async (req) => {
     query.itemName = { $regex: searchTerm, $options: "i" };
   }
 
-  const allItems = await ItemDetails.find(query).populate("menuCategoryId");
+  const allItems = await ItemDetails.find(query)
+    .populate("menuCategoryId")
+    .lean();
 
-  const categoryMap = {};
+  const counterItemMap = {};
 
   allItems.forEach((item) => {
     item.image = generatePresignedUrl(item.image);
-    if (!categoryMap[item.menuCategoryId]) {
-      categoryMap[item.menuCategoryId] = item;
+    const counterKey = `${item.counterId}_${item.itemName}`;
+
+    if (!counterItemMap[counterKey]) {
+      counterItemMap[counterKey] = item;
     }
   });
 
-  return Object.values(categoryMap);
+  return Object.values(counterItemMap).slice(0, 2);
 };
 
 module.exports.addExistingItemToMenu = async (req) => {
