@@ -429,16 +429,28 @@ router.post("/get-discount-coupons", async (req, res) => {
   }
 });
 
+// const mongoose = require("mongoose");
+// const express = require("express");
+// const router = express.Router();
+// const MenuCategory = require("../models/MenuCategory");
+// const ItemDetails = require("../models/ItemDetails");
+
 router.get("/get-counters-by-name", async (req, res) => {
   try {
     const {
       entityId,
-      query: { categoryName },
+      query: { categoryName, itemName }, // Added itemName to query params
     } = req;
 
     if (!categoryName) {
-      return res.status(STATUS_CODES.BAD_REQUEST).json({
+      return res.status(400).json({
         message: "Category name is required.",
+      });
+    }
+
+    if (!itemName) {
+      return res.status(400).json({
+        message: "Item name is required.",
       });
     }
 
@@ -450,22 +462,36 @@ router.get("/get-counters-by-name", async (req, res) => {
       .lean();
 
     if (!menuCategories.length) {
-      return res.status(STATUS_CODES.NOT_FOUND).json({
+      return res.status(404).json({
         message: "No menu categories found with this name.",
       });
     }
 
-    const counters = menuCategories
-      .filter((cat) => cat.counterId)
+    const menuCategoryIds = menuCategories.map((cat) => cat._id);
+
+    const existingItems = await ItemDetails.find({
+      menuCategoryId: { $in: menuCategoryIds },
+      itemName,
+    }).select("menuCategoryId");
+
+    const menuCategoryIdsWithItem = new Set(
+      existingItems.map((item) => item.menuCategoryId.toString())
+    );
+
+    const filteredCounters = menuCategories
+      .filter(
+        (cat) =>
+          cat.counterId && !menuCategoryIdsWithItem.has(cat._id.toString())
+      )
       .map((cat) => ({
         counterId: cat.counterId._id.toString(),
         counterName: cat.counterId.counterName,
       }));
 
-    return res.status(STATUS_CODES.OK).json({ counters });
+    return res.status(STATUS_CODES.OK).json({ counters: filteredCounters });
   } catch (error) {
     console.error("Error fetching counters by category name:", error);
-    res.status(STATUS_CODES.SERVER_ERROR).json({
+    res.status(SERVER_ERROR).json({
       message: "An error occurred while fetching counters.",
     });
   }

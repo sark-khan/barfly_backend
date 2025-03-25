@@ -33,6 +33,7 @@ const {
   popularEntities,
   entityOffers,
   getFeedbackQuestions,
+  getTablesUserSide,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -504,6 +505,20 @@ router.get("/get-feedback-questions", async (req, res) => {
       message:
         error.message || "Error occured while getting feedback questions",
     });
+  }
+});
+
+router.get("/get-tables-user-side", async (req, res) => {
+  try {
+    const data = await getTablesUserSide(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Tables fetched successfully.", data });
+  } catch (error) {
+    console.error("Error while fetching the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
