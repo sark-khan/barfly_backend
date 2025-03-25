@@ -503,18 +503,18 @@ module.exports.createEvent = async (req) => {
     });
   }
 
-  // const conflictingEvent = await Event.findOne({
-  //   entityId: req.entityId,
-  //   counterIds: { $in: counterIds },
-  //   $or: [{ from: { $lt: dateTimeTo }, to: { $gt: dateTimeFrom } }],
-  // });
+  const conflictingEvent = await Event.findOne({
+    entityId: req.entityId,
+    counterIds: { $in: counterIds },
+    $or: [{ from: { $lt: dateTimeTo }, to: { $gt: dateTimeFrom } }],
+  });
 
-  // if (conflictingEvent) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "An event with the same time and counter already exists.",
-  //   });
-  // }
+  if (conflictingEvent) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "An event with the same time and counter already exists.",
+    });
+  }
 
   let repetitiveDaysArr = [];
   if (isRepetitive && repetitiveDays) {
