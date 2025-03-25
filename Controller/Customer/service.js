@@ -34,6 +34,7 @@ const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
 const Discount = require("../../Models/Discount");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
+const Tables = require("../../Models/Tables");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -1080,4 +1081,15 @@ module.exports.getFeedbackQuestions = async (req) => {
   const feedbackQuestions = await FeedbackQuestions.find({ entityId });
   if (!feedbackQuestions) return [];
   return feedbackQuestions;
+};
+
+module.exports.getTablesUserSide = async (req) => {
+  const { entityId, counterId } = req.query;
+  const query = { entityId, counterIds: counterId };
+
+  const tables = await Tables.findOne(query);
+  if (!tables) {
+    return [];
+  }
+  return tables;
 };
