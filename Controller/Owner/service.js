@@ -248,23 +248,28 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  if (!Array.isArray(menuCategoryIds) || menuCategoryIds.length === 0) {
+  if ( menuCategoryIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "At least one menu category is required",
     });
   }
 
+
+ 
+
   const menuCategories = await MenuCategory.find({
     _id: { $in: menuCategoryIds },
   });
 
-  if (menuCategories.length !== menuCategoryIds.length) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "One or more menu categories not found",
-    });
-  }
+  console.log({menuCategories, menuCategoryIds});
+
+  // if (menuCategories.length != menuCategoryIds.length) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_FOUND,
+  //     message: "One or more menu categories not found",
+  //   });
+  // }
 
   const existingItem = await ItemDetails.findOne({
     itemName,
@@ -866,12 +871,14 @@ module.exports.getOngoingEventDetails = async (req) => {
     })
     .lean();
 
+  console.log({events});
+
   const eventDetailsMap = new Map();
 
   const ongoingEvents = events.filter((event) => {
     if (event.isRepetitive) {
       const currentUTCday = currentTime.getUTCDay();
-
+      console.log({currentUTCday});
       if (
         !Array.isArray(event.repetitiveDays) ||
         event.repetitiveDays.length !== 7
@@ -879,15 +886,17 @@ module.exports.getOngoingEventDetails = async (req) => {
         return false;
       }
 
-      const adjustedRepetitiveDays = [
-        event.repetitiveDays[6],
-        ...event.repetitiveDays.slice(0, 6),
-      ];
+      // const adjustedRepetitiveDays = [
+      //   event.repetitiveDays[6],
+      //   ...event.repetitiveDays.slice(0, 6),
+      // ];
+      // console.log({adjustedRepetitiveDays});
 
-      if (adjustedRepetitiveDays[currentUTCday] !== 1) {
+      if (event.repetitiveDays[currentUTCday] !== 1) {
         return false;
       }
     }
+    
 
     eventDetailsMap.set(event._id.toString(), {
       eventId: event._id,
@@ -906,6 +915,8 @@ module.exports.getOngoingEventDetails = async (req) => {
 
     return true;
   });
+
+  console.log({ongoingEvents});
 
   if (!eventDetailsMap.size) return [];
 

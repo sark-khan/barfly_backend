@@ -305,37 +305,41 @@ const getEntityOrders = async (req) => {
       query.$or = searchConditions;
     }
   }
+  console.log({...query});
 
+  const data=await Order.find(query)
+  .populate({
+    path: "items.itemId",
+    select: "itemName quantity description type currency image createdAt",
+    model: "ItemDetails",
+  })
+  .populate({
+    path: "counterId",
+    select: "counterName",
+    model: "Counter",
+  })
+  .sort({ tokenNumber: -1 })
+  .skip(skip)
+  .limit(limit);
+
+  delete query.status;
+  console.log({query});
   const [
-    data,
     orderProcessCount,
     readyOrders,
     completedOrders,
     cancelledOrders,
   ] = await Promise.all([
-    Order.find(query)
-      .populate({
-        path: "items.itemId",
-        select: "itemName quantity description type currency image createdAt",
-        model: "ItemDetails",
-      })
-      .populate({
-        path: "counterId",
-        select: "counterName",
-        model: "Counter",
-      })
-      .sort({ tokenNumber: -1 })
-      .skip(skip)
-      .limit(limit),
     Order.countDocuments({
-      entityId,
+      ...query,
       status: {
         $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
       },
-    }),
-    Order.countDocuments({ entityId, status: ORDER_STATUS.READY }),
-    Order.countDocuments({ entityId, status: ORDER_STATUS.COMPLETED }),
-    Order.countDocuments({ entityId, status: ORDER_STATUS.CANCELLED }),
+    }
+    ),
+    Order.countDocuments({...query, status:ORDER_STATUS.READY} ),
+    Order.countDocuments({...query, status:ORDER_STATUS.COMPLETED}),
+    Order.countDocuments({...query, status:ORDER_STATUS.CANCELLED}),
   ]);
 
   return {
