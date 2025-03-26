@@ -222,7 +222,7 @@ module.exports.login = async (req) => {
     if (!isPasswordValid)
       throwError({
         status: STATUS_CODES.NOT_AUTHORIZED,
-        message: "Invalid paaword.",
+        message: "Invalid password.",
       });
   }
   user.entityDetails = entityDetails;
