@@ -248,21 +248,18 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  if ( menuCategoryIds.length === 0) {
+  if (menuCategoryIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "At least one menu category is required",
     });
   }
 
-
- 
-
   const menuCategories = await MenuCategory.find({
     _id: { $in: menuCategoryIds },
   });
 
-  console.log({menuCategories, menuCategoryIds});
+  console.log({ menuCategories, menuCategoryIds });
 
   // if (menuCategories.length != menuCategoryIds.length) {
   //   throwError({
@@ -894,7 +891,6 @@ module.exports.getOngoingEventDetails = async (req) => {
         return false;
       }
     }
-    
 
     eventDetailsMap.set(event._id.toString(), {
       eventId: event._id,
@@ -914,7 +910,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     return true;
   });
 
-  console.log({ongoingEvents});
+  console.log({ ongoingEvents });
 
   if (!eventDetailsMap.size) return [];
 
@@ -1562,7 +1558,7 @@ module.exports.getBusinessUserDetails = async (req) => {
   }).lean();
 
   entity.image = generatePresignedUrl(entity.image);
-  user.password = "Enter your password";
+  user.password = "";
 
   return { ...entity, ...user };
 };
@@ -1728,16 +1724,21 @@ module.exports.emailExist = async (req) => {
 };
 
 module.exports.deleteEntityAccount = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId);
+  const { entityId, userId } = req;
+
+  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: "Entity doesn't exist or is not associated with the user.",
     });
   }
-  await EntityDetails.updateOne(
-    { _id: entity },
-    { $set: { status: STATUS.DELETED } }
-  );
+
+  await Promise.all([
+    EntityDetails.updateOne(
+      { _id: entityId },
+      { $set: { status: STATUS.DELETED } }
+    ),
+    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+  ]);
 };
