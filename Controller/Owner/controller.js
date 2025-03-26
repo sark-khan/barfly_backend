@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { STATUS_CODES, ROLES } = require("../../Utils/globalConstants");
+const { STATUS_CODES, ROLES, STATUS } = require("../../Utils/globalConstants");
 const {
   getUpcomingEvents,
   getEventsByMonthAndYear,
@@ -439,7 +439,7 @@ router.get("/get-counters-by-name", async (req, res) => {
   try {
     const {
       entityId,
-      query: { categoryName, itemName }, // Added itemName to query params
+      query: { categoryName, itemName },
     } = req;
 
     if (!categoryName) {
@@ -457,7 +457,7 @@ router.get("/get-counters-by-name", async (req, res) => {
     const menuCategories = await MenuCategory.find({ categoryName, entityId })
       .populate({
         path: "counterId",
-        select: "counterName",
+        select: "counterName status",
       })
       .lean();
 
@@ -481,7 +481,9 @@ router.get("/get-counters-by-name", async (req, res) => {
     const filteredCounters = menuCategories
       .filter(
         (cat) =>
-          cat.counterId && !menuCategoryIdsWithItem.has(cat._id.toString())
+          cat.counterId &&
+          cat.counterId.status === STATUS.ACTIVE &&
+          !menuCategoryIdsWithItem.has(cat._id.toString())
       )
       .map((cat) => ({
         counterId: cat.counterId._id.toString(),
@@ -491,7 +493,7 @@ router.get("/get-counters-by-name", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({ counters: filteredCounters });
   } catch (error) {
     console.error("Error fetching counters by category name:", error);
-    res.status(SERVER_ERROR).json({
+    res.status(STATUS_CODES.SERVER_ERROR).json({
       message: "An error occurred while fetching counters.",
     });
   }
@@ -557,7 +559,7 @@ router.get("/get-tables", async (req, res) => {
   }
 });
 
-router.get("/get-feedbacks-from users", async (req, res) => {
+router.get("/get-feedbacks-from-users", async (req, res) => {
   try {
     const data = await getUsersFeedback(req);
     return res
