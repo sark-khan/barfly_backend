@@ -1724,16 +1724,21 @@ module.exports.emailExist = async (req) => {
 };
 
 module.exports.deleteEntityAccount = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId);
+  const { entityId, userId } = req;
+
+  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: "Entity doesn't exist or is not associated with the user.",
     });
   }
-  await EntityDetails.updateOne(
-    { _id: entity },
-    { $set: { status: STATUS.DELETED } }
-  );
+
+  await Promise.all([
+    EntityDetails.updateOne(
+      { _id: entityId },
+      { $set: { status: STATUS.DELETED } }
+    ),
+    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+  ]);
 };
