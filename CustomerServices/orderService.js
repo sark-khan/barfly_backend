@@ -860,6 +860,7 @@ const getEventOrderSummary = async (req) => {
         tableNo,
         status,
         isSelfPickup,
+        createdAt
       } = order;
 
       if (!counterId) return null;
@@ -895,6 +896,7 @@ const getEventOrderSummary = async (req) => {
         isTableService: counterTableService,
         isSelfPickup,
         currency: "CHF",
+        createdAt,
         items: items.map((item) => ({
           itemId: item.itemId?._id,
           itemName: item.itemId?.itemName,
