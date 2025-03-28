@@ -27,6 +27,7 @@ module.exports = { io };
 const orderController = require("./Controller/orderController");
 const StripeController = require("./Controller/stripeController");
 const Counter = require("./Models/Counter");
+const adminController = require("./Admin/controller");
 const multer = require("multer");
 const {
   uploadBufferToS3,
@@ -58,6 +59,7 @@ const unProtectedApis = {
   "/api/customer/entities/recommended-items": true,
   "/api/get-trade-pdf": true,
   "/api/owner/restaurant/email-exist": true,
+  "/api/admins/login-admin": true,
 };
 
 app.use("/api/health-check", (req, res) => {
@@ -87,6 +89,7 @@ app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 
 app.use("/api/orders", orderController);
 app.use("/api/stripe", StripeController);
+app.use("/api/admins", adminController);
 
 app.post("/api/update-menu-items", async (req, res) => {
   try {
