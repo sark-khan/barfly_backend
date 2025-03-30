@@ -13,7 +13,7 @@ const { ObjectId } = mongoose.Types;
 
 const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
-const { messaging } = require("../firebaseAdmin");
+const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
 
 const createOrder = async (req, session) => {
@@ -70,8 +70,8 @@ const createOrder = async (req, session) => {
   }
 
   const entityDetails = await EntityDetails.findOne({
-    _id: req.entityId,
-  }).lean();
+    _id: entityId,
+  }).populate("owner").lean();
   if (entityDetails && !entityDetails.isOpen) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -120,13 +120,51 @@ const createOrder = async (req, session) => {
   //   );
   // }
 
-  const createdOrder = await Order.create([orderData], { session });
-
+  const createdOrder = await Order.create([orderData], { session })
+  console.log({createdOrder});
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
-  }
+  }``
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
+  // console.log({ss:entityDetails.owner})
+  const payload = {
+    notification: {
+      title: "Order Created",
+      body: `New Order Received. Tap to view details.`,
+    },
+    data: {
+      orderId: `${createdOrder[0]._id}`,
+      data:JSON.stringify(createdOrder[0]),
+      // status: status,
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+    token: entityDetails.owner.fcmToken,
+    android: {
+      priority: "high",
+      notification: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          content_available: true,
+          category: "FLUTTER_NOTIFICATION_CLICK",
+          mutableContent: 1,
+          alert: {
+            title: "Order Created ",
+            body: `Your order is now created. Tap to view details.`,
+          },
+        },
+      },
+    },
+  };
+
+  console.log({payload});
+  await messagingPlus.send(payload);
+
   return createdOrder;
 };
 
