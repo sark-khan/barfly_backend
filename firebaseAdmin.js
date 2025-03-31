@@ -3,7 +3,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 
 // Import your service account keys for both projects
 const serviceAccount = require("./Utils/firebaseKey.json");
-// const serviceAccountPlus = require("./Utils/firebaseCountrplusKey.json");
+const serviceAccountPlus = require("./Utils/firebaseCountrplusKey.json");
 
 // Initialize Firebase Admin SDK for the Default App (Project 1)
 const app = admin.initializeApp(
@@ -16,7 +16,7 @@ const app = admin.initializeApp(
 // Initialize Firebase Admin SDK for the Second App (Project 2)
 const countrPlusApp = admin.initializeApp(
   {
-    // credential: admin.credential.cert(serviceAccountPlus),
+    credential: admin.credential.cert(serviceAccountPlus),
   },
   "countrPlusApp"
 ); // Provide a unique name for the second app instance
