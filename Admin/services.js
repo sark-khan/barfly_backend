@@ -74,8 +74,16 @@ const loginAdmin = async (req) => {
 };
 
 const getAdmins = async (req) => {
+  let {
+    query: { pageNo = 1, pageLimit = 10 },
+  } = req;
+
+  if (typeof pageLimit === "string") {
+    pageLimit = parseInt(pageLimit, 10);
+  }
+  const skip = +(pageNo - 1) * +pageLimit;
   const query = { status: STATUS.ACTIVE };
-  const admins = await Admin.find(query);
+  const admins = await Admin.find(query).skip(skip).limit(pageLimit).lean();
   const totalCount = await Admin.countDocuments(query);
   return { data: admins, totalCount };
 };
@@ -127,7 +135,7 @@ const getUsers = async (req) => {
   } = req;
 
   if (typeof pageLimit === "string") {
-    pageLimit = parseInt(pageLimit, 10); // Convert to number using parseInt
+    pageLimit = parseInt(pageLimit, 10);
   }
   const skip = +(pageNo - 1) * +pageLimit;
   const query = { status: STATUS.ACTIVE, role: ROLES.CUSTOMER };

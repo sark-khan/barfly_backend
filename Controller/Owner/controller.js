@@ -525,10 +525,8 @@ router.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      await editMobileBusinessDetails(req);
-      return res
-        .status(STATUS_CODES.OK)
-        .json({ message: "Business details updated successfully." });
+      const message = await editMobileBusinessDetails(req);
+      return res.status(STATUS_CODES.OK).json(message);
     } catch (error) {
       console.error("Error while updating the details", error);
       return res
