@@ -1943,7 +1943,7 @@ module.exports.createItemSearchLogs = async (req) => {
 
 module.exports.getItemsSearchLogs = async (req) => {
   const { entityId } = req;
-  const logs = await ItemSearchLogs.find({ entityId, itemId, isRemoved: false })
+  const logs = await ItemSearchLogs.find({ entityId, isRemoved: false })
     .sort({ createdAt: -1 })
     .populate({
       path: "itemId",
