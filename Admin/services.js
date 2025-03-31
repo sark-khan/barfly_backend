@@ -1,16 +1,20 @@
+const bcrypt = require("bcrypt");
+
 const Admin = require("../Models/Admin");
 const Orders = require("../Models/Order");
 const User = require("../Models/User");
-const bcrypt = require("bcrypt");
+const EntityDetails = require("../Models/EntityDetails");
 
 const {
   ORDER_STATUS,
   ROLES,
   STATUS_CODES,
   STATUS,
+  EDIT_ACTION,
 } = require("../Utils/globalConstants");
 const throwError = require("./../Utils/throwError");
 const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
+const Order = require("../Models/Order");
 
 const addAdmin = async (req) => {
   const { firstName, lastName, password, email, phoneNumber } = req.body;
@@ -69,30 +73,57 @@ const loginAdmin = async (req) => {
 };
 
 const getAdmins = async (req) => {
-  const admins = await Admin.find();
+  const admins = await Admin.find({ status: STATUS.ACTIVE });
   return admins;
 };
 
-const totalRevenueOfEntity = async (req) => {
-  const { entityId } = req.body;
-  const query = { status: ORDER_STATUS.COMPLETED };
-  if (entityId) {
-    query.entityId = entityId;
-  }
-  const totalRevenue = await Orders.aggregate([
-    { $match: query },
-    { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
-  ]);
+const editAdmin = async (req) => {
+  const {
+    adminId,
+    email,
+    phoneNumber,
+    firstName,
+    lastName,
+    status,
+    action,
+    password,
+  } = req.body;
 
-  return totalRevenue[0]?.totalRevenue || 0;
+  let msg = "";
+  const admin = await Admin.findOne({ _id: adminId });
+  if (!admin) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Admin doesn't exist.",
+    });
+  }
+  if ((action = EDIT_ACTION.EDIT)) {
+    if (firstName) admin.firstName = firstName;
+    if (lastName) admin.lastName = lastName;
+    if (email) admin.email = email;
+    if (phoneNumber) admin.phoneNumber = phoneNumber;
+    if (password) {
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      admin.password = hashedPassword;
+    }
+
+    message = "Admin details updated successfully.";
+    return admin.save();
+  } else if (action === EDIT_ACTION.DELETE) {
+    if (status) admin.status = status;
+
+    message = "Admin delted successfully.";
+    return admin.save();
+  }
+  return msg;
 };
 
 const getUsers = async (req) => {
   const {
-    body: { pageNo = 1, pageLimit = 10, role },
+    query: { pageNo = 1, pageLimit = 10 },
   } = req;
   const skip = +(pageNo - 1) * +pageLimit;
-  const query = { role };
+  const query = { status: STATUS.ACTIVE, role: ROLES.CUSTOMER };
   const [users, totalCount] = await Promise.all([
     User.find(query).sort({ firstName: 1 }).skip(skip).limit(pageLimit).lean(),
     User.countDocuments(query),
@@ -100,32 +131,55 @@ const getUsers = async (req) => {
   return { users, totalCount };
 };
 
-const getOrdersAndMoneySpent = async (req) => {
+const getRestaurants = async (req) => {
   const {
-    body: { status, userId },
+    body: { pageNo = 1, pageLimit = 10 },
   } = req;
-  const query = { userId };
-  if (status) {
-    query.status = status;
+  const skip = +(pageNo - 1) * +pageLimit;
+  const query = { status: STATUS.ACTIVE };
+  const [entity, totalCount] = await Promise.all([
+    EntityDetails.find(query).skip(skip).limit(pageLimit).lean(),
+    EntityDetails.countDocuments(query),
+  ]);
+  return { entity, totalCount };
+};
+
+const getRestaurantOrders = async (req) => {
+  const { entityId } = req.body;
+
+  const orders = await Order.find({ entityId });
+  if (!orders.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Orders not found.",
+    });
   }
 
-  let [noOfOrders, moneySpent] = await Promise.all([
-    Orders.countDocuments(query),
-    Orders.aggregate([
-      { $match: query },
-      { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
-    ]),
+  const totalOrders = orders.length;
+
+  const [revenueData] = await Order.aggregate([
+    {
+      $match: { status: ORDER_STATUS.COMPLETED },
+    },
+    {
+      $group: {
+        _id: null,
+        totalRevenue: { $sum: "$finalAmount" },
+      },
+    },
   ]);
 
-  moneySpent = moneySpent[0]?.moneySpent || 0;
-  return { noOfOrders, moneySpent };
+  const totalRevenue = revenueData?.totalRevenue || 0;
+
+  return { orders, totalOrders, totalRevenue };
 };
 
 module.exports = {
   addAdmin,
   loginAdmin,
   getAdmins,
-  totalRevenueOfEntity,
+  editAdmin,
   getUsers,
-  getOrdersAndMoneySpent,
+  getRestaurants,
+  getRestaurantOrders,
 };

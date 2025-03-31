@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
 const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
+const crypto = require("crypto");
 const {
   STATUS_CODES,
   INSIDER_TYPE,
@@ -28,6 +29,8 @@ const Feedbacks = require("../../Models/UserFeedback");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const globalConstants = require("../../Utils/globalConstants");
 const ItemSearchLogs = require("../../Models/ItemSearchLogs");
+const Otp = require("../../Models/Otp");
+const { createMail, sendSMS } = require("../../Utils/mailer");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -892,7 +895,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     }
 
     eventDetailsMap.set(event._id.toString(), {
-      eventId: event._id,
+      _id: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
@@ -1540,6 +1543,192 @@ module.exports.editBusinessDetails = async (req) => {
       ? User.updateOne({ _id: userId }, { $set: updateUserFields })
       : Promise.resolve(),
   ]);
+};
+
+module.exports.editMobileBusinessDetails = async (req) => {
+  const {
+    userId,
+    entityId,
+    body: {
+      email,
+      contactNumber,
+      newPassword,
+      enteredOtp,
+      entityContactNumber,
+      action,
+      location,
+      zipcode,
+      floor,
+      buildingName,
+      landmark,
+    },
+    file,
+  } = req;
+
+  let message = "";
+  const updateEntityFields = {};
+
+  if (newPassword) {
+    const userPass = await User.findOne({ _id: userId });
+    if (!userPass) {
+      throwError({
+        status: STATUS_CODES.NOT_FOUND,
+        message: "User not found.",
+      });
+    }
+
+    const passwordCompare = await comparePassword(
+      newPassword,
+      userPass.password
+    );
+    if (passwordCompare) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "We don't accept old password as new password.",
+      });
+    }
+
+    const passwordChange = bcrypt.hashSync(newPassword, 10);
+    userPass.password = passwordChange;
+    await userPass.save();
+
+    message = "Password updated successfully.";
+    return { message };
+  }
+
+  const entity = await EntityDetails.findOne({
+    _id: entityId,
+    status: STATUS.ACTIVE,
+  }).lean();
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "Entity not found.",
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT && file) {
+    const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+    try {
+      const { Location } = await uploadBufferToS3(file.buffer, fileName);
+      if (!Location) throw new Error("File upload failed");
+      updateEntityFields.image = fileName;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "File upload failed",
+      });
+    }
+  } else if (action === EDIT_ACTION.DELETE) {
+    updateEntityFields.image = "";
+  }
+
+  if (location) updateEntityFields.location = location;
+  if (floor) updateEntityFields.floor = floor;
+  if (buildingName) updateEntityFields.buildingName = buildingName;
+  if (landmark) updateEntityFields.landMark = landmark;
+  if (zipcode) updateEntityFields.zipcode = zipcode;
+
+  const unifiedContactNumber = contactNumber || entityContactNumber;
+  if (unifiedContactNumber) {
+    if (!enteredOtp) {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.findOneAndUpdate(
+        { contactNumber: unifiedContactNumber },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const msg = `Your OTP for updating contact number on Countr is: ${otp} (Valid for 5 minutes)`;
+
+      await sendSMS({ toPhoneNumber: unifiedContactNumber, message: msg });
+
+      await User.updateOne(
+        { _id: userId },
+        { contactNumber: unifiedContactNumber, contactOtpVerified: false }
+      );
+      return { message: "OTP sent to your new contact number.", otp };
+    } else {
+      const otpRecord = await Otp.findOne({
+        contactNumber: unifiedContactNumber,
+      });
+      if (
+        !otpRecord ||
+        otpRecord.otp !== enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Invalid OTP or OTP expired.",
+        });
+      }
+      await Otp.deleteOne({ contactNumber: unifiedContactNumber });
+      await User.updateOne(
+        { _id: userId },
+        { contactNumber: unifiedContactNumber, contactOtpVerified: true }
+      );
+      updateEntityFields.contactNumber = unifiedContactNumber;
+      return { message: "Contact number updated successfully." };
+    }
+  }
+
+  await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+
+  const query = { status: STATUS.ACTIVE };
+  if (email) query.email = email;
+
+  const user = await User.findOne(query);
+  if (user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: `Email ${email} already exists.`,
+    });
+  }
+
+  if (email) {
+    if (!enteredOtp) {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.findOneAndUpdate(
+        { email },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const mail_data = {
+        to: email,
+        subject: "COUNTR: OTP for Email Update",
+        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+      };
+      createMail(mail_data);
+      await User.updateOne({ _id: userId }, { emailOtpVerified: false });
+
+      return { message: "OTP sent to your new email." };
+    } else {
+      const otpRecord = await Otp.findOne({ email });
+      if (
+        !otpRecord ||
+        otpRecord.otp !== enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Invalid OTP or OTP expired.",
+        });
+      }
+      await Otp.deleteOne({ email });
+      await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
+      return { message: "Email updated successfully." };
+    }
+  }
+
+  return { message: "User details updated successfully." };
 };
 
 module.exports.getBusinessUserDetails = async (req) => {

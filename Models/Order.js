@@ -37,7 +37,7 @@ const orderSchme = new Schema(
     },
     tableNo: { type: Number, default: 0 },
     isSelfPickup: { type: Boolean },
-    note: { type: String },
+    note: { type: String, default: "" },
     discountAmount: { type: Number, default: 0 },
     finalAmount: {
       type: Number,
