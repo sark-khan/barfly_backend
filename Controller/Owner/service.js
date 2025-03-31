@@ -487,7 +487,6 @@ module.exports.createEvent = async (req) => {
     },
   } = req;
 
-  console.log({ body: req.body });
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
@@ -708,8 +707,6 @@ module.exports.getUpcomingEvents = async (req) => {
   if (endDate) {
     dateFilter.$lte = endDate;
   }
-
-  console.log({ dateFilter });
 
   const upcomingEvents = await Event.find({
     ownerId,
@@ -1544,6 +1541,7 @@ module.exports.editMobileBusinessDetails = async (req) => {
   const {
     userId,
     entityId,
+    file,
     body: {
       email,
       contactNumber,
@@ -1557,7 +1555,6 @@ module.exports.editMobileBusinessDetails = async (req) => {
       buildingName,
       landmark,
     },
-    file,
   } = req;
 
   let message = "";
@@ -1627,8 +1624,10 @@ module.exports.editMobileBusinessDetails = async (req) => {
   if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
 
+  await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+
   const unifiedContactNumber = contactNumber || entityContactNumber;
-  if (unifiedContactNumber) {
+  if (unifiedContactNumber && entityId && userId) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -1647,7 +1646,8 @@ module.exports.editMobileBusinessDetails = async (req) => {
         { _id: userId },
         { contactNumber: unifiedContactNumber, contactOtpVerified: false }
       );
-      return { message: "OTP sent to your new contact number.", otp };
+      message = "OTP sent to your new contact number.";
+      return { message, otp };
     } else {
       const otpRecord = await Otp.findOne({
         contactNumber: unifiedContactNumber,
@@ -1667,12 +1667,19 @@ module.exports.editMobileBusinessDetails = async (req) => {
         { _id: userId },
         { contactNumber: unifiedContactNumber, contactOtpVerified: true }
       );
+
       updateEntityFields.contactNumber = unifiedContactNumber;
-      return { message: "Contact number updated successfully." };
+      updateEntityFields.entityContactNumber = unifiedContactNumber;
+
+      await EntityDetails.updateOne(
+        { _id: entityId },
+        { entityContactNumber: unifiedContactNumber, contactOtpVerified: true }
+      );
+
+      message = "Contact number updated successfully.";
+      return { message };
     }
   }
-
-  await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
 
   const query = { status: STATUS.ACTIVE };
   if (email) query.email = email;
@@ -1704,7 +1711,7 @@ module.exports.editMobileBusinessDetails = async (req) => {
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      return { message: "OTP sent to your new email." };
+      return { message: "OTP sent to your new email.", otp };
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -1723,7 +1730,7 @@ module.exports.editMobileBusinessDetails = async (req) => {
     }
   }
 
-  return { message: "User details updated successfully." };
+  return { message: "Business details updated successfully." };
 };
 
 module.exports.getBusinessUserDetails = async (req) => {
@@ -1752,7 +1759,6 @@ module.exports.addingTables = async (req) => {
   } = req;
 
   const entity = await EntityDetails.findById(entityId);
-  console.log({ entity });
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1761,7 +1767,6 @@ module.exports.addingTables = async (req) => {
   }
 
   const counters = await Counter.findOne({ _id: counterId });
-  console.log({ counters });
   if (!counters) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1793,7 +1798,6 @@ module.exports.addingTables = async (req) => {
     counterIds: counterId,
     tableSetionNo: newTableSectionNo,
   };
-  console.log({ tableObj });
 
   return Tables.create(tableObj);
 };
