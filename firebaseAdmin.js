@@ -16,7 +16,7 @@ const app = admin.initializeApp(
 // Initialize Firebase Admin SDK for the Second App (Project 2)
 const countrPlusApp = admin.initializeApp(
   {
-    credential: admin.credential.cert(serviceAccountPlus),
+    // credential: admin.credential.cert(serviceAccountPlus),
   },
   "countrPlusApp"
 ); // Provide a unique name for the second app instance
