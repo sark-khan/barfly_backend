@@ -893,7 +893,7 @@ module.exports.getOngoingEventDetails = async (req) => {
     }
 
     eventDetailsMap.set(event._id.toString(), {
-      eventId: event._id,
+      _id: event._id,
       from: event.from,
       to: event.to,
       eventName: event.eventName,
