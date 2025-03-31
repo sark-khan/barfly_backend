@@ -34,6 +34,8 @@ const {
   emailExist,
   restaurantOpen,
   deleteEntityAccount,
+  createItemSearchLogs,
+  getItemsSearchLogs,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -626,6 +628,34 @@ router.post("/delete-entity-account", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while deleting the account." });
+  }
+});
+
+router.post("/create-items-search-logs", async (req, res) => {
+  try {
+    await createItemSearchLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs created successfully." });
+  } catch (error) {
+    console.error("Error while creating logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while creating logs",
+    });
+  }
+});
+
+router.get("/get-items-search-logs", async (req, res) => {
+  try {
+    const searchedEntitiesLogs = await getItemsSearchLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs fetched successfully.", searchedEntitiesLogs });
+  } catch (error) {
+    console.error("Error while fetched logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetched logs",
+    });
   }
 });
 

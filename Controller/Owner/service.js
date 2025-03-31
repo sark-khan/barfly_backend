@@ -27,6 +27,7 @@ const Tables = require("../../Models/Tables");
 const Feedbacks = require("../../Models/UserFeedback");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const globalConstants = require("../../Utils/globalConstants");
+const ItemSearchLogs = require("../../Models/ItemSearchLogs");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -258,8 +259,6 @@ module.exports.createMenuItem = async (req) => {
   const menuCategories = await MenuCategory.find({
     _id: { $in: menuCategoryIds },
   });
-
-  console.log({ menuCategories, menuCategoryIds });
 
   // if (menuCategories.length != menuCategoryIds.length) {
   //   throwError({
@@ -909,8 +908,6 @@ module.exports.getOngoingEventDetails = async (req) => {
 
     return true;
   });
-
-  console.log({ ongoingEvents });
 
   if (!eventDetailsMap.size) return [];
 
@@ -1741,4 +1738,43 @@ module.exports.deleteEntityAccount = async (req) => {
     ),
     User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
   ]);
+};
+
+module.exports.createItemSearchLogs = async (req) => {
+  const {
+    entityId,
+    body: { itemId },
+  } = req;
+
+  const existingLog = await ItemSearchLogs.findOne({ itemId });
+
+  if (existingLog) {
+    return ItemSearchLogs.updateOne(
+      { _id: existingLog._id },
+      { $set: { createdAt: new Date(), isRemoved: false } }
+    );
+  }
+
+  return ItemSearchLogs.create({ itemId, entityId });
+};
+
+module.exports.getItemsSearchLogs = async (req) => {
+  const { entityId } = req;
+  const logs = await ItemSearchLogs.find({ entityId, itemId, isRemoved: false })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: "itemId",
+      select: "itemName image",
+      model: "ItemDetails",
+    });
+  logs.map((items) => {
+    if (!items.entityId.image) {
+      return items;
+    }
+
+    items.entityId.image = generatePresignedUrl(items.entityId.image);
+    return items;
+  });
+
+  return logs;
 };

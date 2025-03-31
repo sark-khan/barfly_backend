@@ -339,42 +339,37 @@ const getEntityOrders = async (req) => {
       query.$or = searchConditions;
     }
   }
-  console.log({...query});
+  console.log({ ...query });
 
-  const data=await Order.find(query)
-  .populate({
-    path: "items.itemId",
-    select: "itemName quantity description type currency image createdAt",
-    model: "ItemDetails",
-  })
-  .populate({
-    path: "counterId",
-    select: "counterName",
-    model: "Counter",
-  })
-  .sort({ tokenNumber: -1 })
-  .skip(skip)
-  .limit(limit);
+  const data = await Order.find(query)
+    .populate({
+      path: "items.itemId",
+      select: "itemName quantity description type currency image createdAt",
+      model: "ItemDetails",
+    })
+    .populate({
+      path: "counterId",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ tokenNumber: -1 })
+    .skip(skip)
+    .limit(limit);
 
   delete query.status;
-  console.log({query});
-  const [
-    orderProcessCount,
-    readyOrders,
-    completedOrders,
-    cancelledOrders,
-  ] = await Promise.all([
-    Order.countDocuments({
-      ...query,
-      status: {
-        $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
-      },
-    }
-    ),
-    Order.countDocuments({...query, status:ORDER_STATUS.READY} ),
-    Order.countDocuments({...query, status:ORDER_STATUS.COMPLETED}),
-    Order.countDocuments({...query, status:ORDER_STATUS.CANCELLED}),
-  ]);
+  console.log({ query });
+  const [orderProcessCount, readyOrders, completedOrders, cancelledOrders] =
+    await Promise.all([
+      Order.countDocuments({
+        ...query,
+        status: {
+          $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
+        },
+      }),
+      Order.countDocuments({ ...query, status: ORDER_STATUS.READY }),
+      Order.countDocuments({ ...query, status: ORDER_STATUS.COMPLETED }),
+      Order.countDocuments({ ...query, status: ORDER_STATUS.CANCELLED }),
+    ]);
 
   return {
     data,
@@ -898,7 +893,7 @@ const getEventOrderSummary = async (req) => {
         tableNo,
         status,
         isSelfPickup,
-        createdAt
+        createdAt,
       } = order;
 
       if (!counterId) return null;
