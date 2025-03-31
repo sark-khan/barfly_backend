@@ -112,7 +112,7 @@ const editAdmin = async (req) => {
   } else if (action === EDIT_ACTION.DELETE) {
     if (status) admin.status = status;
 
-    message = "Admin delted successfully.";
+    message = "Admin deleted successfully.";
     return admin.save();
   }
   return msg;
