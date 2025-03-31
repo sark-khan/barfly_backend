@@ -69,10 +69,10 @@ router.post("/edit-admin", async (req, res) => {
 
 router.get("/get-users", async (req, res) => {
   try {
-    const data = await getUsers(req);
+    const {users, totalCount}= await getUsers(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Users list fetched successfully.", data });
+      .json({ message: "Users list fetched successfully.",users, totalCount });
   } catch (error) {
     console.error("Error while getting the users", error);
     return res
@@ -83,10 +83,14 @@ router.get("/get-users", async (req, res) => {
 
 router.get("/get-restaurants", async (req, res) => {
   try {
-    const data = await getRestaurants(req);
+    const { entity, totalCount } = await getRestaurants(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Restaurants fetched successfully.", data });
+      .json({
+        message: "Restaurants fetched successfully.",
+        entity,
+        totalCount,
+      });
   } catch (error) {
     console.error("Error while getting the restaurants", error);
 

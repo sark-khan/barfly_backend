@@ -31,6 +31,7 @@ const globalConstants = require("../../Utils/globalConstants");
 const ItemSearchLogs = require("../../Models/ItemSearchLogs");
 const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
+const { path } = require("pdfkit");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -1947,15 +1948,21 @@ module.exports.getItemsSearchLogs = async (req) => {
     .sort({ createdAt: -1 })
     .populate({
       path: "itemId",
-      select: "itemName image",
+      select: "itemName image menuCategoryId",
       model: "ItemDetails",
+      populate: {
+        // Nested population for menuCategoryId within itemId
+        path: "menuCategoryId",
+        select: "categoryName",
+        model: "CounterMenuCategory",
+      },
     });
+
   logs.map((items) => {
-    if (!items.entityId.image) {
+    if (!items.itemId.image) {
       return items;
     }
-
-    items.entityId.image = generatePresignedUrl(items.entityId.image);
+    items.itemId.image = generatePresignedUrl(items.itemId.image);
     return items;
   });
 
