@@ -34,7 +34,7 @@ const createOrder = async (req, session) => {
 
   const itemNameMapper = {};
   menuItems.forEach((item) => {
-    if (item.isOutOfStock) {
+    if (!item.inStock) {
       throwError({
         message: `Item ${item.itemName} is out of Stock`,
         status: STATUS_CODES.BAD_REQUEST,
@@ -71,7 +71,9 @@ const createOrder = async (req, session) => {
 
   const entityDetails = await EntityDetails.findOne({
     _id: entityId,
-  }).populate("owner").lean();
+  })
+    .populate("owner")
+    .lean();
   if (entityDetails && !entityDetails.isOpen) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -120,11 +122,12 @@ const createOrder = async (req, session) => {
   //   );
   // }
 
-  const createdOrder = await Order.create([orderData], { session })
-  console.log({createdOrder});
+  const createdOrder = await Order.create([orderData], { session });
+  console.log({ createdOrder });
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
-  }``
+  }
+  ``;
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
   // console.log({ss:entityDetails.owner})
@@ -135,7 +138,7 @@ const createOrder = async (req, session) => {
     },
     data: {
       orderId: `${createdOrder[0]._id}`,
-      data:JSON.stringify(createdOrder[0]),
+      data: JSON.stringify(createdOrder[0]),
       // status: status,
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
@@ -162,7 +165,7 @@ const createOrder = async (req, session) => {
     },
   };
 
-  console.log({payload});
+  console.log({ payload });
   await messagingPlus.send(payload);
 
   return createdOrder;

@@ -158,7 +158,7 @@ module.exports.getCounters = async (req) => {
   // Fetch items that have at least one active counter
   const items = await ItemDetails.find(
     { entityId },
-    { itemName: 1, isOutOfStock: 1, counterIds: 1 }
+    { itemName: 1, inStock: 1, counterIds: 1 }
   ).lean();
 
   const itemMapping = {};
@@ -176,7 +176,7 @@ module.exports.getCounters = async (req) => {
         }
         itemMapping[counterId].push({
           itemName: item.itemName,
-          isOutOfStock: item.isOutOfStock,
+          inStock: item.inStock,
           _id: item._id,
         });
       });
@@ -297,7 +297,7 @@ module.exports.createMenuItem = async (req) => {
         unit,
         description,
         nutritionType,
-        isOutOfStock: false,
+        inStock: true,
         quantity,
       });
     })
@@ -349,7 +349,7 @@ module.exports.updateMenuItem = async (req) => {
       currency,
       quantity,
       action,
-      isOutOfStock,
+      inStock,
       counterIds,
     },
   } = req;
@@ -372,7 +372,7 @@ module.exports.updateMenuItem = async (req) => {
     if (currency !== undefined) item.currency = currency;
     if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
-    if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
+    if (inStock !== undefined) item.inStock = inStock;
 
     if (file) {
       const fileBuffer = file.buffer;
@@ -406,13 +406,7 @@ module.exports.updateMenuItem = async (req) => {
 module.exports.getCreatedItems = async (req) => {
   const {
     entityId,
-    query: {
-      menuCategoryId,
-      pageNo = 1,
-      pageLimit = 8,
-      isOutOfStock,
-      searchTerm,
-    },
+    query: { menuCategoryId, pageNo = 1, pageLimit = 8, inStock, searchTerm },
   } = req;
 
   const query = { entityId };
@@ -421,8 +415,8 @@ module.exports.getCreatedItems = async (req) => {
     query.menuCategoryId = menuCategoryId;
   }
 
-  if (isOutOfStock) {
-    query.isOutOfStock = isOutOfStock;
+  if (inStock) {
+    query.inStock = inStock;
   }
 
   if (searchTerm) {

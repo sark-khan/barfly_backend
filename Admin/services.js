@@ -35,6 +35,7 @@ const addAdmin = async (req) => {
     email,
     phoneNumber,
     status: STATUS.ACTIVE,
+    isAdmin: true,
   };
 
   return Admin.create(adminObj);
@@ -73,8 +74,10 @@ const loginAdmin = async (req) => {
 };
 
 const getAdmins = async (req) => {
-  const admins = await Admin.find({ status: STATUS.ACTIVE });
-  return admins;
+  const query = { status: STATUS.ACTIVE };
+  const admins = await Admin.find(query);
+  const totalCount = await Admin.countDocuments(query);
+  return { data: admins, totalCount };
 };
 
 const editAdmin = async (req) => {

@@ -9,6 +9,7 @@ const adminSchema = new mongoose.Schema(
     email: { type: String, required: true },
     phoneNumber: { type: String, required: true },
     status: { type: String, enum: Object.values(STATUS) },
+    isAdmin: { type: Boolean, default: true },
   },
   { timestamps: true, minimize: false }
 );

@@ -40,7 +40,7 @@ const itemSchema = new Schema(
         required: true,
       },
     ],
-    isOutOfStock: { type: Boolean, default: false },
+    inStock: { type: Boolean, default: true },
     quantity: { type: Number },
   },
   { timestamps: true, minimize: false }

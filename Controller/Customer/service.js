@@ -363,7 +363,7 @@ module.exports.getMenuItems = async (req) => {
   //   menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
   // }
 
-  let filter = { menuCategoryId, isOutOfStock: false };
+  let filter = { menuCategoryId, inStock: true };
 
   if (searchTerm && searchTerm.trim()) {
     filter.itemName = { $regex: searchTerm, $options: "i" };

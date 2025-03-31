@@ -43,10 +43,10 @@ router.post("/login-admin", async (req, res) => {
 
 router.get("/get-admins", async (req, res) => {
   try {
-    await getAdmins(req);
+    const data = await getAdmins(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Admins list fetched successfully." });
+      .json({ message: "Admins list fetched successfully.", ...data });
   } catch (error) {
     console.error("Error while getting the admins", error);
     return res
