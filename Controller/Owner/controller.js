@@ -37,6 +37,7 @@ const {
   createItemSearchLogs,
   getItemsSearchLogs,
   editMobileBusinessDetails,
+  removeSearchLogs,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -620,7 +621,7 @@ router.post("/restaurant-open", async (req, res) => {
   }
 });
 
-router.get("/email-exist", async (req, res) => {
+router.post("/email-exist", async (req, res) => {
   try {
     const data = await emailExist(req);
     return res
@@ -672,6 +673,20 @@ router.get("/get-items-search-logs", async (req, res) => {
     console.error("Error while fetched logs: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while fetched logs",
+    });
+  }
+});
+
+router.post("/remove-search-logs", async (req, res) => {
+  try {
+    await removeSearchLogs(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Logs removed successfully." });
+  } catch (error) {
+    console.error("Error while removing logs: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while removing logs",
     });
   }
 });

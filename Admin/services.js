@@ -15,6 +15,7 @@ const {
 const throwError = require("./../Utils/throwError");
 const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
+const { generatePresignedUrl } = require("../Controller/aws-service");
 
 const addAdmin = async (req) => {
   const { firstName, lastName, password, email, phoneNumber } = req.body;
@@ -108,7 +109,7 @@ const editAdmin = async (req) => {
       message: "Admin doesn't exist.",
     });
   }
-  if ((action = EDIT_ACTION.EDIT)) {
+  if (action === EDIT_ACTION.EDIT) {
     if (firstName) admin.firstName = firstName;
     if (lastName) admin.lastName = lastName;
     if (email) admin.email = email;
@@ -118,12 +119,12 @@ const editAdmin = async (req) => {
       admin.password = hashedPassword;
     }
 
-    message = "Admin details updated successfully.";
+    msg = "Admin details updated successfully.";
     return admin.save();
   } else if (action === EDIT_ACTION.DELETE) {
     if (status) admin.status = status;
 
-    message = "Admin deleted successfully.";
+    msg = "Admin deleted successfully.";
     return admin.save();
   }
   return msg;
@@ -156,31 +157,82 @@ const getRestaurants = async (req) => {
     EntityDetails.find(query).skip(skip).limit(pageLimit).lean(),
     EntityDetails.countDocuments(query),
   ]);
+  entity.map((logo) => {
+    logo.image = generatePresignedUrl(logo.image);
+  });
   return { entity, totalCount };
 };
 
 const getRestaurantOrders = async (req) => {
-  const { entityId } = req.body;
+  const { entityId } = req.query;
 
   const orders = await Order.find({ entityId });
   if (!orders.length) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Orders not found.",
-    });
+    return [];
   }
 
   const totalOrders = orders.length;
 
   const [revenueData] = await Order.aggregate([
     {
-      $match: { status: ORDER_STATUS.COMPLETED },
+      $match: {
+        status: {
+          $in: [
+            ORDER_STATUS.COMPLETED,
+            ORDER_STATUS.WAITING,
+            ORDER_STATUS.IN_PROGRESS,
+            ORDER_STATUS.READY,
+          ],
+        },
+      },
     },
     {
+      // Lookup all item details based on items.itemId array
+      $lookup: {
+        from: "itemDetails", // ensure this matches your actual collection name
+        localField: "items.itemId",
+        foreignField: "_id",
+        as: "itemsDetails",
+      },
+    },
+    {
+      // Replace items array with populated details, keeping the quantity field
+      $addFields: {
+        items: {
+          $map: {
+            input: "$items",
+            as: "itm",
+            in: {
+              quantity: "$$itm.quantity",
+              // For each item, filter the itemsDetails to get the matching document
+              itemDetails: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$itemsDetails",
+                      as: "detail",
+                      cond: { $eq: ["$$detail._id", "$$itm.itemId"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      // Group orders to calculate total revenue and also include the full order documents.
       $group: {
         _id: null,
         totalRevenue: { $sum: "$finalAmount" },
+        orders: { $push: "$$ROOT" },
       },
+    },
+    {
+      // Optionally remove the temporary itemsDetails field from the output.
+      $project: { itemsDetails: 0 },
     },
   ]);
 

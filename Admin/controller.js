@@ -69,10 +69,10 @@ router.post("/edit-admin", async (req, res) => {
 
 router.get("/get-users", async (req, res) => {
   try {
-    const {users, totalCount}= await getUsers(req);
+    const { users, totalCount } = await getUsers(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Users list fetched successfully.",users, totalCount });
+      .json({ message: "Users list fetched successfully.", users, totalCount });
   } catch (error) {
     console.error("Error while getting the users", error);
     return res
@@ -84,13 +84,11 @@ router.get("/get-users", async (req, res) => {
 router.get("/get-restaurants", async (req, res) => {
   try {
     const { entity, totalCount } = await getRestaurants(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({
-        message: "Restaurants fetched successfully.",
-        entity,
-        totalCount,
-      });
+    return res.status(STATUS_CODES.OK).json({
+      message: "Restaurants list fetched successfully.",
+      entity,
+      totalCount,
+    });
   } catch (error) {
     console.error("Error while getting the restaurants", error);
 
@@ -103,9 +101,10 @@ router.get("/get-restaurants", async (req, res) => {
 router.get("/get-restaurants-orders", async (req, res) => {
   try {
     const data = await getRestaurantOrders(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Restaurants fetched successfully.", data });
+    return res.status(STATUS_CODES.OK).json({
+      message: "Restaurants orders and revenue fetched successfully.",
+      ...data,
+    });
   } catch (error) {
     console.error("Error while getting the restaurants", error);
 

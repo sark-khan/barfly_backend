@@ -1774,15 +1774,16 @@ module.exports.addingTables = async (req) => {
     });
   }
 
-  if (tableFrom > tableTo) {
+  if (tableFrom > tableTo || tableFrom == tableTo) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Invalid entry.",
     });
   }
 
-  const tableNumbers = Array.from({ length: tableTo - tableFrom + 1 }, (_, i) =>
-    String(tableFrom + i)
+  const tableNumbers = Array.from(
+    { length: Number(tableTo) - Number(tableFrom) + 1 },
+    (_, i) => String(Number(tableFrom) + i)
   );
 
   const lastTable = await Tables.findOne(
@@ -1841,14 +1842,17 @@ module.exports.addFeedbackQuestions = async (req) => {
   const { question, answerType, comment } = body;
 
   if (!ALL_ANSWER_TYPES || !Array.isArray(ALL_ANSWER_TYPES)) {
-    console.error("🚨 ERROR: ALL_ANSWER_TYPES is undefined or not an array!");
-    throw new Error("Internal error: Answer type list is not available.");
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Answer type list is not available.",
+    });
   }
 
   if (!Array.isArray(answerType)) {
-    throw new Error(
-      "Invalid answerType. Expected an array of valid answer types."
-    );
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid answer type. Expected an array of valid answer types.",
+    });
   }
 
   const invalidAnswers = answerType.filter(
@@ -1902,10 +1906,11 @@ module.exports.restaurantOpen = async (req) => {
 };
 
 module.exports.emailExist = async (req) => {
-  const emailExist = await User.distinct("email");
-  const phoneExist = await User.distinct("contactNumber");
+  const { email, contactNumber } = req.body;
+  const emailExist = await User.exists({ email });
+  const phoneExist = await User.exists({ contactNumber });
 
-  return { emailExist, phoneExist };
+  return { emailExist: !!emailExist, phoneExist: !!phoneExist };
 };
 
 module.exports.deleteEntityAccount = async (req) => {
@@ -1971,4 +1976,26 @@ module.exports.getItemsSearchLogs = async (req) => {
   });
 
   return logs;
+};
+
+exports.removeSearchLogs = async (req) => {
+  const {
+    entityId,
+    body: { itemId, isRemoved },
+  } = req;
+
+  const logs = await ItemSearchLogs.findOne({
+    itemId,
+    entityId,
+    isRemoved: false,
+  });
+  if (!logs) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "logs not found.",
+    });
+  }
+  if (isRemoved) logs.isRemoved = isRemoved;
+
+  return logs.save();
 };
