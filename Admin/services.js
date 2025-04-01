@@ -76,7 +76,7 @@ const loginAdmin = async (req) => {
 
 const getAdmins = async (req) => {
   let {
-    query: { pageNo = 1, pageLimit = 10 },
+    query: { pageNo = 1, pageLimit = 10, searchTerm },
   } = req;
 
   if (typeof pageLimit === "string") {
@@ -84,6 +84,13 @@ const getAdmins = async (req) => {
   }
   const skip = +(pageNo - 1) * +pageLimit;
   const query = { status: STATUS.ACTIVE };
+  if (searchTerm) {
+    query.$or = [
+      { firstName: { $regex: searchTerm, $options: "i" } },
+      { lastName: { $regex: searchTerm, $options: "i" } },
+    ];
+  }
+
   const admins = await Admin.find(query).skip(skip).limit(pageLimit).lean();
   const totalCount = await Admin.countDocuments(query);
   return { data: admins, totalCount };
