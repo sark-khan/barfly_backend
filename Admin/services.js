@@ -132,14 +132,18 @@ const editAdmin = async (req) => {
 
 const getUsers = async (req) => {
   let {
-    query: { pageNo = 1, pageLimit = 10 },
+    query: { pageNo = 1, pageLimit = 10, searchTerm },
   } = req;
 
   if (typeof pageLimit === "string") {
     pageLimit = parseInt(pageLimit, 10);
   }
+
   const skip = +(pageNo - 1) * +pageLimit;
   const query = { status: STATUS.ACTIVE, role: ROLES.CUSTOMER };
+  if (searchTerm) {
+    query.fullName = { $regex: searchTerm, $options: "i" };
+  }
   const [users, totalCount] = await Promise.all([
     User.find(query).sort({ firstName: 1 }).skip(skip).limit(pageLimit).lean(),
     User.countDocuments(query),
@@ -148,11 +152,19 @@ const getUsers = async (req) => {
 };
 
 const getRestaurants = async (req) => {
-  const {
-    body: { pageNo = 1, pageLimit = 10 },
+  let {
+    query: { pageNo = 1, pageLimit = 10, searchTerm },
   } = req;
+
+  if (typeof pageLimit === "string") {
+    pageLimit = parseInt(pageLimit, 10);
+  }
   const skip = +(pageNo - 1) * +pageLimit;
+
   const query = { status: STATUS.ACTIVE };
+  if (searchTerm) {
+    query.entityName = { $regex: searchTerm, $options: "i" };
+  }
   const [entity, totalCount] = await Promise.all([
     EntityDetails.find(query).skip(skip).limit(pageLimit).lean(),
     EntityDetails.countDocuments(query),
@@ -164,9 +176,20 @@ const getRestaurants = async (req) => {
 };
 
 const getRestaurantOrders = async (req) => {
-  const { entityId } = req.query;
+  let { entityId, pageNo = 1, pageLimit = 10 } = req.query;
 
-  const orders = await Order.find({ entityId });
+  if (typeof pageLimit === "string") {
+    pageLimit = parseInt(pageLimit, 10);
+  }
+  const skip = +(pageNo - 1) * +pageLimit;
+
+  const orders = await Order.find({ entityId })
+    .populate({ path: "counterId", select: "counterName" })
+    .populate({ path: "items.itemId", select: "itemName quantity currency" })
+    .skip(skip)
+    .limit(pageLimit)
+    .lean();
+
   if (!orders.length) {
     return [];
   }
@@ -186,53 +209,12 @@ const getRestaurantOrders = async (req) => {
         },
       },
     },
+
     {
-      // Lookup all item details based on items.itemId array
-      $lookup: {
-        from: "itemDetails", // ensure this matches your actual collection name
-        localField: "items.itemId",
-        foreignField: "_id",
-        as: "itemsDetails",
-      },
-    },
-    {
-      // Replace items array with populated details, keeping the quantity field
-      $addFields: {
-        items: {
-          $map: {
-            input: "$items",
-            as: "itm",
-            in: {
-              quantity: "$$itm.quantity",
-              // For each item, filter the itemsDetails to get the matching document
-              itemDetails: {
-                $arrayElemAt: [
-                  {
-                    $filter: {
-                      input: "$itemsDetails",
-                      as: "detail",
-                      cond: { $eq: ["$$detail._id", "$$itm.itemId"] },
-                    },
-                  },
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      // Group orders to calculate total revenue and also include the full order documents.
       $group: {
         _id: null,
         totalRevenue: { $sum: "$finalAmount" },
-        orders: { $push: "$$ROOT" },
       },
-    },
-    {
-      // Optionally remove the temporary itemsDetails field from the output.
-      $project: { itemsDetails: 0 },
     },
   ]);
 
