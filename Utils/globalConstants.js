@@ -292,6 +292,7 @@ const STRIPE_PAYMENT_STATUS = {
   PENDING: "Pending",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
+  INCOMPLETE: "Incomplete",
 };
 
 const ANSWER_TYPES = {

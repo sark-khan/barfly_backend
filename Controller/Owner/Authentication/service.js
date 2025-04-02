@@ -62,7 +62,6 @@ module.exports.register = async (req) => {
   let message = "";
   let otpRecord = await Otp.findOne({ contactNumber });
 
-  // Resend OTP logic
   if (!enteredOtp && contactNumber) {
     const otp = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);

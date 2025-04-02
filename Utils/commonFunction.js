@@ -35,6 +35,7 @@ const getJwtToken = (user, isUser = false) => {
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
+    isAdmin: user.isAdmin,
   };
   if (!isUser) {
     payload = {

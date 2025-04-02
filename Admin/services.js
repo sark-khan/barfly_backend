@@ -1,7 +1,7 @@
 const bcrypt = require("bcrypt");
 
 const Admin = require("../Models/Admin");
-const Orders = require("../Models/Order");
+const Stripe = require("../Models/Stripe");
 const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 
@@ -92,6 +92,9 @@ const getAdmins = async (req) => {
   }
 
   const admins = await Admin.find(query).skip(skip).limit(pageLimit).lean();
+  admins.forEach((pass) => {
+    delete pass.password;
+  });
   const totalCount = await Admin.countDocuments(query);
   return { data: admins, totalCount };
 };
@@ -201,7 +204,7 @@ const getRestaurantOrders = async (req) => {
     return [];
   }
 
-  const totalOrders = orders.length;
+  const totalOrders = await Order.countDocuments();
 
   const [revenueData] = await Order.aggregate([
     {
@@ -230,6 +233,57 @@ const getRestaurantOrders = async (req) => {
   return { orders, totalOrders, totalRevenue };
 };
 
+const getTransactionLogs = async (req) => {
+  let {
+    query: { pageNo = 1, pageLimit = 10 },
+  } = req;
+
+  if (typeof pageLimit === "string") {
+    pageLimit = parseInt(pageLimit, 10);
+  }
+  const skip = +(pageNo - 1) * +pageLimit;
+  const transactions = await Stripe.find()
+    .populate({
+      path: "userId",
+      select: "fullName",
+    })
+    .skip(skip)
+    .limit(pageLimit);
+  const totalCount = await Stripe.countDocuments();
+  return { transactions, totalCount };
+};
+
+const getAdminUserDetails = async (req) => {
+  const { userId } = req;
+  const adminDetails = await Admin.findOne({ _id: userId }).lean();
+  delete adminDetails.password;
+  return adminDetails;
+};
+
+const getDashboardAnalytics = async (req) => {
+  const query = { status: STATUS.ACTIVE };
+
+  const users = await User.countDocuments(query);
+  const entities = await EntityDetails.countDocuments(query);
+  const [revenue] = await Order.aggregate([
+    {
+      $match: {
+        status: {
+          $in: [
+            ORDER_STATUS.COMPLETED,
+            ORDER_STATUS.WAITING,
+            ORDER_STATUS.IN_PROGRESS,
+            ORDER_STATUS.READY,
+          ],
+        },
+      },
+    },
+    { $group: { _id: null, totalRevenue: { $sum: "$finalAmount" } } },
+  ]);
+  const totalRevenue = revenue?.totalRevenue || 0;
+  return { users, entities, totalRevenue };
+};
+
 module.exports = {
   addAdmin,
   loginAdmin,
@@ -238,4 +292,7 @@ module.exports = {
   getUsers,
   getRestaurants,
   getRestaurantOrders,
+  getTransactionLogs,
+  getAdminUserDetails,
+  getDashboardAnalytics,
 };

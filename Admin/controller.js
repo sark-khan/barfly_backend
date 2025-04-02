@@ -11,6 +11,9 @@ const {
   getUsers,
   getRestaurants,
   getRestaurantOrders,
+  getTransactionLogs,
+  getAdminUserDetails,
+  getDashboardAnalytics,
 } = require("./services");
 
 router.post("/add-admin", async (req, res) => {
@@ -110,6 +113,54 @@ router.get("/get-restaurants-orders", async (req, res) => {
 
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while getting the restaurants",
+    });
+  }
+});
+
+router.get("/get-transaction-logs", async (req, res) => {
+  try {
+    const data = await getTransactionLogs(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Transaction logs fetched successfully.",
+      ...data,
+    });
+  } catch (error) {
+    console.error("Error while fetching the transaction logs:", error);
+
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching the transaction logs",
+    });
+  }
+});
+
+router.get("/get-admin-user-details", async (req, res) => {
+  try {
+    const data = await getAdminUserDetails(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Admin details fetched successfully.",
+      data,
+    });
+  } catch (error) {
+    console.error("Error while fetching the admin details:", error);
+
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching the admin details",
+    });
+  }
+});
+
+router.get("/get-dashboard-analytics", async (req, res) => {
+  try {
+    const data = await getDashboardAnalytics(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Analytics fetched successfully.",
+      ...data,
+    });
+  } catch (error) {
+    console.error("Error while fetching the analytics:", error);
+
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching the analytics",
     });
   }
 });
