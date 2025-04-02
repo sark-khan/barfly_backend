@@ -1907,8 +1907,11 @@ module.exports.restaurantOpen = async (req) => {
 
 module.exports.emailExist = async (req) => {
   const { email, contactNumber } = req.body;
-  const emailExist = await User.exists({ email });
-  const phoneExist = await User.exists({ contactNumber });
+  const emailExist = await User.exists({ email, status: STATUS.ACTIVE });
+  const phoneExist = await User.exists({
+    contactNumber,
+    status: STATUS.ACTIVE,
+  });
 
   return { emailExist: !!emailExist, phoneExist: !!phoneExist };
 };
