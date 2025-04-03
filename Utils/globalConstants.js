@@ -86,6 +86,7 @@ const STATUS = {
   ACTIVE: "Active",
   INACTIVE: "Inactive",
   DELETED: "Deleted",
+  BLOCKED: "Blocked",
 };
 
 const EDIT_ACTION = {

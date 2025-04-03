@@ -1448,94 +1448,96 @@ module.exports.getDiscountCoupon = async (req) => {
 //   }
 // };
 
-module.exports.editBusinessDetails = async (req) => {
-  const {
-    entityId,
-    userId,
-    file,
-    body: {
-      email,
-      entityContactNumber,
-      password,
-      action,
-      location,
-      zipcode,
-      floor,
-      buildingName,
-      landmark,
-    },
-  } = req;
+// module.exports.editBusinessDetails = async (req) => {
+//   const {
+//     entityId,
+//     userId,
+//     file,
+//     body: {
+//       email,
+//       entityContactNumber,
+//       password,
+//       action,
+//       location,
+//       zipcode,
+//       floor,
+//       buildingName,
+//       landmark,
+//       plotNo,
+//     },
+//   } = req;
 
-  const [entity, user] = await Promise.all([
-    EntityDetails.findOne({ _id: entityId, userId }),
-    User.findById(userId),
-  ]);
+//   const [entity, user] = await Promise.all([
+//     EntityDetails.findOne({ _id: entityId, userId }),
+//     User.findById(userId),
+//   ]);
 
-  if (!entity) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Restaurant doesn't exist.",
-    });
-  }
+//   if (!entity) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Restaurant doesn't exist.",
+//     });
+//   }
 
-  const updateEntityFields = {};
-  const updateUserFields = {};
+//   const updateEntityFields = {};
+//   const updateUserFields = {};
 
-  if (action === EDIT_ACTION.EDIT && file) {
-    const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
-      / /g,
-      "_"
-    )}`;
-    try {
-      const { Location } = await uploadBufferToS3(file.buffer, fileName);
-      if (!Location) throw new Error("File upload failed");
-      updateEntityFields.image = fileName;
-    } catch (error) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
-      });
-    }
-  } else if (action === EDIT_ACTION.DELETE) {
-    updateEntityFields.image = "";
-  }
+//   if (action === EDIT_ACTION.EDIT && file) {
+//     const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+//     try {
+//       const { Location } = await uploadBufferToS3(file.buffer, fileName);
+//       if (!Location) throw new Error("File upload failed");
+//       updateEntityFields.image = fileName;
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   } else if (action === EDIT_ACTION.DELETE) {
+//     updateEntityFields.image = "";
+//   }
 
-  if (password) {
-    const isSamePassword = await comparePassword(password, user.password);
-    if (isSamePassword) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
-      });
-    }
-    updateUserFields.password = bcrypt.hashSync(password, 10);
-  }
+//   if (password) {
+//     const isSamePassword = await comparePassword(password, user.password);
+//     if (isSamePassword) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "We don't accept old password as new password.",
+//       });
+//     }
+//     updateUserFields.password = bcrypt.hashSync(password, 10);
+//   }
 
-  if (email) {
-    updateEntityFields.email = email;
-    updateUserFields.email = email;
-  }
+//   if (email) {
+//     updateEntityFields.email = email;
+//     updateUserFields.email = email;
+//   }
 
-  if (entityContactNumber) {
-    updateEntityFields.entityContactNumber = entityContactNumber;
-    updateUserFields.contactNumber = entityContactNumber;
-  }
+//   if (entityContactNumber) {
+//     updateEntityFields.entityContactNumber = entityContactNumber;
+//     updateUserFields.contactNumber = entityContactNumber;
+//   }
 
-  if (location) updateEntityFields.location = location;
-  if (floor) updateEntityFields.floor = floor;
-  if (buildingName) updateEntityFields.buildingName = buildingName;
-  if (landmark) updateEntityFields.landMark = landmark;
-  if (zipcode) updateEntityFields.zipcode = zipcode;
+//   if (location) updateEntityFields.location = location;
+//   if (floor) updateEntityFields.floor = floor;
+//   if (buildingName) updateEntityFields.buildingName = buildingName;
+//   if (landmark) updateEntityFields.landMark = landmark;
+//   if (zipcode) updateEntityFields.zipcode = zipcode;
+//   if (plotNo) updateEntityFields.plotNo = plotNo;
 
-  await Promise.all([
-    Object.keys(updateEntityFields).length > 0
-      ? EntityDetails.updateOne({ _id: entityId }, { $set: updateEntityFields })
-      : Promise.resolve(),
-    Object.keys(updateUserFields).length > 0
-      ? User.updateOne({ _id: userId }, { $set: updateUserFields })
-      : Promise.resolve(),
-  ]);
-};
+//   await Promise.all([
+//     Object.keys(updateEntityFields).length > 0
+//       ? EntityDetails.updateOne({ _id: entityId }, { $set: updateEntityFields })
+//       : Promise.resolve(),
+//     Object.keys(updateUserFields).length > 0
+//       ? User.updateOne({ _id: userId }, { $set: updateUserFields })
+//       : Promise.resolve(),
+//   ]);
+// };
 
 module.exports.editMobileBusinessDetails = async (req) => {
   const {
@@ -1623,6 +1625,7 @@ module.exports.editMobileBusinessDetails = async (req) => {
   if (buildingName) updateEntityFields.buildingName = buildingName;
   if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
+  if (plotNo) updateEntityFields.plotNo = plotNo;
 
   await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
 
@@ -1681,19 +1684,18 @@ module.exports.editMobileBusinessDetails = async (req) => {
     }
   }
 
-  const query = { status: STATUS.ACTIVE };
-  if (email) query.email = email;
-
-  const user = await User.findOne(query);
-  if (user) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: `Email ${email} already exists.`,
-    });
-  }
-
   if (email) {
     if (!enteredOtp) {
+      const query = { status: STATUS.ACTIVE };
+      if (email) query.email = email;
+
+      const user = await User.findOne(query);
+      if (user) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: `Email ${email} already exists.`,
+        });
+      }
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 

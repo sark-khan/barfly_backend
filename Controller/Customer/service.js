@@ -1089,14 +1089,14 @@ module.exports.entityOffers = async () => {
   };
   const coupons = await Discount.find({}, projection).populate({
     path: "entityId",
-    select: "entityName image city country",
+    select: "entityName image city country status",
     model: "EntityDetails",
   });
 
-  coupons.map((entityImage) => {
-    entityImage.entityId.image = generatePresignedUrl(
-      entityImage.entityId.image
-    );
+  coupons.forEach((coupon) => {
+    if (coupon.entityId?.status === STATUS.ACTIVE) {
+      coupon.entityId.image = generatePresignedUrl(coupon.entityId.image);
+    }
   });
 
   return coupons;

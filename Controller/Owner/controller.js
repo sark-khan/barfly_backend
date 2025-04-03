@@ -503,26 +503,26 @@ router.get("/get-counters-by-name", async (req, res) => {
   }
 });
 
-router.post(
-  "/edit-business-details",
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      await editBusinessDetails(req);
-      return res
-        .status(STATUS_CODES.OK)
-        .json({ message: "Business details updated successfully." });
-    } catch (error) {
-      console.error("Error while updating the details", error);
-      return res
-        .status(STATUS_CODES.SERVER_ERROR)
-        .json({ message: error.message });
-    }
-  }
-);
+// router.post(
+//   "/edit-business-details",
+//   upload.single("file"),
+//   async (req, res) => {
+//     try {
+//       await editBusinessDetails(req);
+//       return res
+//         .status(STATUS_CODES.OK)
+//         .json({ message: "Business details updated successfully." });
+//     } catch (error) {
+//       console.error("Error while updating the details", error);
+//       return res
+//         .status(STATUS_CODES.SERVER_ERROR)
+//         .json({ message: error.message });
+//     }
+//   }
+// );
 
 router.post(
-  "/edit-mobile-business-details",
+  "/edit-business-details",
   upload.single("file"),
   async (req, res) => {
     try {
