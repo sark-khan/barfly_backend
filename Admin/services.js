@@ -352,46 +352,126 @@ const editRestaurantsOrUsers = async (req) => {
   await Promise.all(updateOperations);
 };
 
+// const resetPassword = async (req) => {
+//   const { email, newPassword } = req.body;
+
+//   let message = "";
+//   const admin = await Admin.findOne({ email, status: STATUS.ACTIVE });
+//   if (!admin) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Admin not found.",
+//     });
+//   }
+//   const fullName = `${admin.firstName} ${admin.lastName}`;
+
+//   if (email) {
+//     const resetLink = `${process.env.HOST_URL}/api/admins/reset-password`;
+//     const mailData = {
+//       to: email,
+//       subject: "COUNTR: Reset Password Request",
+//       text: `Hello ${fullName},
+
+// We have received a request to reset your password for your Countr admin account. Please click the link below to reset your password:
+
+// Reset Password: ${resetLink}
+
+// If you did not request this change, please ignore this email.
+
+// Thank you,
+// The Countr Team`,
+//     };
+//     createMail(mailData);
+
+//     message = "Email has been sent";
+//   }
+
+//   if (newPassword) {
+//     const hashedPassword = await bcrypt.hash(newPassword, 10);
+//     admin.password = hashedPassword;
+//     await admin.save();
+//   }
+//   message = "Password updated successfully.";
+// };
+
 const resetPassword = async (req) => {
-  const { email, newPassword } = req.body;
+  const { email, password, authToken } = req.body;
 
   let message = "";
-  const admin = await Admin.findOne({ email, status: STATUS.ACTIVE });
-  if (!admin) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Admin not found.",
-    });
-  }
-  const fullName = `${admin.firstName} ${admin.lastName}`;
 
-  if (email) {
-    const resetLink = `${process.env.HOST_URL}/api/admins/reset-password`;
+  if (authToken && password) {
+    const decryptedUserId = decrypt(authToken);
+
+    const redisPrefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+    const storedToken = await redisClient.get(redisPrefix + decryptedUserId);
+
+    if (!storedToken || storedToken !== authToken) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Session expired try again.",
+      });
+    }
+
+    const adminToUpdate = await Admin.findById(decryptedUserId);
+    if (!adminToUpdate) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Session expired try again.",
+      });
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    adminToUpdate.password = hashedPassword;
+
+    await adminToUpdate.save();
+
+    await redisClient.del(redisPrefix + decryptedUserId);
+
+    message = "Password updated successfully.";
+  } else {
+    const adminUser = await Admin.findOne(
+      { email, status: USER_STATUS.ACTIVE, isAdmin: true },
+      { email: 1, firstName: 1, lastName: 1, _id: 1 }
+    );
+
+    if (!adminUser) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Admin user doesn't exist.",
+      });
+    }
+
+    const authToken = encrypt(adminUser._id.toString());
+
+    const redisPrefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+    await redisClient.setEx(
+      redisPrefix + adminUser._id.toString(),
+      20 * 60,
+      authToken
+    );
+
+    const fullName = `${firstName} ${lastName}`;
+
+    const resetLink = `${process.env.HOST_URL}/api/admins/reset-password?auth=${authToken}`;
     const mailData = {
       to: email,
       subject: "COUNTR: Reset Password Request",
       text: `Hello ${fullName},
-
-We have received a request to reset your password for your Countr admin account. Please click the link below to reset your password:
-
-Reset Password: ${resetLink}
-
-If you did not request this change, please ignore this email.
-
-Thank you,
-The Countr Team`,
+    
+    We have received a request to reset your password for your Countr admin account. Please click the link below to reset your password:
+    
+    Reset Password: ${resetLink}
+    
+    If you did not request this change, please ignore this email.
+    
+    Thank you,
+    The Countr Team`,
     };
     createMail(mailData);
 
     message = "Email has been sent";
   }
-
-  if (newPassword) {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    admin.password = hashedPassword;
-    await admin.save();
-  }
-  message = "Password updated successfully.";
+  return message;
 };
 
 const logoutAdmin = async (req) => {

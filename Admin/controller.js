@@ -186,10 +186,8 @@ router.post("/edit-restaurants-or-users", async (req, res) => {
 
 router.post("/reset-password", async (req, res) => {
   try {
-    await resetPassword(req);
-    return res.status(STATUS_CODES.OK).json({
-      message: "Password updated successfully.",
-    });
+    const message = await resetPassword(req);
+    return res.status(STATUS_CODES.OK).json(message);
   } catch (error) {
     console.error("Error while resetting the password:", error);
 

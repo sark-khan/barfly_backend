@@ -1631,7 +1631,7 @@ module.exports.editBusinessDetails = async (req) => {
   await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
-  if (unifiedContactNumber && entityId && userId) {
+  if (unifiedContactNumber) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -1651,14 +1651,14 @@ module.exports.editBusinessDetails = async (req) => {
         { contactNumber: unifiedContactNumber, contactOtpVerified: false }
       );
       message = "OTP sent to your new contact number.";
-      return { message, otp };
+      return { message, otp, otpSent: true };
     } else {
       const otpRecord = await Otp.findOne({
         contactNumber: unifiedContactNumber,
       });
       if (
         !otpRecord ||
-        otpRecord.otp !== enteredOtp ||
+        otpRecord.otp != enteredOtp ||
         new Date() > otpRecord.expiresAt
       ) {
         throwError({
@@ -1681,7 +1681,7 @@ module.exports.editBusinessDetails = async (req) => {
       );
 
       message = "Contact number updated successfully.";
-      return { message };
+      return { message, otpVerified: true };
     }
   }
 
@@ -1714,12 +1714,12 @@ module.exports.editBusinessDetails = async (req) => {
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      return { message: "OTP sent to your new email.", otp };
+      return { message: "OTP sent to your new email.", otp, otpSent: true };
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
         !otpRecord ||
-        otpRecord.otp !== enteredOtp ||
+        otpRecord.otp != enteredOtp ||
         new Date() > otpRecord.expiresAt
       ) {
         throwError({
@@ -1729,7 +1729,7 @@ module.exports.editBusinessDetails = async (req) => {
       }
       await Otp.deleteOne({ email });
       await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
-      return { message: "Email updated successfully." };
+      return { message: "Email updated successfully.", otpVerified: true };
     }
   }
 
