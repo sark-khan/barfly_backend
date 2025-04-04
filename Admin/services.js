@@ -15,7 +15,12 @@ const {
   KEY_TYPE_PREFIXES,
 } = require("../Utils/globalConstants");
 const throwError = require("./../Utils/throwError");
-const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
+const {
+  comparePassword,
+  getJwtToken,
+  encrypt,
+  decrypt,
+} = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
