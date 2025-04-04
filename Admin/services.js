@@ -430,7 +430,7 @@ const resetPassword = async (req) => {
     message = "Password updated successfully.";
   } else {
     const adminUser = await Admin.findOne(
-      { email, status: USER_STATUS.ACTIVE, isAdmin: true },
+      { email, status: STATUS.ACTIVE, isAdmin: true },
       { email: 1, firstName: 1, lastName: 1, _id: 1 }
     );
 
