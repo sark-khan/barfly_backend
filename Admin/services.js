@@ -432,10 +432,10 @@ const resetPassword = async (req) => {
 
     await redisClient.del(redisPrefix + decryptedUserId);
 
-    message = "Password updated successfully.";
+    return { message: "Password updated successfully." };
   } else {
     const adminUser = await Admin.findOne(
-      { email, status: STATUS.ACTIVE, isAdmin: true },
+      { email, status: STATUS.ACTIVE },
       { email: 1, firstName: 1, lastName: 1, _id: 1 }
     );
 
@@ -455,7 +455,7 @@ const resetPassword = async (req) => {
       authToken
     );
 
-    const fullName = `${firstName} ${lastName}`;
+    const fullName = `${adminUser.firstName} ${adminUser.lastName}`;
 
     const resetLink = `${process.env.HOST_URL}/api/admins/reset-password?auth=${authToken}`;
     const mailData = {
@@ -474,7 +474,7 @@ const resetPassword = async (req) => {
     };
     createMail(mailData);
 
-    message = "Email has been sent";
+    return { message: "Email has been sent", emailSent: true };
   }
   return message;
 };

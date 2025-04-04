@@ -6,6 +6,7 @@ const Event = require("../Models/Event");
 const admin = require("../firebaseAdmin");
 const { STATUS } = require("./globalConstants");
 const Discount = require("../Models/Discount");
+const crypto = require("crypto");
 
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
@@ -181,6 +182,10 @@ const validateCoupon = async (couponCode, totalAmount) => {
 
   return { discountAmount, couponCode };
 };
+
+const algorithm = "aes-256-cbc";
+const secretKey = process.env.SECRET_KEY || "8b970064a0ba362dceae1c279aa6cbb4";
+const iv = crypto.randomBytes(16);
 
 // Function to encrypt data
 const encrypt = (text) => {
