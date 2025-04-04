@@ -1539,7 +1539,7 @@ module.exports.getDiscountCoupon = async (req) => {
 //   ]);
 // };
 
-module.exports.editMobileBusinessDetails = async (req) => {
+module.exports.editBusinessDetails = async (req) => {
   const {
     userId,
     entityId,
@@ -1556,6 +1556,7 @@ module.exports.editMobileBusinessDetails = async (req) => {
       floor,
       buildingName,
       landmark,
+      plotNo,
     },
   } = req;
 

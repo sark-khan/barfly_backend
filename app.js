@@ -60,6 +60,7 @@ const unProtectedApis = {
   "/api/get-trade-pdf": true,
   "/api/owner/restaurant/email-exist": true,
   "/api/admins/login-admin": true,
+  "/api/admins/reset-password": true,
 };
 
 app.use("/api/health-check", (req, res) => {
