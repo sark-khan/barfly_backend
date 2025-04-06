@@ -144,7 +144,7 @@ module.exports.getCounters = async (req) => {
   // Fetch only active counters
   const counters = await Counter.find(
     { ownerId: userId, entityId, status: STATUS.ACTIVE },
-    { counterName: 1, isSelfPickUp: 1, isTableService: 1, totalTables: 1 }
+    { counterName: 1, isSelfPickUp: 1, isTableService: 1, totalTables: 1, status: 1 }
   )
     .sort({ createdAt: -1 })
     .lean();
