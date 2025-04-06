@@ -6,6 +6,7 @@ const Event = require("../Models/Event");
 const admin = require("../firebaseAdmin");
 const { STATUS } = require("./globalConstants");
 const Discount = require("../Models/Discount");
+const crypto = require("crypto");
 
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
@@ -182,6 +183,31 @@ const validateCoupon = async (couponCode, totalAmount) => {
   return { discountAmount, couponCode };
 };
 
+const algorithm = "aes-256-cbc";
+const secretKey = process.env.SECRET_KEY || "8b970064a0ba362dceae1c279aa6cbb4";
+const iv = crypto.randomBytes(16);
+
+// Function to encrypt data
+const encrypt = (text) => {
+  const cipher = crypto.createCipheriv(algorithm, Buffer.from(secretKey), iv);
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  return `${iv.toString("hex")}:${encrypted}`;
+};
+
+// Function to decrypt data
+const decrypt = (encryptedText) => {
+  const [ivHex, encrypted] = encryptedText.split(":");
+  const decipher = crypto.createDecipheriv(
+    algorithm,
+    Buffer.from(secretKey),
+    Buffer.from(ivHex, "hex")
+  );
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+};
+
 module.exports = {
   hashPassword,
   comparePassword,
@@ -193,4 +219,6 @@ module.exports = {
   haversineDistance,
   sendFirebaseNotification,
   validateCoupon,
+  encrypt,
+  decrypt,
 };

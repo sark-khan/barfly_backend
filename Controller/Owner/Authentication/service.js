@@ -198,10 +198,13 @@ module.exports.login = async (req) => {
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invlalid email or mobile number.",
+      message: "Invalid email or mobile number.",
     });
 
-  const entityDetails = await EntityDetails.findOne({ userId: user._id });
+  const entityDetails = await EntityDetails.findOne({
+    userId: user._id,
+    status: STATUS.ACTIVE,
+  });
 
   if (!entityDetails)
     throwError({

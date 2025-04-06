@@ -14,6 +14,9 @@ const {
   getTransactionLogs,
   getAdminUserDetails,
   getDashboardAnalytics,
+  editRestaurantsOrUsers,
+  resetPassword,
+  logoutAdmin,
 } = require("./services");
 
 router.post("/add-admin", async (req, res) => {
@@ -162,6 +165,49 @@ router.get("/get-dashboard-analytics", async (req, res) => {
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while fetching the analytics",
     });
+  }
+});
+
+router.post("/edit-restaurants-or-users", async (req, res) => {
+  try {
+    const data = await editRestaurantsOrUsers(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Restaurant updated successfully.",
+      ...data,
+    });
+  } catch (error) {
+    console.error("Error while updating the restaurants or users:", error);
+
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while updating the restaurants or users",
+    });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const message = await resetPassword(req);
+    return res.status(STATUS_CODES.OK).json(message);
+  } catch (error) {
+    console.error("Error while resetting the password:", error);
+
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while resetting the password",
+    });
+  }
+});
+
+router.post("/logout-admin", async (req, res) => {
+  try {
+    const response = await logoutAdmin(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Admin logged out sucessfully.", response });
+  } catch (error) {
+    console.error("Error while logging out the admin: ", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while logging out the admin" });
   }
 });
 
