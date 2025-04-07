@@ -138,14 +138,24 @@ module.exports.getCounters = async (req) => {
   const {
     userId,
     entityId,
-    query: { isItemRequired = "false" },
+    query: { isItemRequired = "false", isSettings = "false" },
   } = req;
 
   // Fetch only active counters
-  const counters = await Counter.find(
-    { ownerId: userId, entityId, status: STATUS.ACTIVE },
-    { counterName: 1, isSelfPickUp: 1, isTableService: 1, totalTables: 1, status: 1 }
-  )
+  const query = { ownerId: userId, entityId };
+
+  if (isSettings === "true") {
+    query.$or = [{ status: STATUS.ACTIVE }, { status: STATUS.INACTIVE }];
+  } else {
+    query.status = STATUS.ACTIVE;
+  }
+  const counters = await Counter.find(query, {
+    counterName: 1,
+    isSelfPickUp: 1,
+    isTableService: 1,
+    totalTables: 1,
+    status: 1,
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -425,6 +435,7 @@ module.exports.getCreatedItems = async (req) => {
   }
 
   const createdItems = await ItemDetails.find(query)
+    .sort({ _id: -1 })
     .populate({
       path: "menuCategoryId",
       select: "categoryName counterId",
@@ -1217,6 +1228,7 @@ module.exports.updateCounterSettings = async (req) => {
     totalTables,
     action,
     counterName,
+    status,
   } = req.body;
 
   const counter = await Counter.findOne({ _id: counterId });
@@ -1233,6 +1245,7 @@ module.exports.updateCounterSettings = async (req) => {
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (totalTables !== undefined) counter.totalTables = totalTables;
     if (counterName !== undefined) counter.counterName = counterName;
+    if (status !== undefined) counter.status = status;
 
     await counter.save();
   } else if (action === EDIT_ACTION.DELETE) {
