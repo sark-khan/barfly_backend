@@ -130,6 +130,10 @@ const createOrder = async (req, session) => {
   ``;
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
+
+  if(!entityDetails.owner.fcmToken){
+    return createdOrder;
+  }
   // console.log({ss:entityDetails.owner})
   const payload = {
     notification: {
@@ -197,6 +201,11 @@ const updateStatusOfOrder = async (req) => {
     { $set: { status } },
     { new: true }
   ).populate("userId");
+
+
+  if(!updatedOrder.userId.fcmToken){
+    return;
+  }
   const payload = {
     notification: {
       title: "Order Status Updated",
