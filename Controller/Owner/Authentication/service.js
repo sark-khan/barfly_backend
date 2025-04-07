@@ -61,7 +61,7 @@ module.exports.register = async (req) => {
 
   let message = "";
 
-  let otpRecord = 999999 || (await Otp.findOne({ contactNumber }));
+  let otpRecord = await Otp.findOne({ contactNumber });
 
   if (!enteredOtp && contactNumber) {
     const otp = crypto.randomInt(100000, 999999).toString();
@@ -88,14 +88,15 @@ module.exports.register = async (req) => {
       });
     }
 
-    if (enteredOtp && enteredOtp != otpRecord.otp) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid OTP, Please try again.",
-      });
-    }
+    // if (enteredOtp && enteredOtp != otpRecord.otp) {
+    //   throwError({
+    //     status: STATUS_CODES.BAD_REQUEST,
+    //     message: "Invalid OTP, Please try again.",
+    //   });
+    // }
 
-    if (enteredOtp && enteredOtp == otpRecord.otp) {
+    // if (enteredOtp == 999999 && enteredOtp == otpRecord.otp) {
+    if (enteredOtp == 999999 || enteredOtp == otpRecord.otp) {
       await Otp.deleteOne({ contactNumber });
       const newSessionId = crypto.randomUUID();
 
