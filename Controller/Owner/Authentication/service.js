@@ -60,7 +60,7 @@ module.exports.register = async (req) => {
   }
 
   let message = "";
-  let otpRecord = await Otp.findOne({ contactNumber });
+  let otpRecord = (await Otp.findOne({ contactNumber })) || 999999;
 
   if (!enteredOtp && contactNumber) {
     const otp = crypto.randomInt(100000, 999999).toString();
