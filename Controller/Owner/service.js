@@ -417,8 +417,41 @@ module.exports.updateMenuItem = async (req) => {
 module.exports.getCreatedItems = async (req) => {
   const {
     entityId,
-    query: { menuCategoryId, pageNo = 1, pageLimit = 8, inStock, searchTerm },
+    query: {
+      itemId,
+      menuCategoryId,
+      pageNo = 1,
+      pageLimit = 8,
+      inStock,
+      searchTerm,
+    },
   } = req;
+
+  if (itemId) {
+    const item = await ItemDetails.findOne({ _id: itemId, entityId })
+      .populate({
+        path: "menuCategoryId",
+        select: "categoryName counterId",
+        model: "CounterMenuCategory",
+        populate: {
+          path: "counterId",
+          select: "status counterName",
+          model: "Counter",
+        },
+      })
+      .lean();
+
+    if (!item || item.menuCategoryId?.counterId?.status !== STATUS.ACTIVE) {
+      return { itemsList: [], totalCount: 0 };
+    }
+
+    const itemWithImage = {
+      ...item,
+      image: item.image ? generatePresignedUrl(item.image) : null,
+    };
+
+    return { itemsList: [itemWithImage], totalCount: 1 };
+  }
 
   const query = { entityId };
 
@@ -1241,6 +1274,21 @@ module.exports.updateCounterSettings = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    if (counterName) {
+      const duplicate = await Counter.findOne({
+        _id: { $ne: counterId },
+        counterName: { $regex: `^${counterName}$`, $options: "i" },
+        status: { $ne: STATUS.DELETED },
+      });
+
+      if (duplicate) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Counter name already exists. Please try new one.",
+        });
+        return;
+      }
+    }
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (totalTables !== undefined) counter.totalTables = totalTables;
@@ -1979,7 +2027,6 @@ module.exports.getItemsSearchLogs = async (req) => {
       select: "itemName image menuCategoryId",
       model: "ItemDetails",
       populate: {
-        // Nested population for menuCategoryId within itemId
         path: "menuCategoryId",
         select: "categoryName",
         model: "CounterMenuCategory",
