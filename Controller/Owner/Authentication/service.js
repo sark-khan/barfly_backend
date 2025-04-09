@@ -46,7 +46,7 @@ module.exports.register = async (req) => {
     },
   } = req;
 
-  const query = {};
+  const query = { status: STATUS.ACTIVE };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
 
@@ -95,7 +95,6 @@ module.exports.register = async (req) => {
     //   });
     // }
 
-    // if (enteredOtp == 999999 && enteredOtp == otpRecord.otp) {
     if (enteredOtp == 999999 || enteredOtp == otpRecord.otp) {
       await Otp.deleteOne({ contactNumber });
       const newSessionId = crypto.randomUUID();
