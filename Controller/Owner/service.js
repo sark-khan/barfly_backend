@@ -424,8 +424,10 @@ module.exports.getCreatedItems = async (req) => {
       pageLimit = 8,
       inStock,
       searchTerm,
+      searchedId
     },
   } = req;
+
 
   if (itemId) {
     const item = await ItemDetails.findOne({ _id: itemId, entityId })
@@ -453,7 +455,12 @@ module.exports.getCreatedItems = async (req) => {
     return { itemsList: [itemWithImage], totalCount: 1 };
   }
 
+
   const query = { entityId };
+
+  if (searchedId && !menuCategoryId) {
+    query._id = { $ne: searchedId };  // Exclude the searchedId from the main query results
+}
 
   if (menuCategoryId) {
     query.menuCategoryId = menuCategoryId;
@@ -480,6 +487,26 @@ module.exports.getCreatedItems = async (req) => {
       },
     })
     .lean();
+
+    
+    if(searchedId &&pageNo==1 && !menuCategoryId ){
+      const searchedIdItem= await ItemDetails.findById(searchedId)
+      .sort({ _id: -1 })
+      .populate({
+        path: "menuCategoryId",
+        select: "categoryName counterId",
+        model: "CounterMenuCategory",
+        populate: {
+          path: "counterId",
+          select: "status counterName",
+          model: "Counter",
+        },
+      })
+      .lean();
+      if (searchedIdItem) {
+        createdItems.unshift(searchedIdItem);  // Use unshift() to add item to the start of the array
+      }
+    }
 
   const filteredItems = createdItems.filter(
     (item) => item.menuCategoryId?.counterId?.status === STATUS.ACTIVE
