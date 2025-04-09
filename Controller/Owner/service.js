@@ -362,6 +362,7 @@ module.exports.updateMenuItem = async (req) => {
       action,
       inStock,
       counterIds,
+      unit,
     },
   } = req;
 
@@ -384,6 +385,7 @@ module.exports.updateMenuItem = async (req) => {
     if (quantity !== undefined) item.quantity = quantity;
     if (counterIds !== undefined) item.counterIds = counterIds;
     if (inStock !== undefined) item.inStock = inStock;
+    if (unit !== undefined) item.unit = unit;
 
     if (file) {
       const fileBuffer = file.buffer;
