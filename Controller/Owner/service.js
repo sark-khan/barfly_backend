@@ -437,10 +437,9 @@ module.exports.getCreatedItems = async (req) => {
       pageLimit = 8,
       inStock,
       searchTerm,
-      searchedId
+      searchedId,
     },
   } = req;
-
 
   if (itemId) {
     const item = await ItemDetails.findOne({ _id: itemId, entityId })
@@ -468,12 +467,11 @@ module.exports.getCreatedItems = async (req) => {
     return { itemsList: [itemWithImage], totalCount: 1 };
   }
 
-
   const query = { entityId };
 
   if (searchedId && !menuCategoryId) {
-    query._id = { $ne: searchedId };  // Exclude the searchedId from the main query results
-}
+    query._id = { $ne: searchedId }; // Exclude the searchedId from the main query results
+  }
 
   if (menuCategoryId) {
     query.menuCategoryId = menuCategoryId;
@@ -501,9 +499,8 @@ module.exports.getCreatedItems = async (req) => {
     })
     .lean();
 
-    
-    if(searchedId &&pageNo==1 && !menuCategoryId ){
-      const searchedIdItem= await ItemDetails.findById(searchedId)
+  if (searchedId && pageNo == 1 && !menuCategoryId) {
+    const searchedIdItem = await ItemDetails.findById(searchedId)
       .sort({ _id: -1 })
       .populate({
         path: "menuCategoryId",
@@ -516,10 +513,10 @@ module.exports.getCreatedItems = async (req) => {
         },
       })
       .lean();
-      if (searchedIdItem) {
-        createdItems.unshift(searchedIdItem);  // Use unshift() to add item to the start of the array
-      }
+    if (searchedIdItem) {
+      createdItems.unshift(searchedIdItem); // Use unshift() to add item to the start of the array
     }
+  }
 
   const filteredItems = createdItems.filter(
     (item) => item.menuCategoryId?.counterId?.status === STATUS.ACTIVE
@@ -1757,16 +1754,10 @@ module.exports.editBusinessDetails = async (req) => {
       const otpRecord = await Otp.findOne({
         contactNumber: unifiedContactNumber,
       });
-      // if (
-      //   !otpRecord ||
-      //   otpRecord.otp != enteredOtp ||
-      //   new Date() > otpRecord.expiresAt
-      // )
       if (
-        enteredOtp !== "999999" &&
-        (!otpRecord ||
-          otpRecord.otp != enteredOtp ||
-          new Date() > otpRecord.expiresAt)
+        !otpRecord ||
+        otpRecord.otp != enteredOtp ||
+        new Date() > otpRecord.expiresAt
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
