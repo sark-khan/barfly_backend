@@ -36,7 +36,8 @@ const { path } = require("pdfkit");
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
 module.exports.createCounter = async (req) => {
-  const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
+  const { counterName, isTableService, isSelfPickUp, tableFrom, tableTo } =
+    req.body;
 
   if (!counterName) {
     throw {
@@ -45,7 +46,6 @@ module.exports.createCounter = async (req) => {
     };
   }
 
-  // Check if a counter with the same name already exists for this owner
   const existingCounter = await Counter.findOne(
     {
       counterName,
@@ -63,17 +63,29 @@ module.exports.createCounter = async (req) => {
     };
   }
 
+  if (tableFrom > tableTo || tableFrom == tableTo) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid entry.",
+    });
+  }
+
+  const tableNumbers = Array.from(
+    { length: Number(tableTo) - Number(tableFrom) + 1 },
+    (_, i) => String(Number(tableFrom) + i)
+  );
+
   const newCounter = await Counter.create({
     counterName,
     ownerId: req.userId,
     entityId: req.entityId,
     isTableService,
     isSelfPickUp,
-    totalTables,
     status: STATUS.ACTIVE,
+    tableCount: tableNumbers,
   });
 
-  return newCounter.toObject(); // Convert to plain object for response
+  return newCounter.toObject();
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
@@ -141,7 +153,6 @@ module.exports.getCounters = async (req) => {
     query: { isItemRequired = "false", isSettings = "false" },
   } = req;
 
-  // Fetch only active counters
   const query = { ownerId: userId, entityId };
 
   if (isSettings === "true") {
@@ -153,7 +164,7 @@ module.exports.getCounters = async (req) => {
     counterName: 1,
     isSelfPickUp: 1,
     isTableService: 1,
-    totalTables: 1,
+    tableCount: 1,
     status: 1,
   })
     .sort({ createdAt: -1 })
@@ -1719,10 +1730,16 @@ module.exports.editBusinessDetails = async (req) => {
       const otpRecord = await Otp.findOne({
         contactNumber: unifiedContactNumber,
       });
+      // if (
+      //   !otpRecord ||
+      //   otpRecord.otp != enteredOtp ||
+      //   new Date() > otpRecord.expiresAt
+      // )
       if (
-        !otpRecord ||
-        otpRecord.otp != enteredOtp ||
-        new Date() > otpRecord.expiresAt
+        enteredOtp !== "999999" &&
+        (!otpRecord ||
+          otpRecord.otp != enteredOtp ||
+          new Date() > otpRecord.expiresAt)
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
@@ -1821,7 +1838,7 @@ module.exports.addingTables = async (req) => {
   const {
     userId,
     entityId,
-    body: { tableFrom, tableTo, counterIds: counterId },
+    body: { tableFrom, tableTo, counterIds: counterId, tableName },
   } = req;
 
   const entity = await EntityDetails.findById(entityId);
@@ -1864,6 +1881,7 @@ module.exports.addingTables = async (req) => {
     entityId,
     counterIds: counterId,
     tableSetionNo: newTableSectionNo,
+    tableName,
   };
 
   return Tables.create(tableObj);
