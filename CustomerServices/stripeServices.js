@@ -205,8 +205,8 @@ const getPaymentStatus = async (req) => {
 const createStripeOnboardingLink = async (req) => {
   try {
     const {
-      // entityId,
-      body: { email, entityId },
+      entityId,
+      body: { email },
     } = req;
 
     if (!entityId || !email) {
