@@ -59,7 +59,7 @@ module.exports.createCounter = async (req) => {
       entityId: req.entityId,
       status: STATUS.ACTIVE,
     },
-    { _id: 1, tableSectionName: 1 }
+    { _id: 1 }
   );
 
   if (existingCounter) {
@@ -69,12 +69,12 @@ module.exports.createCounter = async (req) => {
     };
   }
 
-  if (existingCounter.tableSectionName === tableSectionName) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Table with this name already exists.",
-    });
-  }
+  // if (existingCounter.tableSectionName === tableSectionName) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message: "Table with this name already exists.",
+  //   });
+  // }
 
   if (tableFrom > tableTo || tableFrom == tableTo) {
     throwError({
