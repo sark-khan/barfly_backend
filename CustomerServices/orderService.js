@@ -15,6 +15,7 @@ const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
+const OrderLogs = require("../Models/OrderLogs");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
@@ -96,7 +97,8 @@ const createOrder = async (req, session) => {
     discountAmount = couponValidation.discountAmount;
   }
 
-  const finalAmount = originalAmount - discountAmount + 2.25;
+  const platformFees = global.PLATFORM_FEES || 0;
+  const finalAmount = originalAmount - discountAmount + platformFees;
 
   const orderData = {
     status: ORDER_STATUS.WAITING,
@@ -113,6 +115,7 @@ const createOrder = async (req, session) => {
     tableNo,
     isSelfPickup,
     note,
+    platformFees: global.PLATFORM_FEES,
   };
 
   // if (tableNo) {
@@ -131,15 +134,16 @@ const createOrder = async (req, session) => {
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
 
-  if(!entityDetails.owner.fcmToken){
+  if (!entityDetails.owner.fcmToken) {
     return createdOrder;
   }
-  // console.log({ss:entityDetails.owner})
+
   const payload = {
     notification: {
       title: "Order Created",
       body: `New Order Received. Tap to view details.`,
     },
+
     data: {
       orderId: `${createdOrder[0]._id}`,
       data: JSON.stringify(createdOrder[0]),
@@ -147,13 +151,16 @@ const createOrder = async (req, session) => {
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
+
     token: entityDetails.owner.fcmToken,
+
     android: {
       priority: "high",
       notification: {
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
     },
+
     apns: {
       payload: {
         aps: {
@@ -169,7 +176,6 @@ const createOrder = async (req, session) => {
     },
   };
 
-  console.log({ payload });
   await messagingPlus.send(payload);
 
   return createdOrder;
@@ -202,8 +208,7 @@ const updateStatusOfOrder = async (req) => {
     { new: true }
   ).populate("userId");
 
-
-  if(!updatedOrder.userId.fcmToken){
+  if (!updatedOrder.userId.fcmToken) {
     return;
   }
   const payload = {

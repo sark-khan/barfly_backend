@@ -17,6 +17,7 @@ const {
   editRestaurantsOrUsers,
   resetPassword,
   logoutAdmin,
+  platformmFees,
 } = require("./services");
 
 router.post("/add-admin", async (req, res) => {
@@ -208,6 +209,20 @@ router.post("/logout-admin", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while logging out the admin" });
+  }
+});
+
+router.post("/add-platform-fees", async (req) => {
+  try {
+    await platformmFees(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Platform fees added successfuly" });
+  } catch (error) {
+    console.error("Error while adding platform fees");
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 

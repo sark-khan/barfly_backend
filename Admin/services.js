@@ -486,6 +486,23 @@ const logoutAdmin = async (req) => {
   await redisClient.del(`${prefix}:${admin._id}`);
 };
 
+const platformmFees = async (req) => {
+  const {
+    userId,
+    body: { platformFees },
+  } = req;
+  const admin = Admin.findById(userId);
+  if (!admin) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Admin not found.",
+    });
+  }
+  if (platformFees) admin.platformFees = platformFees;
+  await admin.save();
+  global.PLATFORM_FEES = platformFees;
+};
+
 module.exports = {
   addAdmin,
   loginAdmin,
@@ -500,4 +517,5 @@ module.exports = {
   editRestaurantsOrUsers,
   resetPassword,
   logoutAdmin,
+  platformmFees,
 };

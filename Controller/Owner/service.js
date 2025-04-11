@@ -36,8 +36,14 @@ const { path } = require("pdfkit");
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
 module.exports.createCounter = async (req) => {
-  const { counterName, isTableService, isSelfPickUp, tableFrom, tableTo } =
-    req.body;
+  const {
+    counterName,
+    isTableService,
+    isSelfPickUp,
+    tableFrom,
+    tableTo,
+    tableSectionName,
+  } = req.body;
 
   if (!counterName) {
     throw {
@@ -53,7 +59,7 @@ module.exports.createCounter = async (req) => {
       entityId: req.entityId,
       status: STATUS.ACTIVE,
     },
-    { _id: 1 }
+    { _id: 1, tableSectionName: 1 }
   );
 
   if (existingCounter) {
@@ -61,6 +67,13 @@ module.exports.createCounter = async (req) => {
       status: STATUS_CODES.BAD_REQUEST,
       message: "This counter name already exists",
     };
+  }
+
+  if (existingCounter.tableSectionName === tableSectionName) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Table with this name already exists.",
+    });
   }
 
   if (tableFrom > tableTo || tableFrom == tableTo) {
@@ -83,6 +96,22 @@ module.exports.createCounter = async (req) => {
     isSelfPickUp,
     status: STATUS.ACTIVE,
     tableCount: tableNumbers,
+    tableSectionName,
+  });
+
+  const lastTable = await Tables.findOne(
+    { entityId: req.entityId },
+    { tableSetionNo: 1 }
+  ).sort({ createdAt: -1 });
+  const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+
+  await Tables.create({
+    tableCount: tableNumbers,
+    tableSectionName,
+    userId: req.userId,
+    entityId: req.entityId,
+    counterIds: newCounter._id,
+    tableSetionNo: newTableSectionNo,
   });
 
   return newCounter.toObject();
@@ -166,6 +195,7 @@ module.exports.getCounters = async (req) => {
     isTableService: 1,
     tableCount: 1,
     status: 1,
+    tableSectionName: 1,
   })
     .sort({ createdAt: -1 })
     .lean();
@@ -387,7 +417,6 @@ module.exports.updateMenuItem = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    // Update fields only if they exist (handle falsy values correctly)
     if (itemName !== undefined) item.itemName = itemName;
     if (price !== undefined) item.price = price;
     if (description !== undefined) item.description = description;
@@ -1295,10 +1324,12 @@ module.exports.updateCounterSettings = async (req) => {
     isTableService,
     isSelfPickUp,
     counterId,
-    totalTables,
     action,
     counterName,
     status,
+    tableSectionName,
+    tableFrom,
+    tableTo,
   } = req.body;
 
   const counter = await Counter.findOne({ _id: counterId });
@@ -1328,9 +1359,39 @@ module.exports.updateCounterSettings = async (req) => {
     }
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
-    if (totalTables !== undefined) counter.totalTables = totalTables;
     if (counterName !== undefined) counter.counterName = counterName;
     if (status !== undefined) counter.status = status;
+    if (counter.tableSectionName === tableSectionName) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Table with this name already exists.",
+      });
+    }
+    if (tableSectionName !== undefined)
+      counter.tableSectionName = tableSectionName;
+
+    const currentFrom = Number(counter.tableCount?.[0] || 0);
+    const currentTo = Number(
+      counter.tableCount?.[counter.tableCount.length - 1] || 0
+    );
+
+    const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
+    const newTo = tableTo !== undefined ? Number(tableTo) : currentTo;
+
+    if (newFrom > newTo || newFrom === newTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Invalid table range.",
+      });
+      return;
+    }
+
+    if (tableFrom !== undefined || tableTo !== undefined) {
+      const tableNumbers = Array.from({ length: newTo - newFrom + 1 }, (_, i) =>
+        String(newFrom + i)
+      );
+      counter.tableCount = tableNumbers;
+    }
 
     await counter.save();
   } else if (action === EDIT_ACTION.DELETE) {
@@ -1856,7 +1917,7 @@ module.exports.addingTables = async (req) => {
   const {
     userId,
     entityId,
-    body: { tableFrom, tableTo, counterIds: counterId, tableName },
+    body: { tableFrom, tableTo, counterIds, tableSectionName },
   } = req;
 
   const entity = await EntityDetails.findById(entityId);
@@ -1867,18 +1928,25 @@ module.exports.addingTables = async (req) => {
     });
   }
 
-  const counters = await Counter.findOne({ _id: counterId });
-  if (!counters) {
+  if (!Array.isArray(counterIds) || counterIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter doesn't exist.",
+      message: "At least one counter ID must be provided.",
     });
   }
 
-  if (tableFrom > tableTo || tableFrom == tableTo) {
+  const counters = await Counter.find({ _id: { $in: counterIds } });
+  if (counters.length !== counterIds.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid entry.",
+      message: "One or more counters do not exist.",
+    });
+  }
+
+  if (Number(tableFrom) >= Number(tableTo)) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid table range.",
     });
   }
 
@@ -1889,31 +1957,174 @@ module.exports.addingTables = async (req) => {
 
   const lastTable = await Tables.findOne(
     { entityId },
-    { tableSetionNo: 1 }
+    { tableSetionNo: 1, tableSectionName: 1 }
   ).sort({ createdAt: -1 });
+  console.log({ lastTable });
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+  if (lastTable.tableSectionName === tableSectionName) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Table with this name already exists.",
+    });
+  }
 
   const tableObj = {
     tableCount: tableNumbers,
     userId,
     entityId,
-    counterIds: counterId,
+    counterIds,
     tableSetionNo: newTableSectionNo,
-    tableName,
+    tableSectionName,
+    status: STATUS.ACTIVE,
   };
 
-  return Tables.create(tableObj);
+  const newTable = await Tables.create(tableObj);
+
+  await Counter.updateMany(
+    { _id: { $in: counterIds } },
+    {
+      $set: {
+        tableSectionName,
+        tableCount: tableNumbers,
+      },
+    }
+  );
+
+  return newTable;
 };
 
 module.exports.getTables = async (req) => {
   const { entityId, userId } = req;
-  const tables = await Tables.find({ userId, entityId }).populate({
+  const tables = await Tables.find({
+    userId,
+    entityId,
+    status: STATUS.ACTIVE,
+  }).populate({
     path: "counterIds",
     select: "counterName",
     model: "Counter",
   });
   if (!tables) return [];
   return tables;
+};
+
+module.exports.editTable = async (req) => {
+  const {
+    tableId,
+    action,
+    tableSectionName,
+    tableFrom,
+    tableTo,
+    counterIds,
+    status,
+  } = req.body;
+
+  const tableData = await Tables.findById(tableId);
+  if (!tableData) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Table not found.",
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT) {
+    if (tableData.tableSectionName === tableSectionName) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Table with this name already exists.",
+      });
+    }
+    if (tableSectionName !== undefined) {
+      tableData.tableSectionName = tableSectionName;
+    }
+
+    if (counterIds !== undefined) {
+      if (!Array.isArray(counterIds) || counterIds.length === 0) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "At least one counter ID must be provided.",
+        });
+      }
+      tableData.counterIds = counterIds;
+    }
+
+    const currentFrom =
+      Array.isArray(tableData.tableCount) && tableData.tableCount.length > 0
+        ? Number(tableData.tableCount[0])
+        : 0;
+
+    const currentTo =
+      Array.isArray(tableData.tableCount) && tableData.tableCount.length > 0
+        ? Number(tableData.tableCount[tableData.tableCount.length - 1])
+        : 0;
+
+    const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
+    const newTo = tableTo !== undefined ? Number(tableTo) : currentTo;
+
+    if (newFrom >= newTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Invalid table range.",
+      });
+    }
+
+    let updatedTableCount;
+    if (tableFrom !== undefined || tableTo !== undefined) {
+      updatedTableCount = Array.from({ length: newTo - newFrom + 1 }, (_, i) =>
+        String(newFrom + i)
+      );
+      tableData.tableCount = updatedTableCount;
+    }
+
+    const counterUpdate = {};
+    if (tableSectionName !== undefined)
+      counterUpdate.tableSectionName = tableData.tableSectionName;
+    if (updatedTableCount !== undefined)
+      counterUpdate.tableCount = updatedTableCount;
+
+    if (Object.keys(counterUpdate).length > 0 && tableData.counterIds?.length) {
+      await Counter.updateMany(
+        { _id: { $in: tableData.counterIds } },
+        { $set: counterUpdate }
+      );
+    }
+
+    await tableData.save();
+  } else if (action === EDIT_ACTION.DELETE) {
+    if (!Array.isArray(counterIds) || counterIds.length === 0) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "At least one counter ID must be provided for deletion.",
+      });
+    }
+
+    const counters = await Counter.find({ _id: { $in: counterIds } });
+
+    if (!counters.length) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "No matching counters found.",
+      });
+    }
+
+    const anyTableService = counters.some((counter) => counter.isTableService);
+
+    if (anyTableService) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message:
+          "Cannot delete table. One or more counters have table service enabled.",
+      });
+    }
+
+    tableData.status = status;
+
+    await tableData.save();
+    await Counter.updateMany(
+      { _id: { $in: counterIds } },
+      { $set: { status } }
+    );
+  }
 };
 
 module.exports.getUsersFeedback = async (req) => {

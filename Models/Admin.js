@@ -10,6 +10,7 @@ const adminSchema = new mongoose.Schema(
     phoneNumber: { type: String, required: true },
     status: { type: String, enum: Object.values(STATUS) },
     isAdmin: { type: Boolean, default: true },
+    platformFees: { type: Number, default: 0 },
   },
   { timestamps: true, minimize: false }
 );

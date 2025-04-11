@@ -24,6 +24,8 @@ const entityDetailsSchema = new Schema(
     status: { type: String, enum: Object.values(STATUS) },
     views: { type: Number, default: 0 },
     isOpen: { type: Boolean, default: true },
+    stripeAccountId: { type: String },
+    bankLinkUrl: { type: String },
   },
   { timestamps: true }
 );
