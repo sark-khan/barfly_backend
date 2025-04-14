@@ -29,6 +29,7 @@ module.exports.register = async (req) => {
     country,
     address,
     contactNumber,
+    houseNo,
   } = req.body;
 
   const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
@@ -53,6 +54,7 @@ module.exports.register = async (req) => {
     address,
     contactNumber,
     status: STATUS.ACTIVE,
+    houseNo,
   });
 
   delete userObj.password;
