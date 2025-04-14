@@ -319,6 +319,8 @@ const getEntityOrders = async (req) => {
     query: { pageNo = 1, pageLimit = 10, status, counterId, searchTerm, selectedOrderId },
   } = req;
 
+  console.log({selectedOrderId});
+
   const limit = Math.max(Number(pageLimit), 1);
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
@@ -377,6 +379,7 @@ const getEntityOrders = async (req) => {
     .sort({ tokenNumber: -1 })
     .skip(skip)
     .limit(limit);
+    console.log("reached ehrere");
 
     if(selectedOrderId!=null && selectedOrderId!="" && pageNo == 1  && !status ){
       const selected = await Order.findById(new mongoose.Types.ObjectId(selectedOrderId))
