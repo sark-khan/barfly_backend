@@ -11,6 +11,8 @@ const counterSchema = new Schema(
     isSelfPickUp: { type: Boolean, default: true },
     totalTables: { type: Number, default: 0 },
     status: { type: String, enum: Object.values(STATUS) },
+    tableCount: [{ type: String }],
+    tableSectionName: { type: String },
   },
   { timestamps: true }
 );

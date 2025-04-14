@@ -3,6 +3,7 @@ require("./db");
 require("./redis");
 require("./cron");
 require("./server");
+const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -35,6 +36,7 @@ const {
 } = require("./Controller/aws-service");
 const ItemDetails = require("./Models/ItemDetails");
 const MenuItem = require("./Models/MenuItem");
+const Admin = require("./Models/Admin");
 const { STATUS_CODES } = require("./Utils/globalConstants");
 const { ownerTrades } = require("./PdfServices/ownerTrades");
 const verifyToken = require("./Utils/verifyToken");
@@ -61,6 +63,9 @@ const unProtectedApis = {
   "/api/owner/restaurant/email-exist": true,
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
+
+  "/api/stripe/account-link": true,
+  "/api/stripe/get-stripe-accounts": true,
 };
 
 app.use("/api/health-check", (req, res) => {
@@ -68,6 +73,13 @@ app.use("/api/health-check", (req, res) => {
     message: `Countr service running...!`,
     time: new Date(),
   });
+});
+
+app.use("/.well-known", express.static(path.join(__dirname, ".well-known")));
+
+// Optional: root route
+app.get("/", (req, res) => {
+  res.send("Apple Pay Domain Verification Running");
 });
 
 app.use((req, res, next) => {
@@ -91,6 +103,13 @@ app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 app.use("/api/orders", orderController);
 app.use("/api/stripe", StripeController);
 app.use("/api/admins", adminController);
+
+const preloadPlatformFees = async () => {
+  const admin = await Admin.findOne({ isAdmin: true }).lean();
+  global.PLATFORM_FEES = admin?.platformFees || 0;
+};
+
+preloadPlatformFees();
 
 app.post("/api/update-menu-items", async (req, res) => {
   try {

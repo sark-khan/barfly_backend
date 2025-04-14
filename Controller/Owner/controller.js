@@ -38,6 +38,7 @@ const {
   getItemsSearchLogs,
   editMobileBusinessDetails,
   removeSearchLogs,
+  editTable,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -573,6 +574,18 @@ router.get("/get-tables", async (req, res) => {
       .json({ message: "Tables fetched successfully.", data });
   } catch (error) {
     console.error("Error while fetching the tables details", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/edit-table", async (req, res) => {
+  try {
+    const message = await editTable(req);
+    return res.status(STATUS_CODES.OK).json(message);
+  } catch (error) {
+    console.error("Error while adding the tables details", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

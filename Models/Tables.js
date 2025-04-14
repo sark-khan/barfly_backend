@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { STATUS } = require("../Utils/globalConstants");
 const { ObjectId } = mongoose.Types;
 
 const tableSchema = new mongoose.Schema(
@@ -14,6 +15,8 @@ const tableSchema = new mongoose.Schema(
       },
     ],
     tableSetionNo: { type: Number, default: 0 },
+    tableSectionName: { type: String },
+    status: { type: String, enum: Object.values(STATUS) },
   },
   { timestamps: true, minimize: false }
 );

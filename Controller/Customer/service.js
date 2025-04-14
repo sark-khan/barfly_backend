@@ -278,7 +278,7 @@ module.exports.counterList = async (req) => {
   const { entityId, searchTerm } = req.query;
   const query = { entityId, status: STATUS.ACTIVE };
   if (searchTerm) {
-    query.counterName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
+    query.counterName = { $regex: searchTerm, $options: "i" };
   }
   const counters = await Counter.find(
     query,
@@ -290,12 +290,12 @@ module.exports.counterList = async (req) => {
   const now = new Date();
   const eventOfThisCounters = await Event.find(
     {
-      counterIds: { $in: counterIds }, // Match events with counterIds in the given array
-      from: { $lte: now }, // `from` date should be less than or equal to `now`
-      to: { $gte: now }, // `to` date should be greater than or equal to `now`
+      counterIds: { $in: counterIds },
+      from: { $lte: now },
+      to: { $gte: now },
     },
     {
-      from: 1, // Include these fields in the result
+      from: 1,
       to: 1,
       startingDate: 1,
       endDate: 1,
@@ -330,17 +330,19 @@ module.exports.counterList = async (req) => {
     { $inc: { views: 1 } }
   );
 
-  const counterList = counters.map((counter) => {
-    const matchedCounter = counterLists.find(
-      (c) => c.counterId == counter._id.toString()
-    );
+  const counterList = counters
+    .map((counter) => {
+      const matchedCounter = counterLists.find(
+        (c) => c.counterId == counter._id.toString()
+      );
 
-    return {
-      ...counter,
-      isLive: counterIdsSet.has(counter._id.toString()),
-      eventId: matchedCounter ? matchedCounter.eventId : null,
-    };
-  });
+      return {
+        ...counter,
+        isLive: counterIdsSet.has(counter._id.toString()),
+        eventId: matchedCounter ? matchedCounter.eventId : null,
+      };
+    })
+    .sort((a, b) => b.isLive - a.isLive);
 
   return counterList;
 };

@@ -8,6 +8,9 @@ const {
   confirmPaymentIntent,
   createPaymentMethod,
   getPaymentStatus,
+  createStripeOnboardingLink,
+  getStripeAccount,
+  retrieveAccountBalance,
 } = require("../CustomerServices/stripeServices");
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
@@ -23,40 +26,60 @@ router.post("/create-payment", async (req, res) => {
   }
 });
 
-// router.post("/create-payment-method", async (req, res) => {
-//   try {
-//     const response = await createPaymentMethod(req);
-//     return res.status(STATUS_CODES.OK).json({
-//       message: "Payment method created successfully.",
-//       paymentMethodId: response.id,
-//     });
-//   } catch (error) {
-//     console.error("Error creating payment method:", error);
-//     return res.status(STATUS_CODES.SERVER_ERROR).json({
-//       message: "Failed to create payment method.",
-//       error: error.message,
-//     });
-//   }
-// });
-
 router.post("/confirm-payment", async (req, res) => {
   try {
     const paymentIntent = await confirmPaymentIntent(req);
-    res.json({ status: paymentIntent.status });
+    return res.status(STATUS_CODES.OK).json({ status: paymentIntent.status });
   } catch (error) {
     console.error("Error while confirming the payment: ", error);
-    res.status(STATUS_CODES.OK).json({ error: error.message });
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }
 });
 
-// /**
-//  * Controller to get the status of a PaymentIntent.
-//  */
 router.get("/get-payment-status", async (req, res) => {
   try {
     const paymentIntent = await getPaymentStatus(req);
     return res.status(STATUS_CODES.OK).json({ data: paymentIntent });
   } catch (error) {
+    console.error("Error while getting payments", error);
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
+  }
+});
+
+router.post("/account-link", async (req, res) => {
+  try {
+    const response = await createStripeOnboardingLink(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Account created", response });
+  } catch (error) {
+    console.error("Error while creating the account");
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
+  }
+});
+
+router.get("/retrieve-accout-details", async (req, res) => {
+  try {
+    const response = await retrieveAccountBalance(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Account details fetched", response });
+  } catch (error) {
+    console.error("Error while creating the account");
+
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
+  }
+});
+
+router.get("/get-stripe-accounts", async (req, res) => {
+  try {
+    const response = await getStripeAccount(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Accounts fetched", response });
+  } catch (error) {
+    console.error("Error while creating the account");
+
     res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }
 });
