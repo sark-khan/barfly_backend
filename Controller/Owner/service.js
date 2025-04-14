@@ -2019,6 +2019,8 @@ module.exports.editTable = async (req) => {
     status,
   } = req.body;
 
+  let message = "";
+
   const tableData = await Tables.findById(tableId);
   if (!tableData) {
     throwError({
@@ -2088,7 +2090,7 @@ module.exports.editTable = async (req) => {
         { $set: counterUpdate }
       );
     }
-
+    message = "Table edited successfully.";
     await tableData.save();
   } else if (action === EDIT_ACTION.DELETE) {
     if (!Array.isArray(counterIds) || counterIds.length === 0) {
@@ -2124,7 +2126,9 @@ module.exports.editTable = async (req) => {
       { _id: { $in: counterIds } },
       { $set: { status } }
     );
+    message = "Table deleted successfully.";
   }
+  return { message };
 };
 
 module.exports.getUsersFeedback = async (req) => {
