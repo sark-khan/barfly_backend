@@ -336,7 +336,7 @@ const getEntityOrders = async (req) => {
   }
 
   if(selectedOrderId!=null && selectedOrderId!=""){
-      query._id = { $ne: searchedId }; // Exclude the searchedId from the main query result
+      query._id = { $ne: selectedOrderId }; // Exclude the searchedId from the main query result
   }
 
   if (searchTerm) {
