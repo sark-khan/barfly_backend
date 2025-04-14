@@ -379,7 +379,7 @@ const getEntityOrders = async (req) => {
     .limit(limit);
 
     if(selectedOrderId!=null && selectedOrderId!="" && pageNo == 1  && !status ){
-      const selected = await Order.findById(selectedOrderId)
+      const selected = await Order.findById(new mongoose.Types.ObjectId(selectedOrderId))
     .populate({
       path: "items.itemId",
       select: "itemName quantity description type currency image createdAt",
