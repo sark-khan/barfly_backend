@@ -316,22 +316,29 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    query: { pageNo = 1, pageLimit = 10, status, counterId, searchTerm },
+    query: { pageNo = 1, pageLimit = 10, status, counterId, searchTerm, selectedOrderId },
   } = req;
+
+  console.log({selectedOrderId});
 
   const limit = Math.max(Number(pageLimit), 1);
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
 
+
   query.status = status
     ? status
     : {
         $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
       };
-
-  if (counterId) {
+    
+  if (counterId && !status) {
     query.counterId = counterId;
+  }
+
+  if(selectedOrderId!=null && selectedOrderId!=""){
+      query._id = { $ne: selectedOrderId }; // Exclude the searchedId from the main query result
   }
 
   if (searchTerm) {
@@ -372,6 +379,30 @@ const getEntityOrders = async (req) => {
     .sort({ tokenNumber: -1 })
     .skip(skip)
     .limit(limit);
+    console.log("reached ehrere");
+
+    if(selectedOrderId!=null && selectedOrderId!="" && pageNo == 1  && !status ){
+      const selected = await Order.findById(new mongoose.Types.ObjectId(selectedOrderId))
+    .populate({
+      path: "items.itemId",
+      select: "itemName quantity description type currency image createdAt",
+      model: "ItemDetails",
+    })
+    .populate({
+      path: "counterId",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ tokenNumber: -1 })
+    .skip(skip)
+    .limit(limit);
+
+    if(selected){
+      data.unshift(selected);
+    }
+    delete query._id;
+ }
+  
 
   delete query.status;
   console.log({ query });

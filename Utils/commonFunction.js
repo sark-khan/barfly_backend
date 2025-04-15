@@ -208,12 +208,17 @@ const decrypt = (encryptedText) => {
   return decrypted;
 };
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 module.exports = {
   hashPassword,
   comparePassword,
   getJwtToken,
   // generateOTP,
   SECRET_KEY,
+  sleep,
   performEndOfDayTask,
   shiftArrayRight,
   haversineDistance,
