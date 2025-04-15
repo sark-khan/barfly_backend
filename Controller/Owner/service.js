@@ -76,7 +76,7 @@ module.exports.createCounter = async (req) => {
   //   });
   // }
 
-  if (tableFrom > tableTo || tableFrom == tableTo) {
+  if (tableFrom > tableTo) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Invalid entry.",
