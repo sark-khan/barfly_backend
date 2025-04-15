@@ -1961,7 +1961,7 @@ module.exports.addingTables = async (req) => {
   ).sort({ createdAt: -1 });
   console.log({ lastTable });
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
-  if (lastTable.tableSectionName === tableSectionName) {
+  if (lastTable?.tableSectionName === tableSectionName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Table with this name already exists.",
