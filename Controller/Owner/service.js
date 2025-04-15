@@ -76,10 +76,10 @@ module.exports.createCounter = async (req) => {
   //   });
   // }
 
-  if (tableFrom > tableTo) {
+  if (Number(tableFrom) >= Number(tableTo)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid entry.",
+      message: "Invalid table range.",
     });
   }
 
