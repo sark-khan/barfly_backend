@@ -252,15 +252,21 @@ const updateStatusOfOrder = async (req) => {
 
   try {
     await messaging.send(payload);
-    console.log(`Push notification sent to user ${req.userId}`);
-  } catch (err) {
-    console.error("FCM Error:", err.message);
-    if (err.code === "messaging/registration-token-not-registered") {
+  } catch (error) {
+    console.error("Push failed:", error);
+
+    if (
+      error.code === "messaging/invalid-argument" ||
+      error.code === "messaging/registration-token-not-registered"
+    ) {
       await User.updateOne(
         { _id: updatedOrder.userId._id },
-        { $unset: { fcmToken: 1 } }
+        { $unset: { fcmToken: "" } }
       );
-      console.warn(`FCM token removed for user ${updatedOrder.userId._id}`);
+      console.warn(
+        "Removed invalid fcmToken for user",
+        updatedOrder.userId._id
+      );
     }
   }
 };
