@@ -208,9 +208,14 @@ const updateStatusOfOrder = async (req) => {
     { new: true }
   ).populate("userId");
 
-  if (!updatedOrder.userId.fcmToken) {
+  if (
+    !updatedOrder?.userId?.fcmToken ||
+    typeof updatedOrder.userId.fcmToken !== "string"
+  ) {
+    console.warn("Invalid or missing FCM token. Skipping push.");
     return;
   }
+
   const payload = {
     notification: {
       title: "Order Status Updated",
@@ -244,9 +249,19 @@ const updateStatusOfOrder = async (req) => {
     },
   };
 
-  await messaging.send(payload);
-
-  console.log(`Push notification sent to user ${req.userId}`);
+  try {
+    await messaging.send(payload);
+    console.log(`Push notification sent to user ${req.userId}`);
+  } catch (err) {
+    console.error("FCM Error:", err.message);
+    if (err.code === "messaging/registration-token-not-registered") {
+      await User.updateOne(
+        { _id: updatedOrder.userId._id },
+        { $unset: { fcmToken: 1 } }
+      );
+      console.warn(`FCM token removed for user ${updatedOrder.userId._id}`);
+    }
+  }
 };
 
 // const getEntityOrders = async (req) => {
@@ -316,29 +331,33 @@ const updateStatusOfOrder = async (req) => {
 const getEntityOrders = async (req) => {
   const {
     entityId,
-    query: { pageNo = 1, pageLimit = 10, status, counterId, searchTerm, selectedOrderId },
+    query: {
+      pageNo = 1,
+      pageLimit = 10,
+      status,
+      counterId,
+      searchTerm,
+      selectedOrderId,
+    },
   } = req;
-
-  console.log({selectedOrderId});
 
   const limit = Math.max(Number(pageLimit), 1);
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
 
-
   query.status = status
     ? status
     : {
         $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
       };
-    
+
   if (counterId && !status) {
     query.counterId = counterId;
   }
 
-  if(selectedOrderId!=null && selectedOrderId!=""){
-      query._id = { $ne: selectedOrderId }; // Exclude the searchedId from the main query result
+  if (selectedOrderId != null && selectedOrderId != "") {
+    query._id = { $ne: selectedOrderId }; // Exclude the searchedId from the main query result
   }
 
   if (searchTerm) {
@@ -379,30 +398,36 @@ const getEntityOrders = async (req) => {
     .sort({ tokenNumber: -1 })
     .skip(skip)
     .limit(limit);
-    console.log("reached ehrere");
+  console.log("reached ehrere");
 
-    if(selectedOrderId!=null && selectedOrderId!="" && pageNo == 1  && !status ){
-      const selected = await Order.findById(new mongoose.Types.ObjectId(selectedOrderId))
-    .populate({
-      path: "items.itemId",
-      select: "itemName quantity description type currency image createdAt",
-      model: "ItemDetails",
-    })
-    .populate({
-      path: "counterId",
-      select: "counterName",
-      model: "Counter",
-    })
-    .sort({ tokenNumber: -1 })
-    .skip(skip)
-    .limit(limit);
+  if (
+    selectedOrderId != null &&
+    selectedOrderId != "" &&
+    pageNo == 1 &&
+    !status
+  ) {
+    const selected = await Order.findById(
+      new mongoose.Types.ObjectId(selectedOrderId)
+    )
+      .populate({
+        path: "items.itemId",
+        select: "itemName quantity description type currency image createdAt",
+        model: "ItemDetails",
+      })
+      .populate({
+        path: "counterId",
+        select: "counterName",
+        model: "Counter",
+      })
+      .sort({ tokenNumber: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    if(selected){
+    if (selected) {
       data.unshift(selected);
     }
     delete query._id;
- }
-  
+  }
 
   delete query.status;
   console.log({ query });
