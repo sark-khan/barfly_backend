@@ -456,11 +456,13 @@ module.exports.getRecommendedItems = async (req) => {
   const counterItemMap = {};
 
   allItems.forEach((item) => {
-    item.image = generatePresignedUrl(item.image);
-    const counterKey = `${item.counterId}_${item.itemName}`;
+    if (item.menuCategoryId.counterId == counterId) {
+      item.image = generatePresignedUrl(item.image);
+      const counterKey = `${item.counterId}_${item.itemName}`;
 
-    if (!counterItemMap[counterKey]) {
-      counterItemMap[counterKey] = item;
+      if (!counterItemMap[counterKey]) {
+        counterItemMap[counterKey] = item;
+      }
     }
   });
 
