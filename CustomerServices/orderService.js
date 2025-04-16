@@ -16,6 +16,7 @@ const Discount = require("../Models/Discount");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
 const OrderLogs = require("../Models/OrderLogs");
+const User = require("../Models/User");
 
 const createOrder = async (req, session) => {
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
