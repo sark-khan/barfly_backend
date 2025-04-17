@@ -177,7 +177,23 @@ const createOrder = async (req, session) => {
     },
   };
 
-  await messagingPlus.send(payload);
+  try {
+    await messagingPlus.send(payload);
+  } catch (err) {
+    console.error("Push Notification Error:", err.message);
+
+    if (
+      err.code === "messaging/invalid-argument" ||
+      err.code === "messaging/registration-token-not-registered" ||
+      err.code === "messaging/invalid-recipient"
+    ) {
+      // Remove invalid token from user
+      await User.updateOne(
+        { _id: entityDetails.owner._id },
+        { $unset: { fcmToken: "" } }
+      );
+    }
+  }
 
   return createdOrder;
 };
