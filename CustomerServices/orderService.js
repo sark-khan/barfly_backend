@@ -190,7 +190,7 @@ const createOrder = async (req, session) => {
     ) {
       // Remove invalid token from user
       await User.updateOne(
-        { _id: entityDetails.owner._id },
+        { _id: entityDetails.userId },
         { $unset: { fcmToken: "" } }
       );
     }
@@ -277,13 +277,10 @@ const updateStatusOfOrder = async (req) => {
       error.code === "messaging/registration-token-not-registered"
     ) {
       await User.updateOne(
-        { _id: updatedOrder.userId._id },
+        { _id: updatedOrder.userId },
         { $unset: { fcmToken: "" } }
       );
-      console.warn(
-        "Removed invalid fcmToken for user",
-        updatedOrder.userId._id
-      );
+      console.warn("Removed invalid fcmToken for user", updatedOrder.userId);
     }
   }
 };
