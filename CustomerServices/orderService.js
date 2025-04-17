@@ -179,6 +179,7 @@ const createOrder = async (req, session) => {
 
   try {
     await messagingPlus.send(payload);
+    console.info("Notification Pushed");
   } catch (err) {
     console.error("Push Notification Error:", err.message);
 
