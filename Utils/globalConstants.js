@@ -302,7 +302,6 @@ const ANSWER_TYPES = {
   BOOLEAN: ["True", "False", "Neutral"],
 };
 
-// ✅ Explicitly define ALL_ANSWER_TYPES
 const ALL_ANSWER_TYPES = [
   ...ANSWER_TYPES.RATING,
   ...ANSWER_TYPES.FEEDBACK,

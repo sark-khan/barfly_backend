@@ -10,6 +10,7 @@ const {
   STATUS,
   EDIT_ACTION,
   COUNTRY_ARRAY,
+  ANSWER_TYPES,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -904,16 +905,7 @@ module.exports.processLocationForUser = async (req) => {
 module.exports.userFeedback = async (req) => {
   const {
     userId,
-    body: {
-      entityId,
-      counterId,
-      experience,
-      experienceDescription,
-      placingOrderProcess,
-      placingOrderProcessDescription,
-      statusUpdation,
-      statusUpdationDescription,
-    },
+    body: { entityId, answers },
   } = req;
 
   const user = await User.findById(userId);
@@ -932,35 +924,29 @@ module.exports.userFeedback = async (req) => {
     });
   }
 
-  const counter = await Counter.findById(counterId);
-  if (!counter) {
+  if (!Array.isArray(answers) || answers.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter not found.",
+      message: "Feedback answers are required.",
     });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.value === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Each answer must have questionId and value.",
+      });
+    }
   }
 
   const feedbackObj = {
     userId,
     entityId: entity._id,
-    counterId: counter._id,
-    experience: {
-      value: experience,
-      description: experienceDescription || "",
-    },
-    placingOrderProcess: {
-      value: placingOrderProcess,
-      description: placingOrderProcessDescription || "",
-    },
-    statusUpdation: {
-      value: statusUpdation,
-      description: statusUpdationDescription || "",
-    },
+    answers,
   };
 
-  await Userfeedback.create(feedbackObj);
-
-  return feedbackObj;
+  return Userfeedback.create(feedbackObj);
 };
 
 exports.getAllcountries = () => {
@@ -1109,9 +1095,30 @@ module.exports.entityOffers = async () => {
 module.exports.getFeedbackQuestions = async (req) => {
   const { entityId } = req.query;
 
-  const feedbackQuestions = await FeedbackQuestions.find({ entityId });
-  if (!feedbackQuestions) return [];
-  return feedbackQuestions;
+  const feedbackQuestions = await FeedbackQuestions.find({ entityId }).lean();
+  if (!feedbackQuestions || feedbackQuestions.length === 0) return [];
+
+  const questionsWithAnswerTypeKey = feedbackQuestions.map((question) => {
+    let answerTypeKey = null;
+
+    for (const [key, values] of Object.entries(ANSWER_TYPES)) {
+      if (
+        Array.isArray(question.answerType) &&
+        question.answerType.length === values.length &&
+        question.answerType.every((val) => values.includes(val))
+      ) {
+        answerTypeKey = key;
+        break;
+      }
+    }
+
+    return {
+      ...question,
+      answerTypeKey,
+    };
+  });
+
+  return questionsWithAnswerTypeKey;
 };
 
 module.exports.getTablesUserSide = async (req) => {

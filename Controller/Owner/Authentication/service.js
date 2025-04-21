@@ -76,7 +76,7 @@ module.exports.register = async (req) => {
     const msg = `Your verification code is: ${otp}, valid for 5 minutes.`;
     await sendSMS({ toPhoneNumber: contactNumber, message: msg });
 
-    return { otpSent: true, message: "OTP resent successfully.", otp };
+    return { otpSent: true, message: "OTP sent successfully.", otp };
   }
 
   if (otpRecord) {

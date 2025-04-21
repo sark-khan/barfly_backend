@@ -67,7 +67,7 @@ router.post("/create-counter", async (req, res) => {
       data: response.counterName,
     });
   } catch (error) {
-    console.error("Error while creating Menu", error);
+    console.error("Error while creating counter", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
