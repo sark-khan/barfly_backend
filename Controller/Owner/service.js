@@ -19,6 +19,7 @@ const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
 const {
   shiftArrayRight,
   comparePassword,
+  sendFirebaseNotification,
 } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
 const Discount = require("../../Models/Discount");
@@ -354,6 +355,11 @@ module.exports.createMenuItem = async (req) => {
       });
     })
   );
+
+  sendFirebaseNotification({titleText:"New item added", body:"New Item Added in the menu list", data:{
+    action:"item created",
+    click_action: "FLUTTER_NOTIFICATION_CLICK",
+}, token:"", showNotification:false, })
 
   return createdItems;
 };
