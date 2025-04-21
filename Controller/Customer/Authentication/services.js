@@ -41,6 +41,18 @@ module.exports.register = async (req) => {
   }
 
   const hashedPassword = hashPassword(password);
+
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+
   const userObj = await User.create({
     role: ROLES.CUSTOMER,
     fullName,
@@ -55,6 +67,7 @@ module.exports.register = async (req) => {
     contactNumber,
     status: STATUS.ACTIVE,
     houseNo,
+    age: String(age),
   });
 
   delete userObj.password;

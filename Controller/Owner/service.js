@@ -1437,8 +1437,8 @@ module.exports.getCounterSettings = async (req) => {
 
 module.exports.createDiscountCoupon = async (req) => {
   const {
-    // entityId,
-    // userId,
+    entityId,
+    userId,
     body: {
       code,
       type,
@@ -1448,8 +1448,8 @@ module.exports.createDiscountCoupon = async (req) => {
       usageLimit,
       startDate,
       endDate,
-      entityId,
-      userId,
+      // entityId,
+      // userId,
       description,
       colourTheme,
     },
@@ -2149,7 +2149,6 @@ module.exports.getUsersFeedback = async (req) => {
 
   let fromDate = from ? new Date(from) : null;
   let toDate = to ? new Date(to) : null;
-
   if (toDate) toDate.setHours(23, 59, 59, 999);
 
   const dateFilter = {};
@@ -2167,10 +2166,111 @@ module.exports.getUsersFeedback = async (req) => {
 
   const feedbacks = await Feedbacks.find(query)
     .populate("userId", "fullName email")
-    .populate("answers.questionId question")
+    .populate("answers.questionId", "question answerType")
     .sort({ createdAt: -1 });
 
-  return feedbacks;
+  const ratingDistribution = {};
+  for (let i = 1; i <= 10; i++) {
+    ratingDistribution[i] = 0;
+  }
+
+  const feedbackOptionsCount = {
+    GOOD: 0,
+    DECENT: 0,
+    BAD: 0,
+  };
+
+  let booleanStats = {
+    TRUE: 0,
+    FALSE: 0,
+    NEUTRAL: 0,
+  };
+
+  let totalRatings = 0;
+
+  const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
+  const feedbackValues = globalConstants.ANSWER_TYPES.FEEDBACK.map((v) =>
+    v.toUpperCase()
+  );
+  const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
+    v.toUpperCase()
+  );
+
+  for (const fb of feedbacks) {
+    for (const answer of fb.answers) {
+      const { value } = answer;
+      if (!value) continue;
+
+      const valueStr =
+        typeof value === "string"
+          ? value.trim().toUpperCase()
+          : String(value).trim().toUpperCase();
+
+      if (ratingValues.includes(valueStr)) {
+        const ratingValue = parseInt(valueStr, 10);
+        if (!isNaN(ratingValue) && ratingValue >= 1 && ratingValue <= 10) {
+          ratingDistribution[ratingValue] += 1;
+          totalRatings += 1;
+        }
+      } else if (feedbackValues.includes(valueStr)) {
+        if (feedbackOptionsCount[valueStr] !== undefined) {
+          feedbackOptionsCount[valueStr] += 1;
+        }
+      } else if (booleanValues.includes(valueStr)) {
+        if (valueStr === "TRUE") {
+          booleanStats.TRUE += 1;
+        } else if (valueStr === "FALSE") {
+          booleanStats.FALSE += 1;
+        } else if (valueStr === "NEUTRAL") {
+          booleanStats.NEUTRAL += 1;
+        }
+      }
+    }
+  }
+
+  const totalFeedbacks =
+    feedbackOptionsCount.GOOD +
+    feedbackOptionsCount.DECENT +
+    feedbackOptionsCount.BAD;
+
+  const totalBooleans =
+    booleanStats.TRUE + booleanStats.FALSE + booleanStats.NEUTRAL;
+
+  const ratingStats = {};
+  for (let i = 1; i <= 10; i++) {
+    ratingStats[i] = totalRatings
+      ? ((ratingDistribution[i] / totalRatings) * 100).toFixed(2) + "%"
+      : "0.00%";
+  }
+
+  const feedbackStats = {
+    RATING: ratingStats,
+    FEEDBACK: {
+      GOOD: totalFeedbacks
+        ? ((feedbackOptionsCount.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+        : "0%",
+      DECENT: totalFeedbacks
+        ? ((feedbackOptionsCount.DECENT / totalFeedbacks) * 100).toFixed(2) +
+          "%"
+        : "0%",
+      BAD: totalFeedbacks
+        ? ((feedbackOptionsCount.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+        : "0%",
+    },
+    BOOLEAN: {
+      TRUE: totalBooleans
+        ? ((booleanStats.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+        : "0%",
+      FALSE: totalBooleans
+        ? ((booleanStats.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+        : "0%",
+      NEUTRAL: totalBooleans
+        ? ((booleanStats.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+        : "0%",
+    },
+  };
+
+  return { feedbacks, feedbackStats };
 };
 
 module.exports.addFeedbackQuestions = async (req) => {
