@@ -361,10 +361,16 @@ module.exports.createMenuItem = async (req) => {
     })
   );
 
-  sendFirebaseNotification({titleText:"New item added", body:"New Item Added in the menu list", data:{
-    action:"item created",
-    click_action: "FLUTTER_NOTIFICATION_CLICK",
-}, token:"", showNotification:false, })
+  sendFirebaseNotification({
+    titleText: "New item added",
+    body: "New Item Added in the menu list",
+    data: {
+      action: "item created",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+    token: "",
+    showNotification: false,
+  });
 
   return createdItems;
 };
@@ -1966,10 +1972,22 @@ module.exports.addingTables = async (req) => {
     (_, i) => String(Number(tableFrom) + i)
   );
 
+  const tablesExists = await Tables.find({
+    counterIds: { $in: counterIds },
+    status: { $ne: STATUS.DELETED },
+  });
+
+  if (tablesExists.length > 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Table service is already created for the following counters",
+    });
+  }
   const lastTable = await Tables.findOne(
     { entityId },
     { tableSetionNo: 1, tableSectionName: 1 }
   ).sort({ createdAt: -1 });
+
   console.log({ lastTable });
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
   if (lastTable?.tableSectionName === tableSectionName) {
@@ -2003,6 +2021,49 @@ module.exports.addingTables = async (req) => {
 
   return newTable;
 };
+
+module.exports.getCountersForTableManagement = async (req) => {
+  const { entityId } = req;
+
+  const tableManagement = await Tables.find({ entityId }).lean();
+
+  const counterIds = new Set();
+
+  tableManagement.forEach((table) => {
+    console.log({ table });
+    if (table.status == STATUS.DELETED) return;
+    table.counterIds.forEach((counterId) => {
+      counterIds.add(counterId);
+    });
+  });
+
+  console.log({ lll: counterIds.size });
+
+  const counterList = await Counter.find({
+    _id: { $nin: Array.from(counterIds) },
+    entityId: entityId,
+    status: STATUS.ACTIVE,
+  });
+
+  return counterList;
+};
+
+module.exports.getCountersForEvents = async (req) => {
+  const { eventId } = req.query;
+
+  const eventDetails = await Event.findById(eventId, { counterIds: 1 }).lean();
+
+  if (!eventDetails || !eventDetails.counterIds || eventDetails.counterIds.length === 0) {
+    return []; // or throw an error if needed
+  }
+
+  const counterList = await Counter.find({
+    _id: { $in: eventDetails.counterIds }
+  });
+
+  return counterList;
+};
+
 
 module.exports.getTables = async (req) => {
   const { entityId, userId } = req;
@@ -2138,10 +2199,10 @@ module.exports.editTable = async (req) => {
     tableData.status = status;
 
     await tableData.save();
-    await Counter.updateMany(
-      { _id: { $in: counterIds } },
-      { $set: { status } }
-    );
+    // await Counter.updateMany(
+    //   { _id: { $in: counterIds } },
+    //   { $set: { status } }
+    // );
     message = "Table deleted successfully.";
   }
   return { message };

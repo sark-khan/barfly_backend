@@ -39,6 +39,8 @@ const {
   editMobileBusinessDetails,
   removeSearchLogs,
   editTable,
+  getCountersForTableManagement,
+  getCountersForEvents,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -565,6 +567,51 @@ router.post("/adding-tables", async (req, res) => {
       .json({ message: error.message });
   }
 });
+
+router.get("/get-remaining-counter-for-tables", async (req, res) => {
+  try {
+    const data = await getCountersForTableManagement(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Counter fetched successfully", data });
+  } catch (error) {
+    console.error("Error while fetching the Counter list", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+
+router.get("/get-remaining-counter-for-tables", async (req, res) => {
+  try {
+    const data = await getCountersForTableManagement(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Counter fetched successfully", data });
+  } catch (error) {
+    console.error("Error while fetching the Counter list", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-counters-for-event", async (req, res) => {
+  try {
+    const data = await getCountersForEvents(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Counter fetched successfully", data });
+  } catch (error) {
+    console.error("Error while fetching the Counter list", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+
 
 router.get("/get-tables", async (req, res) => {
   try {
