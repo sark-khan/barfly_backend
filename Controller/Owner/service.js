@@ -32,6 +32,7 @@ const ItemSearchLogs = require("../../Models/ItemSearchLogs");
 const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
 const { path } = require("pdfkit");
+const { io } = require("../../app");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -99,6 +100,8 @@ module.exports.createCounter = async (req) => {
     tableSectionName,
   });
 
+  // io.to(entityId.toString()).emit("newCounter", newCounter);
+
   const lastTable = await Tables.findOne(
     { entityId: req.entityId },
     { tableSetionNo: 1 }
@@ -112,6 +115,7 @@ module.exports.createCounter = async (req) => {
     entityId: req.entityId,
     counterIds: newCounter._id,
     tableSetionNo: newTableSectionNo,
+    status: STATUS.ACTIVE,
   });
 
   return newCounter.toObject();
@@ -159,7 +163,6 @@ module.exports.createCounterMenuCategory = async (req) => {
     }
   }
 
-  // Creating category objects for each counterId
   const categoryObjects = categories.flatMap(
     ({ categoryName, nutritionType, counterIds }) =>
       counterIds.map((counterId) => ({
@@ -171,6 +174,8 @@ module.exports.createCounterMenuCategory = async (req) => {
   );
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
+
+  io.to(entityId.toString()).emit("newCategory", createdCategories);
 
   return createdCategories;
 };
@@ -1995,16 +2000,21 @@ module.exports.addingTables = async (req) => {
 
 module.exports.getTables = async (req) => {
   const { entityId, userId } = req;
+
   const tables = await Tables.find({
     userId,
     entityId,
     status: STATUS.ACTIVE,
-  }).populate({
-    path: "counterIds",
-    select: "counterName",
-    model: "Counter",
-  });
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .select("tableCount tableSectionName tableSetionNo counterIds");
+
   if (!tables) return [];
+
   return tables;
 };
 
@@ -2137,15 +2147,29 @@ module.exports.getUsersFeedback = async (req) => {
     query: { from, to },
   } = req;
 
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
+  let fromDate = from ? new Date(from) : null;
+  let toDate = to ? new Date(to) : null;
 
-  toDate.setHours(23, 59, 59, 999);
+  if (toDate) toDate.setHours(23, 59, 59, 999);
 
-  const feedbacks = await Feedbacks.find({
-    entityId,
-    createdAt: { $gte: fromDate, $lte: toDate },
-  }).sort({ createdAt: -1 });
+  const dateFilter = {};
+  if (fromDate instanceof Date && !isNaN(fromDate)) {
+    dateFilter.$gte = fromDate;
+  }
+  if (toDate instanceof Date && !isNaN(toDate)) {
+    dateFilter.$lte = toDate;
+  }
+
+  const query = { entityId };
+  if (Object.keys(dateFilter).length) {
+    query.createdAt = dateFilter;
+  }
+
+  const feedbacks = await Feedbacks.find(query)
+    .populate("userId", "fullName email")
+    .populate("answers.questionId question")
+    .sort({ createdAt: -1 });
+
   return feedbacks;
 };
 
