@@ -10,6 +10,7 @@ const {
   STATUS,
   EDIT_ACTION,
   COUNTRY_ARRAY,
+  ANSWER_TYPES,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -1109,9 +1110,30 @@ module.exports.entityOffers = async () => {
 module.exports.getFeedbackQuestions = async (req) => {
   const { entityId } = req.query;
 
-  const feedbackQuestions = await FeedbackQuestions.find({ entityId });
-  if (!feedbackQuestions) return [];
-  return feedbackQuestions;
+  const feedbackQuestions = await FeedbackQuestions.find({ entityId }).lean();
+  if (!feedbackQuestions || feedbackQuestions.length === 0) return [];
+
+  const questionsWithAnswerTypeKey = feedbackQuestions.map((question) => {
+    let answerTypeKey = null;
+
+    for (const [key, values] of Object.entries(ANSWER_TYPES)) {
+      if (
+        Array.isArray(question.answerType) &&
+        question.answerType.length === values.length &&
+        question.answerType.every((val) => values.includes(val))
+      ) {
+        answerTypeKey = key;
+        break;
+      }
+    }
+
+    return {
+      ...question,
+      answerTypeKey,
+    };
+  });
+
+  return questionsWithAnswerTypeKey;
 };
 
 module.exports.getTablesUserSide = async (req) => {

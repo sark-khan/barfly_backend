@@ -23,6 +23,7 @@ const userSchema = new Schema(
     isRegistrationCompleted: { type: Boolean, default: false },
     fcmToken: { type: String },
     socketId: { type: String },
+    houseNo: { type: String, default: "" },
   },
   { timestamps: true, minimize: false }
 );
