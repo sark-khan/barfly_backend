@@ -905,16 +905,7 @@ module.exports.processLocationForUser = async (req) => {
 module.exports.userFeedback = async (req) => {
   const {
     userId,
-    body: {
-      entityId,
-      counterId,
-      experience,
-      experienceDescription,
-      placingOrderProcess,
-      placingOrderProcessDescription,
-      statusUpdation,
-      statusUpdationDescription,
-    },
+    body: { entityId, counterId, answers },
   } = req;
 
   const user = await User.findById(userId);
@@ -941,27 +932,30 @@ module.exports.userFeedback = async (req) => {
     });
   }
 
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Feedback answers are required.",
+    });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.value === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Each answer must have questionId and value.",
+      });
+    }
+  }
+
   const feedbackObj = {
     userId,
     entityId: entity._id,
     counterId: counter._id,
-    experience: {
-      value: experience,
-      description: experienceDescription || "",
-    },
-    placingOrderProcess: {
-      value: placingOrderProcess,
-      description: placingOrderProcessDescription || "",
-    },
-    statusUpdation: {
-      value: statusUpdation,
-      description: statusUpdationDescription || "",
-    },
+    answers,
   };
 
-  await Userfeedback.create(feedbackObj);
-
-  return feedbackObj;
+  return Userfeedback.create(feedbackObj);
 };
 
 exports.getAllcountries = () => {
