@@ -1,6 +1,24 @@
 const mongoose = require("mongoose");
-const { EXPERIENCE_TYPE } = require("../Utils/globalConstants");
 const { ObjectId } = mongoose.Types;
+
+const feedbackAnswerSchema = new mongoose.Schema(
+  {
+    questionId: {
+      type: ObjectId,
+      ref: "FeedbackQuestions",
+      required: true,
+    },
+    value: {
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+  },
+  { _id: false }
+);
 
 const feedbackSchema = new mongoose.Schema(
   {
@@ -14,38 +32,7 @@ const feedbackSchema = new mongoose.Schema(
       ref: "entitydetails",
       required: true,
     },
-    counterId: {
-      type: ObjectId,
-      ref: "counters",
-      required: true,
-    },
-
-    experience: {
-      type: {
-        value: {
-          type: String,
-          enum: Object.values(EXPERIENCE_TYPE),
-        },
-        description: { type: String, default: "" },
-      },
-    },
-
-    placingOrderProcess: {
-      type: {
-        value: { type: Number, required: true },
-        description: { type: String, default: "" },
-      },
-    },
-
-    statusUpdation: {
-      type: {
-        value: {
-          type: String,
-          enum: Object.values(EXPERIENCE_TYPE),
-        },
-        description: { type: String, default: "" },
-      },
-    },
+    answers: [feedbackAnswerSchema],
   },
   { timestamps: true, minimize: false }
 );

@@ -905,7 +905,7 @@ module.exports.processLocationForUser = async (req) => {
 module.exports.userFeedback = async (req) => {
   const {
     userId,
-    body: { entityId, counterId, answers },
+    body: { entityId, answers },
   } = req;
 
   const user = await User.findById(userId);
@@ -921,14 +921,6 @@ module.exports.userFeedback = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Entity doesn't exist.",
-    });
-  }
-
-  const counter = await Counter.findById(counterId);
-  if (!counter) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter not found.",
     });
   }
 
@@ -951,7 +943,6 @@ module.exports.userFeedback = async (req) => {
   const feedbackObj = {
     userId,
     entityId: entity._id,
-    counterId: counter._id,
     answers,
   };
 

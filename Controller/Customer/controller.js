@@ -350,10 +350,10 @@ router.post("/location", async (req, res) => {
 
 router.post("/user-feedback", async (req, res) => {
   try {
-    const response = await userFeedback(req);
+    await userFeedback(req);
     res
       .status(STATUS_CODES.OK)
-      .json({ message: "Feedback submitted successfully.", data: response });
+      .json({ message: "Feedback submitted successfully." });
   } catch (error) {
     console.error("Error while submitting the feedabck: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
