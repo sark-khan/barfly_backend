@@ -36,6 +36,7 @@ const SearchLogs = require("../../Models/searchLogs");
 const Discount = require("../../Models/Discount");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const Tables = require("../../Models/Tables");
+const notificationSettings = require("../../Models/notificationSettings");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -1093,7 +1094,7 @@ module.exports.entityOffers = async () => {
 };
 
 module.exports.getFeedbackQuestions = async (req) => {
-  const { entityId } = req.query;
+  const entityId = req.query?.entityId || req.entityId;
 
   const feedbackQuestions = await FeedbackQuestions.find({ entityId }).lean();
   if (!feedbackQuestions || feedbackQuestions.length === 0) return [];
@@ -1130,4 +1131,33 @@ module.exports.getTablesUserSide = async (req) => {
     return [];
   }
   return tables;
+};
+
+module.exports.fetchNotificationSettings = async (req) => {
+  return notificationSettings.findOne({ userId: req.userId });
+};
+
+module.exports.updateNotificationSettings = async (req) => {
+  const { isEmailOn, isPushOn, isPromotionalOn, value } = req.body;
+  let updatedValue = {};
+  if (isEmailOn == true) {
+    updatedValue = {
+      isEmailOn: value,
+    };
+  } else if (isPushOn == true) {
+    updatedValue = {
+      isPushOn: value,
+    };
+  } else if (isPromotionalOn) {
+    updatedValue = {
+      isPromotionalOn: value,
+    };
+  }
+
+  await notificationSettings.updateOne(
+    { userId: req.id },
+    { $set: updatedValue },
+    { upsert: true }
+  );
+  return;
 };

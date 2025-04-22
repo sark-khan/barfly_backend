@@ -41,6 +41,8 @@ const {
   editTable,
   getCountersForTableManagement,
   getCountersForEvents,
+  deleteFeedbackQuestions,
+  getCounterAndCategory,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -125,6 +127,22 @@ router.get("/get-menu-category", async (req, res) => {
     return res.status(STATUS_CODES.OK).json({
       message: `Menu category fetched successfully`,
       data: menuCategory,
+    });
+  } catch (error) {
+    console.error("Error while fetching menu category", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.get("/get-counter-and-category-list", async (req, res) => {
+  try {
+    const { filteredCategories, counters } = await getCounterAndCategory(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: `Menu category fetched successfully`,
+      filteredCategories,
+      counterDetails: counters,
     });
   } catch (error) {
     console.error("Error while fetching menu category", error);
@@ -582,7 +600,6 @@ router.get("/get-remaining-counter-for-tables", async (req, res) => {
   }
 });
 
-
 router.get("/get-remaining-counter-for-tables", async (req, res) => {
   try {
     const data = await getCountersForTableManagement(req);
@@ -610,8 +627,6 @@ router.get("/get-counters-for-event", async (req, res) => {
       .json({ message: error.message });
   }
 });
-
-
 
 router.get("/get-tables", async (req, res) => {
   try {
@@ -661,6 +676,20 @@ router.post("/add-feedback-questions", async (req, res) => {
       .json({ message: "Feedback questions added successfully." });
   } catch (error) {
     console.error("Error while adding the feedback questions.", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/delete-feedback-questions", async (req, res) => {
+  try {
+    await deleteFeedbackQuestions(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Feedback questions deleted successfully." });
+  } catch (error) {
+    console.error("Error while deleting the feedback questions.", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

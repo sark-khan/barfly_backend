@@ -24,6 +24,10 @@ const userSchema = new Schema(
     fcmToken: { type: String },
     socketId: { type: String },
     houseNo: { type: String, default: "" },
+    age: { type: String },
+    isPushNotification: { type: Boolean, default: true },
+    isEmail: { type: Boolean, default: true },
+    isPromotional: { type: Boolean, default: true },
   },
   { timestamps: true, minimize: false }
 );

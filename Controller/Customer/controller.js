@@ -34,6 +34,8 @@ const {
   entityOffers,
   getFeedbackQuestions,
   getTablesUserSide,
+  fetchNotificationSettings,
+  updateNotificationSettings,
 } = require("./service");
 
 // router.use((req, res, next) => {
@@ -44,6 +46,33 @@ const {
 //   }
 //   return next();
 // });
+
+router.get("/fetch-notification-settings", async (req, res) => {
+  try {
+    const notificationSettingsDetails = await fetchNotificationSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Notification Settings fetched successfully.",
+      notificationSettingsDetails,
+    });
+  } catch (error) {
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error getting notification settings",
+    });
+  }
+});
+
+router.post("/update-notification-settings", async (req, res) => {
+  try {
+    await updateNotificationSettings(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Notification Settings updated successfully.",
+    });
+  } catch (error) {
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error getting notification settings",
+    });
+  }
+});
 
 router.get("/get-entities", async (req, res) => {
   try {

@@ -1203,6 +1203,39 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
   return eventsWithOrders;
 };
 
+module.exports.getCounterAndCategory = async (req) => {
+  const { userId, entityId } = req;
+  const menuCategories = await MenuCategory.find(
+    { entityId: req.entityId },
+    { entityId: 0, createdAt: 0, updatedAt: 0 },
+    { sort: { _id: -1 }, lean: true }
+  ).populate({
+    path: "counterId",
+    select: "counterName status",
+    model: "Counter",
+  });
+
+  const filteredCategories = menuCategories.filter(
+    (category) => category.counterId?.status === STATUS.ACTIVE
+  );
+
+  const query = { ownerId: userId, entityId };
+
+  query.status = STATUS.ACTIVE;
+  const counters = await Counter.find(query, {
+    counterName: 1,
+    // isSelfPickUp: 1,
+    // isTableService: 1,
+    // tableCount: 1,
+    status: 1,
+    // tableSectionName: 1,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return { filteredCategories, counters };
+};
+
 module.exports.getMenuCategory = async (req) => {
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
@@ -1914,15 +1947,21 @@ module.exports.editBusinessDetails = async (req) => {
 
 module.exports.getBusinessUserDetails = async (req) => {
   const { entityId, userId } = req;
-  const entity = await EntityDetails.findOne({
-    _id: entityId,
-    userId,
-    status: STATUS.ACTIVE,
-  }).lean();
-  const user = await User.findOne({
-    _id: userId,
-    status: STATUS.ACTIVE,
-  }).lean();
+  const entity = await EntityDetails.findOne(
+    {
+      _id: entityId,
+      userId,
+      status: STATUS.ACTIVE,
+    },
+    { stripeAccountId: 0, owner: 0, userId: 0 }
+  ).lean();
+  const user = await User.findOne(
+    {
+      _id: userId,
+      status: STATUS.ACTIVE,
+    },
+    { fcmToken: 0 }
+  ).lean();
 
   entity.image = generatePresignedUrl(entity.image);
   user.password = "";
@@ -2232,28 +2271,13 @@ module.exports.getUsersFeedback = async (req) => {
   }
 
   const feedbacks = await Feedbacks.find(query)
-    .populate("userId", "fullName email")
-    .populate("answers.questionId", "question answerType")
+    .populate({
+      path: "answers.questionId",
+      select: "question answerType",
+    })
     .sort({ createdAt: -1 });
 
-  const ratingDistribution = {};
-  for (let i = 1; i <= 10; i++) {
-    ratingDistribution[i] = 0;
-  }
-
-  const feedbackOptionsCount = {
-    GOOD: 0,
-    DECENT: 0,
-    BAD: 0,
-  };
-
-  let booleanStats = {
-    TRUE: 0,
-    FALSE: 0,
-    NEUTRAL: 0,
-  };
-
-  let totalRatings = 0;
+  const feedbackStats = {};
 
   const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
   const feedbackValues = globalConstants.ANSWER_TYPES.FEEDBACK.map((v) =>
@@ -2265,79 +2289,118 @@ module.exports.getUsersFeedback = async (req) => {
 
   for (const fb of feedbacks) {
     for (const answer of fb.answers) {
-      const { value } = answer;
-      if (!value) continue;
+      const { value, questionId } = answer;
+      if (!value || !questionId) continue;
 
       const valueStr =
         typeof value === "string"
           ? value.trim().toUpperCase()
           : String(value).trim().toUpperCase();
 
+      const questionStats = feedbackStats[questionId._id] || {
+        question: questionId.question,
+        RATING: { total: 0, count: 0, values: {} },
+        FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
+        BOOLEAN: { TRUE: 0, FALSE: 0, NEUTRAL: 0 },
+      };
+
       if (ratingValues.includes(valueStr)) {
         const ratingValue = parseInt(valueStr, 10);
         if (!isNaN(ratingValue) && ratingValue >= 1 && ratingValue <= 10) {
-          ratingDistribution[ratingValue] += 1;
-          totalRatings += 1;
+          questionStats.RATING.total += ratingValue;
+          questionStats.RATING.count += 1;
+          questionStats.RATING.values[ratingValue] =
+            (questionStats.RATING.values[ratingValue] || 0) + 1;
         }
       } else if (feedbackValues.includes(valueStr)) {
-        if (feedbackOptionsCount[valueStr] !== undefined) {
-          feedbackOptionsCount[valueStr] += 1;
-        }
+        questionStats.FEEDBACK[valueStr] += 1;
       } else if (booleanValues.includes(valueStr)) {
-        if (valueStr === "TRUE") {
-          booleanStats.TRUE += 1;
-        } else if (valueStr === "FALSE") {
-          booleanStats.FALSE += 1;
-        } else if (valueStr === "NEUTRAL") {
-          booleanStats.NEUTRAL += 1;
-        }
+        questionStats.BOOLEAN[valueStr] += 1;
       }
+
+      feedbackStats[questionId._id] = questionStats;
     }
   }
 
-  const totalFeedbacks =
-    feedbackOptionsCount.GOOD +
-    feedbackOptionsCount.DECENT +
-    feedbackOptionsCount.BAD;
+  const finalStats = {};
+  for (const questionId in feedbackStats) {
+    const stats = feedbackStats[questionId];
 
-  const totalBooleans =
-    booleanStats.TRUE + booleanStats.FALSE + booleanStats.NEUTRAL;
+    const totalAnswers =
+      stats.RATING.count +
+      stats.FEEDBACK.GOOD +
+      stats.FEEDBACK.DECENT +
+      stats.FEEDBACK.BAD +
+      stats.BOOLEAN.TRUE +
+      stats.BOOLEAN.FALSE +
+      stats.BOOLEAN.NEUTRAL;
 
-  const ratingStats = {};
-  for (let i = 1; i <= 10; i++) {
-    ratingStats[i] = totalRatings
-      ? ((ratingDistribution[i] / totalRatings) * 100).toFixed(2) + "%"
-      : "0.00%";
-  }
+    if (totalAnswers === 0) continue;
 
-  const feedbackStats = {
-    RATING: ratingStats,
-    FEEDBACK: {
+    const avgRating =
+      stats.RATING.count > 0
+        ? (stats.RATING.total / stats.RATING.count).toFixed(2)
+        : 0;
+
+    const distribution = {};
+    for (let i = 1; i <= 10; i++) {
+      const valCount = stats.RATING.values[i] || 0;
+      distribution[i] = stats.RATING.count
+        ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
+        : "0%";
+    }
+
+    const totalFeedbacks =
+      stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
+    const feedbackStatsPercentage = {
       GOOD: totalFeedbacks
-        ? ((feedbackOptionsCount.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+        ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
         : "0%",
       DECENT: totalFeedbacks
-        ? ((feedbackOptionsCount.DECENT / totalFeedbacks) * 100).toFixed(2) +
-          "%"
+        ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
         : "0%",
       BAD: totalFeedbacks
-        ? ((feedbackOptionsCount.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+        ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
         : "0%",
-    },
-    BOOLEAN: {
+    };
+
+    const totalBooleans =
+      stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
+    const booleanStatsPercentage = {
       TRUE: totalBooleans
-        ? ((booleanStats.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+        ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
         : "0%",
       FALSE: totalBooleans
-        ? ((booleanStats.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+        ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
         : "0%",
       NEUTRAL: totalBooleans
-        ? ((booleanStats.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+        ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
         : "0%",
-    },
-  };
+    };
 
-  return { feedbacks, feedbackStats };
+    const type =
+      stats.RATING.count > 0
+        ? "RATING"
+        : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
+        ? "FEEDBACK"
+        : "BOOLEAN";
+
+    finalStats[questionId] = {
+      question: stats.question,
+      type,
+      RATING: {
+        average: avgRating,
+        distribution,
+      },
+      FEEDBACK: feedbackStatsPercentage,
+      BOOLEAN: booleanStatsPercentage,
+    };
+  }
+
+  return {
+    feedbacks,
+    feedbackStats: finalStats,
+  };
 };
 
 module.exports.addFeedbackQuestions = async (req) => {
@@ -2374,13 +2437,67 @@ module.exports.addFeedbackQuestions = async (req) => {
     );
   }
 
+  const existingQuestion = await FeedbackQuestions.findOne({
+    entityId,
+    question: question.trim(),
+  });
+  if (existingQuestion) {
+    throwError({
+      status: STATUS_CODES.CONFLICT,
+      message: "This question already exists for the entity.",
+    });
+  }
+
+  const questionCount = await FeedbackQuestions.countDocuments({ entityId });
+  if (questionCount >= 5) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Maximum of 5 feedback questions are allowed per entity.",
+    });
+  }
+
   return FeedbackQuestions.create({
     userId,
     entityId,
-    question,
+    question: question.trim(),
     answerType,
     comment,
   });
+};
+
+module.exports.deleteFeedbackQuestions = async (req) => {
+  const { questionId, feedbackId } = req.body;
+
+  if (questionId) {
+    const question = await FeedbackQuestions.findOne({ _id: questionId });
+    if (!question) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Question not found.",
+      });
+    }
+
+    await FeedbackQuestions.deleteOne({ _id: questionId });
+  }
+
+  if (feedbackId) {
+    const feedback = await Feedbacks.findOne({ _id: feedbackId });
+    if (!feedback) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Feedback not found.",
+      });
+    }
+
+    await Feedbacks.deleteOne({ _id: feedbackId });
+  }
+
+  if (!questionId && !feedbackId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "At least one of questionId or feedbackId is required.",
+    });
+  }
 };
 
 module.exports.restaurantOpen = async (req) => {
