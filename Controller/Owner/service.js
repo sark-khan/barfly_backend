@@ -2092,17 +2092,20 @@ module.exports.getCountersForEvents = async (req) => {
 
   const eventDetails = await Event.findById(eventId, { counterIds: 1 }).lean();
 
-  if (!eventDetails || !eventDetails.counterIds || eventDetails.counterIds.length === 0) {
-    return []; // or throw an error if needed
+  if (
+    !eventDetails ||
+    !eventDetails.counterIds ||
+    eventDetails.counterIds.length === 0
+  ) {
+    return [];
   }
 
   const counterList = await Counter.find({
-    _id: { $in: eventDetails.counterIds }
+    _id: { $in: eventDetails.counterIds },
   });
 
   return counterList;
 };
-
 
 module.exports.getTables = async (req) => {
   const { entityId, userId } = req;
@@ -2465,39 +2468,65 @@ module.exports.addFeedbackQuestions = async (req) => {
   });
 };
 
+// module.exports.deleteFeedbackQuestions = async (req) => {
+//   const { questionId, feedbackId } = req.body;
+
+//   if (questionId) {
+//     const question = await FeedbackQuestions.findOne({ _id: questionId });
+//     if (!question) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Question not found.",
+//       });
+//     }
+
+//     await FeedbackQuestions.deleteOne({ _id: questionId });
+//   }
+
+//   if (feedbackId) {
+//     const feedback = await Feedbacks.findOne({ _id: feedbackId });
+//     if (!feedback) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Feedback not found.",
+//       });
+//     }
+
+//     await Feedbacks.deleteOne({ _id: feedbackId });
+//   }
+
+//   if (!questionId && !feedbackId) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "At least one of questionId or feedbackId is required.",
+//     });
+//   }
+// };
+
 module.exports.deleteFeedbackQuestions = async (req) => {
-  const { questionId, feedbackId } = req.body;
+  const { questionId } = req.body;
 
-  if (questionId) {
-    const question = await FeedbackQuestions.findOne({ _id: questionId });
-    if (!question) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Question not found.",
-      });
-    }
-
-    await FeedbackQuestions.deleteOne({ _id: questionId });
-  }
-
-  if (feedbackId) {
-    const feedback = await Feedbacks.findOne({ _id: feedbackId });
-    if (!feedback) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Feedback not found.",
-      });
-    }
-
-    await Feedbacks.deleteOne({ _id: feedbackId });
-  }
-
-  if (!questionId && !feedbackId) {
+  if (!questionId) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "At least one of questionId or feedbackId is required.",
+      message: "questionId is required.",
     });
   }
+
+  const question = await FeedbackQuestions.findOne({ _id: questionId });
+  if (!question) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Question not found.",
+    });
+  }
+
+  await FeedbackQuestions.deleteOne({ _id: questionId });
+
+  await Feedbacks.updateMany(
+    { "answers.questionId": questionId },
+    { $pull: { answers: { questionId } } }
+  );
 };
 
 module.exports.restaurantOpen = async (req) => {
