@@ -127,7 +127,6 @@ const createOrder = async (req, session) => {
   // }
 
   const createdOrder = await Order.create([orderData], { session });
-  console.log({ createdOrder });
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
@@ -370,7 +369,6 @@ const getEntityOrders = async (req) => {
   if (counterId) {
     query.counterId = counterId;
   }
-  console.log({ counterId: counterId });
 
   if (status) {
     query.status = status;
@@ -423,7 +421,7 @@ const getEntityOrders = async (req) => {
     .limit(limit);
 
   if (selectedOrderId && pageNo == 1 && !status) {
-    const selected = await Order.findById(selectedOrderId)
+    const selected = await Order.findOne({ _id: selectedOrderId, entityId })
       .populate({
         path: "items.itemId",
         select: "itemName quantity description type currency image createdAt",
@@ -434,6 +432,12 @@ const getEntityOrders = async (req) => {
         select: "counterName",
         model: "Counter",
       });
+    if (!selected) {
+      throwError({
+        status: STATUS_CODES.NOT_FOUND,
+        message: "This Order does not belong to this entity",
+      });
+    }
 
     if (selected) {
       data.unshift(selected);
