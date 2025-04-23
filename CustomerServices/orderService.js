@@ -367,18 +367,21 @@ const getEntityOrders = async (req) => {
 
   const query = { entityId };
 
-  query.status = status
-    ? status
-    : {
-        $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
-      };
-
-  if (counterId && !status) {
+  if (counterId) {
     query.counterId = counterId;
   }
+  console.log({ counterId: counterId });
 
-  if (selectedOrderId != null && selectedOrderId != "") {
-    query._id = { $ne: selectedOrderId }; // Exclude the searchedId from the main query result
+  if (status) {
+    query.status = status;
+  } else {
+    query.status = {
+      $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
+    };
+  }
+
+  if (selectedOrderId) {
+    query._id = { $ne: selectedOrderId };
   }
 
   if (searchTerm) {
@@ -403,7 +406,6 @@ const getEntityOrders = async (req) => {
       query.$or = searchConditions;
     }
   }
-  console.log({ ...query });
 
   const data = await Order.find(query)
     .populate({
@@ -419,17 +421,9 @@ const getEntityOrders = async (req) => {
     .sort({ tokenNumber: -1 })
     .skip(skip)
     .limit(limit);
-  console.log("reached ehrere");
 
-  if (
-    selectedOrderId != null &&
-    selectedOrderId != "" &&
-    pageNo == 1 &&
-    !status
-  ) {
-    const selected = await Order.findById(
-      new mongoose.Types.ObjectId(selectedOrderId)
-    )
+  if (selectedOrderId && pageNo == 1 && !status) {
+    const selected = await Order.findById(selectedOrderId)
       .populate({
         path: "items.itemId",
         select: "itemName quantity description type currency image createdAt",
@@ -439,30 +433,28 @@ const getEntityOrders = async (req) => {
         path: "counterId",
         select: "counterName",
         model: "Counter",
-      })
-      .sort({ tokenNumber: -1 })
-      .skip(skip)
-      .limit(limit);
+      });
 
     if (selected) {
       data.unshift(selected);
     }
-    delete query._id;
   }
 
-  delete query.status;
-  console.log({ query });
+  const baseQuery = { ...query };
+  delete baseQuery.status;
+  delete baseQuery._id;
+
   const [orderProcessCount, readyOrders, completedOrders, cancelledOrders] =
     await Promise.all([
       Order.countDocuments({
-        ...query,
+        ...baseQuery,
         status: {
           $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS],
         },
       }),
-      Order.countDocuments({ ...query, status: ORDER_STATUS.READY }),
-      Order.countDocuments({ ...query, status: ORDER_STATUS.COMPLETED }),
-      Order.countDocuments({ ...query, status: ORDER_STATUS.CANCELLED }),
+      Order.countDocuments({ ...baseQuery, status: ORDER_STATUS.READY }),
+      Order.countDocuments({ ...baseQuery, status: ORDER_STATUS.COMPLETED }),
+      Order.countDocuments({ ...baseQuery, status: ORDER_STATUS.CANCELLED }),
     ]);
 
   return {
