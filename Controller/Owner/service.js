@@ -1953,7 +1953,7 @@ module.exports.getBusinessUserDetails = async (req) => {
       userId,
       status: STATUS.ACTIVE,
     },
-    { stripeAccountId: 0, owner: 0, userId: 0 }
+    { owner: 0, userId: 0 }
   ).lean();
   const user = await User.findOne(
     {
@@ -2250,10 +2250,166 @@ module.exports.editTable = async (req) => {
   return { message };
 };
 
+// module.exports.getUsersFeedback = async (req) => {
+//   const {
+//     entityId,
+//     query: { from, to },
+//   } = req;
+
+//   let fromDate = from ? new Date(from) : null;
+//   let toDate = to ? new Date(to) : null;
+//   if (toDate) toDate.setHours(23, 59, 59, 999);
+
+//   const dateFilter = {};
+//   if (fromDate instanceof Date && !isNaN(fromDate)) {
+//     dateFilter.$gte = fromDate;
+//   }
+//   if (toDate instanceof Date && !isNaN(toDate)) {
+//     dateFilter.$lte = toDate;
+//   }
+
+//   const query = { entityId };
+//   if (Object.keys(dateFilter).length) {
+//     query.createdAt = dateFilter;
+//   }
+
+//   const feedbacks = await Feedbacks.find(query)
+//     .populate({
+//       path: "answers.questionId",
+//       select: "question answerType",
+//     })
+//     .sort({ createdAt: -1 });
+
+//   const feedbackStats = {};
+
+//   const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
+//   const feedbackValues = globalConstants.ANSWER_TYPES.FEEDBACK.map((v) =>
+//     v.toUpperCase()
+//   );
+//   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
+//     v.toUpperCase()
+//   );
+
+//   for (const fb of feedbacks) {
+//     for (const answer of fb.answers) {
+//       const { value, questionId } = answer;
+//       if (!value || !questionId) continue;
+
+//       const valueStr =
+//         typeof value === "string"
+//           ? value.trim().toUpperCase()
+//           : String(value).trim().toUpperCase();
+
+//       const questionStats = feedbackStats[questionId._id] || {
+//         question: questionId.question,
+//         RATING: { total: 0, count: 0, values: {} },
+//         FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
+//         BOOLEAN: { TRUE: 0, FALSE: 0, NEUTRAL: 0 },
+//       };
+
+//       if (ratingValues.includes(valueStr)) {
+//         const ratingValue = parseInt(valueStr, 10);
+//         if (!isNaN(ratingValue) && ratingValue >= 1 && ratingValue <= 10) {
+//           questionStats.RATING.total += ratingValue;
+//           questionStats.RATING.count += 1;
+//           questionStats.RATING.values[ratingValue] =
+//             (questionStats.RATING.values[ratingValue] || 0) + 1;
+//         }
+//       } else if (feedbackValues.includes(valueStr)) {
+//         questionStats.FEEDBACK[valueStr] += 1;
+//       } else if (booleanValues.includes(valueStr)) {
+//         questionStats.BOOLEAN[valueStr] += 1;
+//       }
+
+//       feedbackStats[questionId._id] = questionStats;
+//     }
+//   }
+
+//   const finalStats = {};
+//   for (const questionId in feedbackStats) {
+//     const stats = feedbackStats[questionId];
+
+//     const totalAnswers =
+//       stats.RATING.count +
+//       stats.FEEDBACK.GOOD +
+//       stats.FEEDBACK.DECENT +
+//       stats.FEEDBACK.BAD +
+//       stats.BOOLEAN.TRUE +
+//       stats.BOOLEAN.FALSE +
+//       stats.BOOLEAN.NEUTRAL;
+
+//     if (totalAnswers === 0) continue;
+
+//     const avgRating =
+//       stats.RATING.count > 0
+//         ? (stats.RATING.total / stats.RATING.count).toFixed(2)
+//         : 0;
+
+//     const distribution = {};
+//     for (let i = 1; i <= 10; i++) {
+//       const valCount = stats.RATING.values[i] || 0;
+//       distribution[i] = stats.RATING.count
+//         ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
+//         : "0%";
+//     }
+
+//     const totalFeedbacks =
+//       stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
+//     const feedbackStatsPercentage = {
+//       GOOD: totalFeedbacks
+//         ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//       DECENT: totalFeedbacks
+//         ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//       BAD: totalFeedbacks
+//         ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//     };
+
+//     const totalBooleans =
+//       stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
+//     const booleanStatsPercentage = {
+//       TRUE: totalBooleans
+//         ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//       FALSE: totalBooleans
+//         ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//       NEUTRAL: totalBooleans
+//         ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//     };
+
+//     const type =
+//       stats.RATING.count > 0
+//         ? "RATING"
+//         : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
+//         ? "FEEDBACK"
+//         : "BOOLEAN";
+
+//     finalStats[questionId] = {
+//       question: stats.question,
+//       type,
+//       RATING: {
+//         average: avgRating,
+//         distribution,
+//       },
+//       FEEDBACK: feedbackStatsPercentage,
+//       BOOLEAN: booleanStatsPercentage,
+//     };
+//   }
+
+//   return {
+//     feedbacks,
+//     feedbackStats: finalStats,
+//   };
+// };
+
 module.exports.getUsersFeedback = async (req) => {
   const {
     entityId,
-    query: { from, to },
+    query: { from, to, year, month },
   } = req;
 
   let fromDate = from ? new Date(from) : null;
@@ -2269,6 +2425,14 @@ module.exports.getUsersFeedback = async (req) => {
   }
 
   const query = { entityId };
+
+  if (year && month) {
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+    dateFilter.$gte = startOfMonth;
+    dateFilter.$lte = endOfMonth;
+  }
+
   if (Object.keys(dateFilter).length) {
     query.createdAt = dateFilter;
   }
@@ -2291,6 +2455,9 @@ module.exports.getUsersFeedback = async (req) => {
   );
 
   for (const fb of feedbacks) {
+    const yearMonth = `${fb.createdAt.getFullYear()}-${
+      fb.createdAt.getMonth() + 1
+    }`;
     for (const answer of fb.answers) {
       const { value, questionId } = answer;
       if (!value || !questionId) continue;
@@ -2300,7 +2467,11 @@ module.exports.getUsersFeedback = async (req) => {
           ? value.trim().toUpperCase()
           : String(value).trim().toUpperCase();
 
-      const questionStats = feedbackStats[questionId._id] || {
+      if (!feedbackStats[yearMonth]) {
+        feedbackStats[yearMonth] = {};
+      }
+
+      const questionStats = feedbackStats[yearMonth][questionId._id] || {
         question: questionId.question,
         RATING: { total: 0, count: 0, values: {} },
         FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
@@ -2321,83 +2492,89 @@ module.exports.getUsersFeedback = async (req) => {
         questionStats.BOOLEAN[valueStr] += 1;
       }
 
-      feedbackStats[questionId._id] = questionStats;
+      feedbackStats[yearMonth][questionId._id] = questionStats;
     }
   }
 
   const finalStats = {};
-  for (const questionId in feedbackStats) {
-    const stats = feedbackStats[questionId];
 
-    const totalAnswers =
-      stats.RATING.count +
-      stats.FEEDBACK.GOOD +
-      stats.FEEDBACK.DECENT +
-      stats.FEEDBACK.BAD +
-      stats.BOOLEAN.TRUE +
-      stats.BOOLEAN.FALSE +
-      stats.BOOLEAN.NEUTRAL;
+  for (const yearMonth in feedbackStats) {
+    const statsByMonth = feedbackStats[yearMonth];
+    finalStats[yearMonth] = {};
 
-    if (totalAnswers === 0) continue;
+    for (const questionId in statsByMonth) {
+      const stats = statsByMonth[questionId];
 
-    const avgRating =
-      stats.RATING.count > 0
-        ? (stats.RATING.total / stats.RATING.count).toFixed(2)
-        : 0;
+      const totalAnswers =
+        stats.RATING.count +
+        stats.FEEDBACK.GOOD +
+        stats.FEEDBACK.DECENT +
+        stats.FEEDBACK.BAD +
+        stats.BOOLEAN.TRUE +
+        stats.BOOLEAN.FALSE +
+        stats.BOOLEAN.NEUTRAL;
 
-    const distribution = {};
-    for (let i = 1; i <= 10; i++) {
-      const valCount = stats.RATING.values[i] || 0;
-      distribution[i] = stats.RATING.count
-        ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
-        : "0%";
+      if (totalAnswers === 0) continue;
+
+      const avgRating =
+        stats.RATING.count > 0
+          ? (stats.RATING.total / stats.RATING.count).toFixed(2)
+          : 0;
+
+      const distribution = {};
+      for (let i = 1; i <= 10; i++) {
+        const valCount = stats.RATING.values[i] || 0;
+        distribution[i] = stats.RATING.count
+          ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
+          : "0%";
+      }
+
+      const totalFeedbacks =
+        stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
+      const feedbackStatsPercentage = {
+        GOOD: totalFeedbacks
+          ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+        DECENT: totalFeedbacks
+          ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+        BAD: totalFeedbacks
+          ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+      };
+
+      const totalBooleans =
+        stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
+      const booleanStatsPercentage = {
+        TRUE: totalBooleans
+          ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+        FALSE: totalBooleans
+          ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+        NEUTRAL: totalBooleans
+          ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+      };
+
+      const type =
+        stats.RATING.count > 0
+          ? "RATING"
+          : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
+          ? "FEEDBACK"
+          : "BOOLEAN";
+
+      finalStats[yearMonth][questionId] = {
+        question: stats.question,
+        type,
+        RATING: {
+          average: avgRating,
+          distribution,
+        },
+        FEEDBACK: feedbackStatsPercentage,
+        BOOLEAN: booleanStatsPercentage,
+      };
     }
-
-    const totalFeedbacks =
-      stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
-    const feedbackStatsPercentage = {
-      GOOD: totalFeedbacks
-        ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
-        : "0%",
-      DECENT: totalFeedbacks
-        ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
-        : "0%",
-      BAD: totalFeedbacks
-        ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
-        : "0%",
-    };
-
-    const totalBooleans =
-      stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
-    const booleanStatsPercentage = {
-      TRUE: totalBooleans
-        ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
-        : "0%",
-      FALSE: totalBooleans
-        ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
-        : "0%",
-      NEUTRAL: totalBooleans
-        ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
-        : "0%",
-    };
-
-    const type =
-      stats.RATING.count > 0
-        ? "RATING"
-        : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
-        ? "FEEDBACK"
-        : "BOOLEAN";
-
-    finalStats[questionId] = {
-      question: stats.question,
-      type,
-      RATING: {
-        average: avgRating,
-        distribution,
-      },
-      FEEDBACK: feedbackStatsPercentage,
-      BOOLEAN: booleanStatsPercentage,
-    };
   }
 
   return {
@@ -2654,4 +2831,44 @@ exports.removeSearchLogs = async (req) => {
   if (isRemoved) logs.isRemoved = isRemoved;
 
   return logs.save();
+};
+
+module.exports.restaurantCancelOrder = async (req) => {
+  const { orderId } = req.body;
+
+  const order = await Order.findOne({
+    _id: orderId,
+    status: { $in: [globalConstants.ORDER_STATUS.WAITING] },
+  });
+
+  if (!order) {
+    throwError({
+      status: STATUS_CODES.NOT_ACCEPTABLE,
+      message: "Order not found",
+    });
+  }
+
+  if (
+    [
+      globalConstants.ORDER_STATUS.IN_PROGRESS,
+      globalConstants.ORDER_STATUS.READY,
+      globalConstants.ORDER_STATUS.COMPLETED,
+      globalConstants.ORDER_STATUS.CANCELLED,
+    ].includes(order.status)
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Apologies! order cannot be cancelled now.",
+    });
+  }
+
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { status: globalConstants.ORDER_STATUS.CANCELLED } }
+  );
+
+  io.to(order.entityId.toString()).emit("cancelOrder", {
+    orderId: order._id,
+    status: ORDER_STATUS.CANCELLED,
+  });
 };

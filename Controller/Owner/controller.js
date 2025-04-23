@@ -43,6 +43,7 @@ const {
   getCountersForEvents,
   deleteFeedbackQuestions,
   getCounterAndCategory,
+  restaurantCancelOrder,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -777,6 +778,20 @@ router.post("/remove-search-logs", async (req, res) => {
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || "Error while removing logs",
     });
+  }
+});
+
+router.post("/restaurant-cancel-order", async (req, res) => {
+  try {
+    await restaurantCancelOrder(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Order cancelled successfully." });
+  } catch (error) {
+    console.error("Error while cancelling the order", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while cancelling the order" });
   }
 });
 
