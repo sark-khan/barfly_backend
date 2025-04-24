@@ -2745,7 +2745,7 @@ if (feedbackQuestions.length) {
   // }
 
   return {
-    feedbacks,
+    // feedbacks,
     feedbackStats: finalStats,
     totalReviews
   };
