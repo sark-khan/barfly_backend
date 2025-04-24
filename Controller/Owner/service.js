@@ -2525,10 +2525,11 @@ module.exports.getUsersFeedback = async (req) => {
   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
     v.toUpperCase()
   );
+  let yearMonth;
 
 
   for (const fb of feedbacks) {
-    const yearMonth = `${fb.createdAt.getFullYear()}-${
+     yearMonth = `${fb.createdAt.getFullYear()}-${
       fb.createdAt.getMonth() + 1
     }`;
     for (const answer of fb.answers) {
@@ -2653,7 +2654,16 @@ module.exports.getUsersFeedback = async (req) => {
 
   const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
   if(feedbackQuestions.length){
-  const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+    let firstMonthKey;
+    let monthStats;
+    if(Object.keys(obj).length === 0){
+      monthStats={
+        yearMonth:{}
+      }
+      firstMonthKey= yearMonth;
+    }else{
+      [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+    }
   console.log({mm:monthStats, firstMonthKey});
   feedbackQuestions.forEach((feedbackQuestion) => {
     if (!monthStats[feedbackQuestion._id]) {
