@@ -206,20 +206,19 @@ module.exports.getCounters = async (req) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const counters = fetchCounters.map((counter) => {
-    const ids = counter.counterIds || [];
-    const newCounterIds =
-      ids.length === 0
+    const counters = fetchCounters.map((counter) => {
+      const ids = counter.counterIds || [];
+      const newCounterIds = ids.length === 0
         ? []
         : ids.length === 1
         ? [ids[0]]
         : [ids[0], ids[ids.length - 1]];
-
-    return {
-      ...counter,
-      counterIds: newCounterIds,
-    };
-  });
+    
+      return {
+        ...counter,
+        counterIds: newCounterIds,
+      };
+    });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -1474,10 +1473,9 @@ module.exports.updateCounterSettings = async (req) => {
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
-
-      const isConflict = conflictingTables.some(
-        (table) => table.counterIds.length > 1
-      );
+      
+      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
+      
 
       console.log({ conflictingTables: conflictingTables[0].counterIds });
 
@@ -2516,7 +2514,8 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
-  const totalReviews = await Feedbacks.countDocuments(query);
+
+    const totalReviews = feedbacks.length;
 
   const feedbackStats = {};
 
@@ -2527,9 +2526,11 @@ module.exports.getUsersFeedback = async (req) => {
   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
     v.toUpperCase()
   );
+  let yearMonth;
+
 
   for (const fb of feedbacks) {
-    const yearMonth = `${fb.createdAt.getFullYear()}-${
+     yearMonth = `${fb.createdAt.getFullYear()}-${
       fb.createdAt.getMonth() + 1
     }`;
     for (const answer of fb.answers) {
@@ -2570,7 +2571,7 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  const finalStats = {};
+  let finalStats = {};
 
   for (const yearMonth in feedbackStats) {
     const statsByMonth = feedbackStats[yearMonth];
@@ -2650,54 +2651,103 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  const feedbackQuestions = await FeedbackQuestions.find({
-    entityId: req.entityId,
-  });
-  console.log({ feedbackStats });
-  if (feedbackStats && feedbackStats[0]) {
-    const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
-    console.log({ mm: monthStats, firstMonthKey });
-    feedbackQuestions.forEach((feedbackQuestion) => {
-      if (!monthStats[feedbackQuestion._id]) {
-        // finalStats[firstMonthKey]
-        finalStats[firstMonthKey][feedbackQuestion._id] = {
-          question: feedbackQuestion.question,
-          type: "NO_DATA",
-          createdAt: feedbackQuestion.createdAt,
-          RATING: {
-            average: 0,
-            distribution: {
-              1: "0%",
-              2: "0%",
-              3: "0%",
-              4: "0%",
-              5: "0%",
-              6: "0%",
-              7: "0%",
-              8: "0%",
-              9: "0%",
-              10: "0%",
-            },
-          },
-          FEEDBACK: {
-            GOOD: "0%",
-            DECENT: "0%",
-            BAD: "0%",
-          },
-          BOOLEAN: {
-            TRUE: "0%",
-            FALSE: "0%",
-            NEUTRAL: "0%",
-          },
-        };
-      }
-    });
+  console.log({ finalStats });
+
+const feedbackQuestions = await FeedbackQuestions.find({ entityId: req.entityId });
+
+if (feedbackQuestions.length) {
+  let firstMonthKey;
+  let monthStats;
+
+  if (Object.keys(finalStats).length === 0) {
+    // You need to define yearMonth (maybe from req.query or current month)
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., "2025-4"
+
+    firstMonthKey = yearMonth;
+    finalStats = {
+      [firstMonthKey]: {}
+    };
+    monthStats = finalStats[firstMonthKey];
+  } else {
+    [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
   }
 
+  console.log({ mm: monthStats, firstMonthKey });
+
+  feedbackQuestions.forEach((feedbackQuestion) => {
+    if (!monthStats[feedbackQuestion._id]) {
+      monthStats[feedbackQuestion._id] = {
+        question: feedbackQuestion.question,
+        type: "NO_DATA",
+        createdAt: feedbackQuestion.createdAt,
+        RATING: {
+          average: 0,
+          distribution: {
+            "1": "0%", "2": "0%", "3": "0%", "4": "0%", "5": "0%",
+            "6": "0%", "7": "0%", "8": "0%", "9": "0%", "10": "0%"
+          }
+        },
+        FEEDBACK: {
+          GOOD: "0%",
+          DECENT: "0%",
+          BAD: "0%"
+        },
+        BOOLEAN: {
+          TRUE: "0%",
+          FALSE: "0%",
+          NEUTRAL: "0%"
+        }
+      };
+    }
+  });
+}
+
+  // console.log({ finalStats });
+  // if (finalStats && finalStats[0]) {
+  //   const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+  //   console.log({ mm: monthStats, firstMonthKey });
+  //   feedbackQuestions.forEach((feedbackQuestion) => {
+  //     if (!monthStats[feedbackQuestion._id]) {
+  //       // finalStats[firstMonthKey]
+  //       finalStats[firstMonthKey][feedbackQuestion._id] = {
+  //         question: feedbackQuestion.question,
+  //         type: "NO_DATA",
+  //         createdAt: feedbackQuestion.createdAt,
+  //         RATING: {
+  //           average: 0,
+  //           distribution: {
+  //             1: "0%",
+  //             2: "0%",
+  //             3: "0%",
+  //             4: "0%",
+  //             5: "0%",
+  //             6: "0%",
+  //             7: "0%",
+  //             8: "0%",
+  //             9: "0%",
+  //             10: "0%",
+  //           },
+  //         },
+  //         FEEDBACK: {
+  //           GOOD: "0%",
+  //           DECENT: "0%",
+  //           BAD: "0%",
+  //         },
+  //         BOOLEAN: {
+  //           TRUE: "0%",
+  //           FALSE: "0%",
+  //           NEUTRAL: "0%",
+  //         },
+  //       };
+  //     }
+  //   });
+  // }
+
   return {
-    feedbacks,
+    // feedbacks,
     feedbackStats: finalStats,
-    totalReviews,
+    totalReviews
   };
 };
 
