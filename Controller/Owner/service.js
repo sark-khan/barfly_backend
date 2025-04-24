@@ -2636,7 +2636,6 @@ module.exports.getUsersFeedback = async (req) => {
           : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
           ? "FEEDBACK"
           : "BOOLEAN";
-
       finalStats[yearMonth][questionId] = {
         question: stats.question,
         type,
@@ -2649,6 +2648,38 @@ module.exports.getUsersFeedback = async (req) => {
       };
     }
   }
+
+  const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
+  const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
+  console.log({mm:monthStats, firstMonthKey});
+  feedbackQuestions.forEach((feedbackQuestion) => {
+    if (!monthStats[feedbackQuestion._id]) {
+      // finalStats[firstMonthKey]
+      finalStats[firstMonthKey][feedbackQuestion._id] = {
+        question: feedbackQuestion.question,
+        type: "NO_DATA",
+        createdAt: feedbackQuestion.createdAt,
+        RATING: {
+          average: 0,
+          distribution: {
+            "1": "0%", "2": "0%", "3": "0%", "4": "0%", "5": "0%",
+            "6": "0%", "7": "0%", "8": "0%", "9": "0%", "10": "0%"
+          }
+        },
+        FEEDBACK: {
+          GOOD: "0%",
+          DECENT: "0%",
+          BAD: "0%"
+        },
+        BOOLEAN: {
+          TRUE: "0%",
+          FALSE: "0%",
+          NEUTRAL: "0%"
+        }
+      };
+    }
+  });
+  
 
   return {
     feedbacks,
