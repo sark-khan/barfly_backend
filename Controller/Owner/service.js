@@ -206,19 +206,20 @@ module.exports.getCounters = async (req) => {
     .sort({ createdAt: -1 })
     .lean();
 
-    const counters = fetchCounters.map((counter) => {
-      const ids = counter.counterIds || [];
-      const newCounterIds = ids.length === 0
+  const counters = fetchCounters.map((counter) => {
+    const ids = counter.counterIds || [];
+    const newCounterIds =
+      ids.length === 0
         ? []
         : ids.length === 1
         ? [ids[0]]
         : [ids[0], ids[ids.length - 1]];
-    
-      return {
-        ...counter,
-        counterIds: newCounterIds,
-      };
-    });
+
+    return {
+      ...counter,
+      counterIds: newCounterIds,
+    };
+  });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -1473,9 +1474,10 @@ module.exports.updateCounterSettings = async (req) => {
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
-      
-      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
-      
+
+      const isConflict = conflictingTables.some(
+        (table) => table.counterIds.length > 1
+      );
 
       console.log({ conflictingTables: conflictingTables[0].counterIds });
 
@@ -2514,7 +2516,7 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
-    const totalReviews = await Feedbacks.countDocuments(query);
+  const totalReviews = await Feedbacks.countDocuments(query);
 
   const feedbackStats = {};
 
@@ -2525,7 +2527,6 @@ module.exports.getUsersFeedback = async (req) => {
   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
     v.toUpperCase()
   );
-
 
   for (const fb of feedbacks) {
     const yearMonth = `${fb.createdAt.getFullYear()}-${
@@ -2649,42 +2650,53 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
-  const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
-  console.log({mm:monthStats, firstMonthKey});
-  feedbackQuestions.forEach((feedbackQuestion) => {
-    if (!monthStats[feedbackQuestion._id]) {
-      // finalStats[firstMonthKey]
-      finalStats[firstMonthKey][feedbackQuestion._id] = {
-        question: feedbackQuestion.question,
-        type: "NO_DATA",
-        createdAt: feedbackQuestion.createdAt,
-        RATING: {
-          average: 0,
-          distribution: {
-            "1": "0%", "2": "0%", "3": "0%", "4": "0%", "5": "0%",
-            "6": "0%", "7": "0%", "8": "0%", "9": "0%", "10": "0%"
-          }
-        },
-        FEEDBACK: {
-          GOOD: "0%",
-          DECENT: "0%",
-          BAD: "0%"
-        },
-        BOOLEAN: {
-          TRUE: "0%",
-          FALSE: "0%",
-          NEUTRAL: "0%"
-        }
-      };
-    }
+  const feedbackQuestions = await FeedbackQuestions.find({
+    entityId: req.entityId,
   });
-  
+  if (feedbackStats) {
+    const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
+    console.log({ mm: monthStats, firstMonthKey });
+    feedbackQuestions.forEach((feedbackQuestion) => {
+      if (!monthStats[feedbackQuestion._id]) {
+        // finalStats[firstMonthKey]
+        finalStats[firstMonthKey][feedbackQuestion._id] = {
+          question: feedbackQuestion.question,
+          type: "NO_DATA",
+          createdAt: feedbackQuestion.createdAt,
+          RATING: {
+            average: 0,
+            distribution: {
+              1: "0%",
+              2: "0%",
+              3: "0%",
+              4: "0%",
+              5: "0%",
+              6: "0%",
+              7: "0%",
+              8: "0%",
+              9: "0%",
+              10: "0%",
+            },
+          },
+          FEEDBACK: {
+            GOOD: "0%",
+            DECENT: "0%",
+            BAD: "0%",
+          },
+          BOOLEAN: {
+            TRUE: "0%",
+            FALSE: "0%",
+            NEUTRAL: "0%",
+          },
+        };
+      }
+    });
+  }
 
   return {
     feedbacks,
     feedbackStats: finalStats,
-    totalReviews
+    totalReviews,
   };
 };
 
@@ -2844,7 +2856,7 @@ module.exports.restaurantOpen = async (req) => {
 module.exports.emailExist = async (req) => {
   const { email, contactNumber } = req.body;
   const emailExist = await User.exists({
-    email: { $regex: new RegExp(`^${email}$`, 'i') },
+    email: { $regex: new RegExp(`^${email}$`, "i") },
     status: STATUS.ACTIVE,
   });
   const phoneExist = await User.exists({
