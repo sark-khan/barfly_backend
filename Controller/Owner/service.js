@@ -2681,9 +2681,9 @@ module.exports.getUsersFeedback = async (req) => {
       };
     }
   });
-  console.log({ feedbackStats });
-  if (feedbackStats && feedbackStats[0]) {
-    const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
+  console.log({ finalStats });
+  if (finalStats && finalStats[0]) {
+    const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
     console.log({ mm: monthStats, firstMonthKey });
     feedbackQuestions.forEach((feedbackQuestion) => {
       if (!monthStats[feedbackQuestion._id]) {
