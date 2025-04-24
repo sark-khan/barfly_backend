@@ -195,7 +195,7 @@ module.exports.getCounters = async (req) => {
   } else {
     query.status = STATUS.ACTIVE;
   }
-  const counters = await Counter.find(query, {
+  const fetchCounters = await Counter.find(query, {
     counterName: 1,
     isSelfPickUp: 1,
     isTableService: 1,
@@ -205,6 +205,20 @@ module.exports.getCounters = async (req) => {
   })
     .sort({ createdAt: -1 })
     .lean();
+
+    const counters = fetchCounters.map((counter) => {
+      const ids = counter.counterIds || [];
+      const newCounterIds = ids.length === 0
+        ? []
+        : ids.length === 1
+        ? [ids[0]]
+        : [ids[0], ids[ids.length - 1]];
+    
+      return {
+        ...counter,
+        counterIds: newCounterIds,
+      };
+    });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -1456,18 +1470,20 @@ module.exports.updateCounterSettings = async (req) => {
       const tableNumbers = counter.tableCount;
 
       const conflictingTables = await Tables.find({
-        tableCount: { $in: tableNumbers },
-        counterIds: { $not: { $elemMatch: { $eq: counter._id } } }, // no counter match
+        counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
+      
+      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
+      
 
-      console.log({ conflictingTables });
+      console.log({ conflictingTables: conflictingTables[0].counterIds });
 
-      if (conflictingTables.length > 0) {
+      if (isConflict) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message:
-            "THere are multiple counters involved, available for one counter attached.",
+            "There are multiple counters involved, available for one counter attached.",
         });
         return;
       }
@@ -2498,6 +2514,8 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
+    const totalReviews = await Feedbacks.countDocuments(query);
+
   const feedbackStats = {};
 
   const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
@@ -2507,6 +2525,7 @@ module.exports.getUsersFeedback = async (req) => {
   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
     v.toUpperCase()
   );
+
 
   for (const fb of feedbacks) {
     const yearMonth = `${fb.createdAt.getFullYear()}-${
@@ -2634,6 +2653,7 @@ module.exports.getUsersFeedback = async (req) => {
   return {
     feedbacks,
     feedbackStats: finalStats,
+    totalReviews
   };
 };
 
@@ -2792,7 +2812,10 @@ module.exports.restaurantOpen = async (req) => {
 
 module.exports.emailExist = async (req) => {
   const { email, contactNumber } = req.body;
-  const emailExist = await User.exists({ email, status: STATUS.ACTIVE });
+  const emailExist = await User.exists({
+    email: { $regex: new RegExp(`^${email}$`, 'i') },
+    status: STATUS.ACTIVE,
+  });
   const phoneExist = await User.exists({
     contactNumber,
     status: STATUS.ACTIVE,
