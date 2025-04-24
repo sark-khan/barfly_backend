@@ -11,6 +11,8 @@ const {
   createStripeOnboardingLink,
   getStripeAccount,
   retrieveAccountBalance,
+  checkStripeAccountMissingFields,
+  continueStripeOnboarding,
 } = require("../CustomerServices/stripeServices");
 const { STATUS_CODES } = require("../Utils/globalConstants");
 
@@ -51,21 +53,21 @@ router.post("/account-link", async (req, res) => {
     const response = await createStripeOnboardingLink(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Account created", response });
+      .json({ message: "Account link created", response });
   } catch (error) {
     console.error("Error while creating the account");
     res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }
 });
 
-router.get("/retrieve-accout-details", async (req, res) => {
+router.get("/retrieve-account-balance", async (req, res) => {
   try {
     const response = await retrieveAccountBalance(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Account details fetched", response });
+      .json({ message: "Account balance fetched", response });
   } catch (error) {
-    console.error("Error while creating the account");
+    console.error("Error while checking the account balance");
 
     res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }
@@ -79,6 +81,32 @@ router.get("/get-stripe-accounts", async (req, res) => {
       .json({ message: "Accounts fetched", response });
   } catch (error) {
     console.error("Error while creating the account");
+
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
+  }
+});
+
+router.get("/get-account-missing-fields", async (req, res) => {
+  try {
+    const response = await checkStripeAccountMissingFields(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Missing fields fetched.", response });
+  } catch (error) {
+    console.error("Error while fetching missing fields.");
+
+    res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
+  }
+});
+
+router.post("/create-onboarding-link-again", async (req, res) => {
+  try {
+    const response = await continueStripeOnboarding(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Onboarding link generated.", response });
+  } catch (error) {
+    console.error("Error while generating the link.");
 
     res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }

@@ -1407,16 +1407,19 @@ module.exports.updateCounterSettings = async (req) => {
         return;
       }
     }
+
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (counterName !== undefined) counter.counterName = counterName;
     if (status !== undefined) counter.status = status;
+
     if (counter.tableSectionName === tableSectionName) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "Table with this name already exists.",
       });
     }
+
     if (tableSectionName !== undefined)
       counter.tableSectionName = tableSectionName;
 
@@ -1428,7 +1431,7 @@ module.exports.updateCounterSettings = async (req) => {
     const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
     const newTo = tableTo !== undefined ? Number(tableTo) : currentTo;
 
-    if (newFrom > newTo || newFrom === newTo) {
+    if (newFrom >= newTo) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "Invalid table range.",
@@ -1444,6 +1447,51 @@ module.exports.updateCounterSettings = async (req) => {
     }
 
     await counter.save();
+
+    if (
+      tableSectionName !== undefined ||
+      tableFrom !== undefined ||
+      tableTo !== undefined
+    ) {
+      const tableNumbers = counter.tableCount;
+
+      const conflictingTables = await Tables.find({
+        tableCount: { $in: tableNumbers },
+        counterIds: { $not: { $elemMatch: { $eq: counter._id } } }, // no counter match
+        status: { $ne: STATUS.DELETED },
+      });
+
+      console.log({ conflictingTables });
+
+      if (conflictingTables.length > 0) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message:
+            "THere are multiple counters involved, available for one counter attached.",
+        });
+        return;
+      }
+
+      const existingTable = await Tables.findOne({
+        counterIds: counter._id,
+        status: { $ne: STATUS.DELETED },
+      });
+
+      if (!existingTable) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "No table found for this counter to update.",
+        });
+        return;
+      }
+
+      existingTable.tableCount = tableNumbers;
+      if (tableSectionName !== undefined) {
+        existingTable.tableSectionName = tableSectionName;
+      }
+
+      await existingTable.save();
+    }
   } else if (action === EDIT_ACTION.DELETE) {
     const activeOrders = await Order.findOne({
       counterId,
@@ -2416,6 +2464,8 @@ module.exports.getUsersFeedback = async (req) => {
   let toDate = to ? new Date(to) : null;
   if (toDate) toDate.setHours(23, 59, 59, 999);
 
+  console.log({ fromDate, toDate });
+
   const dateFilter = {};
   if (fromDate instanceof Date && !isNaN(fromDate)) {
     dateFilter.$gte = fromDate;
@@ -2427,11 +2477,15 @@ module.exports.getUsersFeedback = async (req) => {
   const query = { entityId };
 
   if (year && month) {
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+    const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    startOfMonth.setHours(0, 0, 0, 0);
+    endOfMonth.setHours(23, 59, 59);
     dateFilter.$gte = startOfMonth;
     dateFilter.$lte = endOfMonth;
+    // console.log({ st: startOfMonth.toISOString() });
   }
+  // console.log({  });
 
   if (Object.keys(dateFilter).length) {
     query.createdAt = dateFilter;
@@ -2869,6 +2923,6 @@ module.exports.restaurantCancelOrder = async (req) => {
 
   io.to(order.entityId.toString()).emit("cancelOrder", {
     orderId: order._id,
-    status: ORDER_STATUS.CANCELLED,
+    status: globalConstants.ORDER_STATUS.CANCELLED,
   });
 };

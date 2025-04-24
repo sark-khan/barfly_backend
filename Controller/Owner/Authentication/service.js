@@ -20,6 +20,7 @@ const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
 const { uploadBufferToS3 } = require("../../aws-service");
+const NotificationSettings = require("../../../Models/notificationSettings");
 
 module.exports.register = async (req) => {
   const {
@@ -168,6 +169,13 @@ module.exports.register = async (req) => {
     status: STATUS.ACTIVE,
     state,
     location,
+  });
+
+  await NotificationSettings.create({
+    userId: userDetails._id,
+    isEmailOn,
+    isPushOn,
+    isPromotionalOn,
   });
 
   userDetails.entityDetails = entityDetails;
