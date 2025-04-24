@@ -2649,6 +2649,8 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
+  console.log({feedbackStats});
+
   const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
   const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
   console.log({mm:monthStats, firstMonthKey});
