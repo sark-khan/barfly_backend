@@ -2524,10 +2524,13 @@ module.exports.getUsersFeedback = async (req) => {
     v.toUpperCase()
   );
 
+  let totalReviews=0;
+
   for (const fb of feedbacks) {
     const yearMonth = `${fb.createdAt.getFullYear()}-${
       fb.createdAt.getMonth() + 1
     }`;
+    totalReviews+=fb.answers.length;
     for (const answer of fb.answers) {
       const { value, questionId } = answer;
       if (!value || !questionId) continue;
@@ -2650,6 +2653,7 @@ module.exports.getUsersFeedback = async (req) => {
   return {
     feedbacks,
     feedbackStats: finalStats,
+    totalReviews
   };
 };
 
