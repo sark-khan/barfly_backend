@@ -223,63 +223,63 @@ const getPaymentStatus = async (req) => {
 };
 
 const createStripeOnboardingLink = async (req) => {
-  try {
-    const {
-      entityId,
-      body: { email },
-    } = req;
+  // try {
+  const {
+    entityId,
+    body: { email },
+  } = req;
 
-    if (!entityId || !email) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing entityId or email",
-      });
-    }
-
-    const account = await stripe.accounts.create({
-      type: "express",
-      country: "CH",
-      email,
-      business_type: "individual",
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      metadata: {
-        entityId,
-      },
+  if (!entityId || !email) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Missing entityId or email",
     });
-    console.log({ account });
-
-    await EntityDetails.updateOne(
-      { _id: entityId },
-      { stripeAccountId: account.id }
-    );
-
-    const accountLink = await stripe.accountLinks.create({
-      account: account.id,
-      refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
-      return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
-      type: "account_onboarding",
-    });
-    await EntityDetails.updateOne(
-      { _id: entityId },
-      { bankLinkUrl: accountLink.url }
-    );
-
-    return {
-      success: true,
-      message: "Stripe onboarding link created",
-      url: accountLink.url,
-    };
-  } catch (error) {
-    console.error("Stripe Onboarding Error:", error);
-    return {
-      success: false,
-      message: "Failed to create Stripe onboarding link",
-      error: error.message,
-    };
   }
+
+  const account = await stripe.accounts.create({
+    type: "express",
+    country: "CH",
+    email,
+    business_type: "individual",
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+    metadata: {
+      entityId,
+    },
+  });
+  console.log({ account });
+
+  await EntityDetails.updateOne(
+    { _id: entityId },
+    { stripeAccountId: account.id }
+  );
+
+  const accountLink = await stripe.accountLinks.create({
+    account: account.id,
+    refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+    return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+    type: "account_onboarding",
+  });
+  await EntityDetails.updateOne(
+    { _id: entityId },
+    { bankLinkUrl: accountLink.url }
+  );
+
+  return {
+    success: true,
+    message: "Stripe onboarding link created",
+    url: accountLink.url,
+  };
+  // } catch (error) {
+  //   console.error("Stripe Onboarding Error:", error);
+  //   return {
+  //     success: false,
+  //     message: "Failed to create Stripe onboarding link",
+  //     error: error.message,
+  //   };
+  // }
 };
 
 const checkStripeAccountMissingFields = async (req) => {
