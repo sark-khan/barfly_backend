@@ -166,20 +166,33 @@ const confirmPaymentIntent = async (req) => {
       payment_method: paymentMethodId,
     });
 
+    console.log("Stripe payment intent status:", paymentIntent.status);
+
     const mappedStatus = getPaymentStatusForStripe(paymentIntent.status);
+    console.log("Mapped status for DB:", mappedStatus);
 
     const updatePayload = {
       paymentStatus: mappedStatus,
       paymentMethodUsed: paymentMethodType || "unknown",
     };
 
+    const existing = await StripeModel.findOne({
+      stripePaymentIntentId: paymentIntentId,
+    });
+    console.log("Before update, DB record is:", existing);
     const result = await StripeModel.updateOne(
       { stripePaymentIntentId: paymentIntentId },
       { $set: updatePayload }
     );
 
-    if (result.nModified === 0) {
-      console.warn("Payment status update failed in DB:", result);
+    if (result.matchedCount === 0) {
+      console.warn("No document found with this paymentIntentId");
+    } else if (result.modifiedCount === 0) {
+      console.warn(
+        "Document found but no fields were modified. Maybe already up-to-date?"
+      );
+    } else {
+      console.log("Payment status successfully updated in DB");
     }
 
     console.log(
@@ -192,6 +205,13 @@ const confirmPaymentIntent = async (req) => {
     return paymentIntent;
   } catch (error) {
     console.error("Error confirming payment intent:", error.message);
+
+    // Optional: update the DB to mark the payment as failed
+    await StripeModel.updateOne(
+      { stripePaymentIntentId: paymentIntentId },
+      { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+    );
+
     throw error;
   }
 };
@@ -212,7 +232,7 @@ const createStripeOnboardingLink = async (req) => {
     if (!entityId || !email) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing userId or email",
+        message: "Missing entityId or email",
       });
     }
 
@@ -238,11 +258,10 @@ const createStripeOnboardingLink = async (req) => {
 
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.HOST_URL}/register/business-setup`,
-      return_url: `${process.env.HOST_URL}/register/business-setup`,
+      refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+      return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
       type: "account_onboarding",
     });
-    console.log({ accountLink });
     await EntityDetails.updateOne(
       { _id: entityId },
       { bankLinkUrl: accountLink.url }
@@ -260,6 +279,113 @@ const createStripeOnboardingLink = async (req) => {
       message: "Failed to create Stripe onboarding link",
       error: error.message,
     };
+  }
+};
+
+const checkStripeAccountMissingFields = async (req) => {
+  try {
+    const { entityId } = req;
+
+    if (!entityId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Missing entityId",
+      });
+    }
+
+    const entity = await EntityDetails.findById(entityId);
+    if (!entity?.stripeAccountId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "No Stripe account found for this entity",
+      });
+    }
+
+    const account = await stripe.accounts.retrieve(entity.stripeAccountId);
+
+    const missingFields = [];
+
+    if (!account.business_profile?.name) {
+      missingFields.push("Business Profile Name");
+    }
+    if (!account.business_profile?.mcc) {
+      missingFields.push("MCC (Merchant Category Code)");
+    }
+    if (!account.business_profile?.url) {
+      missingFields.push("Business URL");
+    }
+
+    if (
+      !account.documents?.verification?.status ||
+      account.documents?.verification?.status !== "verified"
+    ) {
+      missingFields.push("Identity Verification Document");
+    }
+    if (!account.business_type || account.business_type === "individual") {
+      missingFields.push("Business Type or Incorporation Document");
+    }
+
+    if (!account.external_accounts?.data?.length) {
+      missingFields.push("Bank Account");
+    }
+
+    return {
+      success: true,
+      message: "Stripe account check complete",
+      missingFields: missingFields.length
+        ? missingFields
+        : ["No fields missing"],
+    };
+  } catch (error) {
+    console.error("Stripe Account Check Error:", error);
+    throwError({
+      status: STATUS_CODES.INTERNAL_SERVER_ERROR,
+      message: "Failed to check Stripe account fields",
+    });
+  }
+};
+
+const continueStripeOnboarding = async (req) => {
+  try {
+    const { entityId } = req;
+
+    if (!entityId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Missing entityId",
+      });
+    }
+
+    // Get the Stripe account ID from your database
+    const entity = await EntityDetails.findById(entityId);
+    if (!entity?.stripeAccountId) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "No Stripe account found for this entity",
+      });
+    }
+
+    // Generate a new onboarding link
+    const accountLink = await stripe.accountLinks.create({
+      account: entity.stripeAccountId,
+      refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+      return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+      type: "account_onboarding",
+    });
+
+    // Optional: Update latest link in DB
+    await EntityDetails.updateOne(
+      { _id: entityId },
+      { bankLinkUrl: accountLink.url }
+    );
+
+    return {
+      success: true,
+      url: accountLink.url,
+    };
+  } catch (error) {
+    console.error("Stripe Resume Onboarding Error:", error);
+    throw error;
   }
 };
 
@@ -287,7 +413,7 @@ const retrieveAccountBalance = async (req) => {
 
 const getStripeAccount = async (req) => {
   try {
-    const { accountId } = req.body;
+    const { accountId } = req.query;
     const account = await stripe.accounts.retrieve(accountId);
 
     const bankAccounts = await stripe.accounts.listExternalAccounts(accountId, {
@@ -311,4 +437,6 @@ module.exports = {
   createStripeOnboardingLink,
   getStripeAccount,
   retrieveAccountBalance,
+  continueStripeOnboarding,
+  checkStripeAccountMissingFields,
 };
