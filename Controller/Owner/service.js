@@ -199,7 +199,7 @@ module.exports.getCounters = async (req) => {
     counterName: 1,
     isSelfPickUp: 1,
     isTableService: 1,
-    tableCount: 1,
+    // tableCount: 1,
     status: 1,
     tableSectionName: 1,
   })
