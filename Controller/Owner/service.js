@@ -2652,6 +2652,7 @@ module.exports.getUsersFeedback = async (req) => {
   console.log({finalStats});
 
   const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
+  if(feedbackQuestions.length){
   const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
   console.log({mm:monthStats, firstMonthKey});
   feedbackQuestions.forEach((feedbackQuestion) => {
@@ -2680,7 +2681,7 @@ module.exports.getUsersFeedback = async (req) => {
         }
       };
     }
-  });
+  });}
   // console.log({ finalStats });
   // if (finalStats && finalStats[0]) {
   //   const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
