@@ -100,9 +100,7 @@ router.get("/get-account-missing-fields", async (req, res) => {
 router.post("/create-onboarding-link-again", async (req, res) => {
   try {
     const response = await continueStripeOnboarding(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Onboarding link generated.", response });
+    return res.status(STATUS_CODES.OK).json(response);
   } catch (error) {
     console.error("Error while generating the link.");
 
