@@ -51,11 +51,9 @@ router.get("/get-payment-status", async (req, res) => {
 router.post("/account-link", async (req, res) => {
   try {
     const response = await createStripeOnboardingLink(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ message: "Account link created", response });
+    return res.status(STATUS_CODES.OK).json(response);
   } catch (error) {
-    console.error("Error while creating the account");
+    console.error("Error while creating the account:", error);
     res.status(STATUS_CODES.SERVER_ERROR).json({ error: error.message });
   }
 });
