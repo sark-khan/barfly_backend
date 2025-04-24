@@ -2514,7 +2514,8 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
-    const totalReviews = await Feedbacks.countDocuments(query);
+
+    const totalReviews = feedbacks.length;
 
   const feedbackStats = {};
 
@@ -2570,7 +2571,7 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  const finalStats = {};
+  let finalStats = {};
 
   for (const yearMonth in feedbackStats) {
     const statsByMonth = feedbackStats[yearMonth];
@@ -2650,25 +2651,33 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  console.log({finalStats});
+  console.log({ finalStats });
 
-  const feedbackQuestions= await FeedbackQuestions.find({entityId: req.entityId});
-  if(feedbackQuestions.length){
-    let firstMonthKey;
-    let monthStats;
-    if(Object.keys(obj).length === 0){
-      monthStats={
-        yearMonth:{}
-      }
-      firstMonthKey= yearMonth;
-    }else{
-      [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
-    }
-  console.log({mm:monthStats, firstMonthKey});
+const feedbackQuestions = await FeedbackQuestions.find({ entityId: req.entityId });
+
+if (feedbackQuestions.length) {
+  let firstMonthKey;
+  let monthStats;
+
+  if (Object.keys(finalStats).length === 0) {
+    // You need to define yearMonth (maybe from req.query or current month)
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., "2025-4"
+
+    firstMonthKey = yearMonth;
+    finalStats = {
+      [firstMonthKey]: {}
+    };
+    monthStats = finalStats[firstMonthKey];
+  } else {
+    [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+  }
+
+  console.log({ mm: monthStats, firstMonthKey });
+
   feedbackQuestions.forEach((feedbackQuestion) => {
     if (!monthStats[feedbackQuestion._id]) {
-      // finalStats[firstMonthKey]
-      finalStats[firstMonthKey][feedbackQuestion._id] = {
+      monthStats[feedbackQuestion._id] = {
         question: feedbackQuestion.question,
         type: "NO_DATA",
         createdAt: feedbackQuestion.createdAt,
@@ -2691,7 +2700,9 @@ module.exports.getUsersFeedback = async (req) => {
         }
       };
     }
-  });}
+  });
+}
+
   // console.log({ finalStats });
   // if (finalStats && finalStats[0]) {
   //   const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
