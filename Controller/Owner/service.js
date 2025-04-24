@@ -2653,7 +2653,8 @@ module.exports.getUsersFeedback = async (req) => {
   const feedbackQuestions = await FeedbackQuestions.find({
     entityId: req.entityId,
   });
-  if (feedbackStats) {
+  console.log({feedbackStats})
+  if (feedbackStats && feedbackStats[0]) {
     const [firstMonthKey, monthStats] = Object.entries(feedbackStats)[0];
     console.log({ mm: monthStats, firstMonthKey });
     feedbackQuestions.forEach((feedbackQuestion) => {
