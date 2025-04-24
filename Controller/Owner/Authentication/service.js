@@ -173,9 +173,9 @@ module.exports.register = async (req) => {
 
   await NotificationSettings.create({
     userId: userDetails._id,
-    isEmailOn,
-    isPushOn,
-    isPromotionalOn,
+    isEmailOn: true,
+    isPushOn: true,
+    isPromotionalOn: true,
   });
 
   userDetails.entityDetails = entityDetails;
