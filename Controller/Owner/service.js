@@ -206,19 +206,20 @@ module.exports.getCounters = async (req) => {
     .sort({ createdAt: -1 })
     .lean();
 
-    const counters = fetchCounters.map((counter) => {
-      const ids = counter.counterIds || [];
-      const newCounterIds = ids.length === 0
+  const counters = fetchCounters.map((counter) => {
+    const ids = counter.counterIds || [];
+    const newCounterIds =
+      ids.length === 0
         ? []
         : ids.length === 1
         ? [ids[0]]
         : [ids[0], ids[ids.length - 1]];
-    
-      return {
-        ...counter,
-        counterIds: newCounterIds,
-      };
-    });
+
+    return {
+      ...counter,
+      counterIds: newCounterIds,
+    };
+  });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -1473,9 +1474,10 @@ module.exports.updateCounterSettings = async (req) => {
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
-      
-      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
-      
+
+      const isConflict = conflictingTables.some(
+        (table) => table.counterIds.length > 1
+      );
 
       console.log({ conflictingTables: conflictingTables[0].counterIds });
 
@@ -2514,7 +2516,7 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
-    const totalReviews = await Feedbacks.countDocuments(query);
+  const totalReviews = await Feedbacks.countDocuments(query);
 
   const feedbackStats = {};
 
@@ -2525,7 +2527,6 @@ module.exports.getUsersFeedback = async (req) => {
   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
     v.toUpperCase()
   );
-
 
   for (const fb of feedbacks) {
     const yearMonth = `${fb.createdAt.getFullYear()}-${
@@ -2653,7 +2654,7 @@ module.exports.getUsersFeedback = async (req) => {
   return {
     feedbacks,
     feedbackStats: finalStats,
-    totalReviews
+    totalReviews,
   };
 };
 
@@ -2813,7 +2814,8 @@ module.exports.restaurantOpen = async (req) => {
 module.exports.emailExist = async (req) => {
   const { email, contactNumber } = req.body;
   const emailExist = await User.exists({
-    email: { $regex: new RegExp(`^${email}$`, 'i') },
+    email,
+    // email: { $regex: new RegExp(`^${email}$`, "i") },
     status: STATUS.ACTIVE,
   });
   const phoneExist = await User.exists({
