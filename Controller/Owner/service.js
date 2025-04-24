@@ -2735,7 +2735,7 @@ module.exports.getUsersFeedback = async (req) => {
 
   return {
     feedbacks,
-    feedbackStats: Object.keys(finalStats).length === 0 ?[] : finalStats,
+    feedbackStats: finalStats,
     totalReviews
   };
 };
