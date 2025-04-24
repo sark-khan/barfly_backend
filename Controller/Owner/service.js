@@ -1483,7 +1483,7 @@ module.exports.updateCounterSettings = async (req) => {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message:
-            "THere are multiple counters involved, available for one counter attached.",
+            "There are multiple counters involved, available for one counter attached.",
         });
         return;
       }
