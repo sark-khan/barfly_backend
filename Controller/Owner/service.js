@@ -195,16 +195,30 @@ module.exports.getCounters = async (req) => {
   } else {
     query.status = STATUS.ACTIVE;
   }
-  const counters = await Counter.find(query, {
+  const fetchCounters = await Counter.find(query, {
     counterName: 1,
     isSelfPickUp: 1,
     isTableService: 1,
-    // tableCount: 1,
+    tableCount: 1,
     status: 1,
     tableSectionName: 1,
   })
     .sort({ createdAt: -1 })
     .lean();
+
+    const counters = fetchCounters.map((counter) => {
+      const ids = counter.counterIds || [];
+      const newCounterIds = ids.length === 0
+        ? []
+        : ids.length === 1
+        ? [ids[0]]
+        : [ids[0], ids[ids.length - 1]];
+    
+      return {
+        ...counter,
+        counterIds: newCounterIds,
+      };
+    });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -1456,14 +1470,16 @@ module.exports.updateCounterSettings = async (req) => {
       const tableNumbers = counter.tableCount;
 
       const conflictingTables = await Tables.find({
-        tableCount: { $in: tableNumbers },
-        counterIds: { $not: { $elemMatch: { $eq: counter._id } } }, // no counter match
+        counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
+      
+      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
+      
 
-      console.log({ conflictingTables });
+      console.log({ conflictingTables: conflictingTables[0].counterIds });
 
-      if (conflictingTables.length > 0) {
+      if (isConflict) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
           message:
