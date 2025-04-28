@@ -37,6 +37,7 @@ const getJwtToken = (user, isUser = false) => {
     email: user.email,
     contactNumber: user.contactNumber,
     isAdmin: user.isAdmin,
+    countrTag: user.countrTag,
   };
   if (!isUser) {
     payload = {
@@ -209,7 +210,7 @@ const decrypt = (encryptedText) => {
 };
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 module.exports = {
