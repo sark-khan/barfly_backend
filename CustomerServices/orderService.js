@@ -140,7 +140,7 @@ const createOrder = async (req, session) => {
 
   const payload = {
     notification: {
-      title: "Order Created",
+      title: "Order Received",
       body: `New Order Received. Tap to view details.`,
     },
 
@@ -168,8 +168,8 @@ const createOrder = async (req, session) => {
           category: "FLUTTER_NOTIFICATION_CLICK",
           mutableContent: 1,
           alert: {
-            title: "Order Created ",
-            body: `Your order is now created. Tap to view details.`,
+            title: "Order Received ",
+            body: `New order received. Tap to view details.`,
           },
         },
       },
