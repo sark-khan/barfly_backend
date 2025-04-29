@@ -703,10 +703,10 @@ module.exports.getUserDetails = async (req) => {
     _id: userId,
     status: STATUS.ACTIVE,
   });
-  const couterTag = await CountRTags.findOne(
-    { userId },
-    { countRTag: 1, _id: 0 }
-  );
+  // const couterTag = await CountRTags.findOne(
+  //   { userId },
+  //   { countRTag: 1, _id: 0 }
+  // );
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -716,7 +716,7 @@ module.exports.getUserDetails = async (req) => {
 
   return {
     ...userDetails.toObject(),
-    countRTag: couterTag ? couterTag.countRTag : "",
+    // countRTag: couterTag ? couterTag.countRTag : "",
   };
 };
 
@@ -1126,7 +1126,11 @@ module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
   const query = { entityId, counterIds: counterId };
 
-  const tables = await Tables.findOne(query);
+  const tables = await Tables.findOne(query, {
+    tableCount: 1,
+    counterIds: 1,
+    entityId: 1,
+  });
   if (!tables) {
     return [];
   }

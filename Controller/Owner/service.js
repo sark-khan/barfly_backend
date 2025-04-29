@@ -101,7 +101,7 @@ module.exports.createCounter = async (req) => {
     tableSectionName,
   });
 
-  // io.to(entityId.toString()).emit("newCounter", newCounter);
+  io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
 
   const lastTable = await Tables.findOne(
     { entityId: req.entityId },
@@ -176,7 +176,10 @@ module.exports.createCounterMenuCategory = async (req) => {
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
-  io.to(entityId.toString()).emit("newCategory", createdCategories);
+  io.to(createdCategories[0].entityId.toString()).emit(
+    "newCategory",
+    createdCategories
+  );
 
   return createdCategories;
 };
@@ -206,19 +209,20 @@ module.exports.getCounters = async (req) => {
     .sort({ createdAt: -1 })
     .lean();
 
-    const counters = fetchCounters.map((counter) => {
-      const ids = counter.counterIds || [];
-      const newCounterIds = ids.length === 0
+  const counters = fetchCounters.map((counter) => {
+    const ids = counter.counterIds || [];
+    const newCounterIds =
+      ids.length === 0
         ? []
         : ids.length === 1
         ? [ids[0]]
         : [ids[0], ids[ids.length - 1]];
-    
-      return {
-        ...counter,
-        counterIds: newCounterIds,
-      };
-    });
+
+    return {
+      ...counter,
+      counterIds: newCounterIds,
+    };
+  });
 
   if (isItemRequired !== "true") {
     return counters;
@@ -375,6 +379,8 @@ module.exports.createMenuItem = async (req) => {
     })
   );
 
+  io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
+
   sendFirebaseNotification({
     titleText: "New item added",
     body: "New Item Added in the menu list",
@@ -481,9 +487,11 @@ module.exports.updateMenuItem = async (req) => {
       }
     }
 
-    await item.save(); // Save the updated item
+    await item.save();
+    io.to(item.entityId.toString()).emit("menuItemUpdated", item);
   } else if (action === EDIT_ACTION.DELETE) {
     await ItemDetails.deleteOne({ _id: itemId });
+    io.to(item.entityId.toString()).emit("menuItemUpdated", { itemId });
   }
 };
 
@@ -1461,6 +1469,7 @@ module.exports.updateCounterSettings = async (req) => {
     }
 
     await counter.save();
+    io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
 
     if (
       tableSectionName !== undefined ||
@@ -1473,11 +1482,10 @@ module.exports.updateCounterSettings = async (req) => {
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
-      
-      const isConflict = conflictingTables.some(table => table.counterIds.length > 1);
-      
 
-      console.log({ conflictingTables: conflictingTables[0].counterIds });
+      const isConflict = conflictingTables.some(
+        (table) => table.counterIds.length > 1
+      );
 
       if (isConflict) {
         throwError({
@@ -1531,6 +1539,7 @@ module.exports.updateCounterSettings = async (req) => {
       { _id: counterId },
       { $set: { status: STATUS.DELETED } }
     );
+    io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
   }
 };
 
@@ -1861,6 +1870,7 @@ module.exports.editBusinessDetails = async (req) => {
     await userPass.save();
 
     message = "Password updated successfully.";
+    io.to(entityId.toString()).emit("passwordUpdated", { message });
     return { message };
   }
 
@@ -1901,7 +1911,11 @@ module.exports.editBusinessDetails = async (req) => {
   if (zipcode) updateEntityFields.zipcode = zipcode;
   if (plotNo) updateEntityFields.plotNo = plotNo;
 
-  await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+  // await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+  if (Object.keys(updateEntityFields).length) {
+    await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+    io.to(entityId.toString()).emit("entityDetailsUpdated", updateEntityFields);
+  }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
   if (unifiedContactNumber) {
@@ -1954,6 +1968,9 @@ module.exports.editBusinessDetails = async (req) => {
       );
 
       message = "Contact number updated successfully.";
+      io.to(entityId.toString()).emit("contactNumberUpdated", {
+        contactNumber: unifiedContactNumber,
+      });
       return { message, otpVerified: true };
     }
   }
@@ -2002,7 +2019,11 @@ module.exports.editBusinessDetails = async (req) => {
       }
       await Otp.deleteOne({ email });
       await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
-      return { message: "Email updated successfully.", otpVerified: true };
+      // return { message: "Email updated successfully.", otpVerified: true };
+
+      message = "Email updated successfully.";
+      io.to(entityId.toString()).emit("emailUpdated", { email });
+      return { message, otpVerified: true };
     }
   }
 
@@ -2091,7 +2112,6 @@ module.exports.addingTables = async (req) => {
     { tableSetionNo: 1, tableSectionName: 1 }
   ).sort({ createdAt: -1 });
 
-  console.log({ lastTable });
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
   if (lastTable?.tableSectionName === tableSectionName) {
     throwError({
@@ -2111,6 +2131,7 @@ module.exports.addingTables = async (req) => {
   };
 
   const newTable = await Tables.create(tableObj);
+  io.to(newTable.entityId.toString()).emit("newTable", newTable);
 
   await Counter.updateMany(
     { _id: { $in: counterIds } },
@@ -2133,14 +2154,11 @@ module.exports.getCountersForTableManagement = async (req) => {
   const counterIds = new Set();
 
   tableManagement.forEach((table) => {
-    console.log({ table });
     if (table.status == STATUS.DELETED) return;
     table.counterIds.forEach((counterId) => {
       counterIds.add(counterId);
     });
   });
-
-  console.log({ lll: counterIds.size });
 
   const counterList = await Counter.find({
     _id: { $nin: Array.from(counterIds) },
@@ -2184,7 +2202,8 @@ module.exports.getTables = async (req) => {
       select: "counterName",
       model: "Counter",
     })
-    .select("tableCount tableSectionName tableSetionNo counterIds");
+    .select("tableCount tableSectionName tableSetionNo counterIds")
+    .sort({ createdAt: -1 });
 
   if (!tables) return [];
 
@@ -2274,6 +2293,7 @@ module.exports.editTable = async (req) => {
       );
     }
     message = "Table edited successfully.";
+    io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
     await tableData.save();
   } else if (action === EDIT_ACTION.DELETE) {
     if (!Array.isArray(counterIds) || counterIds.length === 0) {
@@ -2480,8 +2500,6 @@ module.exports.getUsersFeedback = async (req) => {
   let toDate = to ? new Date(to) : null;
   if (toDate) toDate.setHours(23, 59, 59, 999);
 
-  console.log({ fromDate, toDate });
-
   const dateFilter = {};
   if (fromDate instanceof Date && !isNaN(fromDate)) {
     dateFilter.$gte = fromDate;
@@ -2499,9 +2517,7 @@ module.exports.getUsersFeedback = async (req) => {
     endOfMonth.setHours(23, 59, 59);
     dateFilter.$gte = startOfMonth;
     dateFilter.$lte = endOfMonth;
-    // console.log({ st: startOfMonth.toISOString() });
   }
-  // console.log({  });
 
   if (Object.keys(dateFilter).length) {
     query.createdAt = dateFilter;
@@ -2514,8 +2530,7 @@ module.exports.getUsersFeedback = async (req) => {
     })
     .sort({ createdAt: -1 });
 
-
-    const totalReviews = feedbacks.length;
+  const totalReviews = feedbacks.length;
 
   const feedbackStats = {};
 
@@ -2528,11 +2543,8 @@ module.exports.getUsersFeedback = async (req) => {
   );
   let yearMonth;
 
-
   for (const fb of feedbacks) {
-     yearMonth = `${fb.createdAt.getFullYear()}-${
-      fb.createdAt.getMonth() + 1
-    }`;
+    yearMonth = `${fb.createdAt.getFullYear()}-${fb.createdAt.getMonth() + 1}`;
     for (const answer of fb.answers) {
       const { value, questionId } = answer;
       if (!value || !questionId) continue;
@@ -2651,57 +2663,63 @@ module.exports.getUsersFeedback = async (req) => {
     }
   }
 
-  console.log({ finalStats });
-
-const feedbackQuestions = await FeedbackQuestions.find({ entityId: req.entityId });
-
-if (feedbackQuestions.length) {
-  let firstMonthKey;
-  let monthStats;
-
-  if (Object.keys(finalStats).length === 0) {
-    // You need to define yearMonth (maybe from req.query or current month)
-    const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., "2025-4"
-
-    firstMonthKey = yearMonth;
-    finalStats = {
-      [firstMonthKey]: {}
-    };
-    monthStats = finalStats[firstMonthKey];
-  } else {
-    [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
-  }
-
-  console.log({ mm: monthStats, firstMonthKey });
-
-  feedbackQuestions.forEach((feedbackQuestion) => {
-    if (!monthStats[feedbackQuestion._id]) {
-      monthStats[feedbackQuestion._id] = {
-        question: feedbackQuestion.question,
-        type: "NO_DATA",
-        createdAt: feedbackQuestion.createdAt,
-        RATING: {
-          average: 0,
-          distribution: {
-            "1": "0%", "2": "0%", "3": "0%", "4": "0%", "5": "0%",
-            "6": "0%", "7": "0%", "8": "0%", "9": "0%", "10": "0%"
-          }
-        },
-        FEEDBACK: {
-          GOOD: "0%",
-          DECENT: "0%",
-          BAD: "0%"
-        },
-        BOOLEAN: {
-          TRUE: "0%",
-          FALSE: "0%",
-          NEUTRAL: "0%"
-        }
-      };
-    }
+  const feedbackQuestions = await FeedbackQuestions.find({
+    entityId: req.entityId,
   });
-}
+
+  if (feedbackQuestions.length) {
+    let firstMonthKey;
+    let monthStats;
+
+    if (Object.keys(finalStats).length === 0) {
+      // You need to define yearMonth (maybe from req.query or current month)
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., "2025-4"
+
+      firstMonthKey = yearMonth;
+      finalStats = {
+        [firstMonthKey]: {},
+      };
+      monthStats = finalStats[firstMonthKey];
+    } else {
+      [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+    }
+
+    feedbackQuestions.forEach((feedbackQuestion) => {
+      if (!monthStats[feedbackQuestion._id]) {
+        monthStats[feedbackQuestion._id] = {
+          question: feedbackQuestion.question,
+          type: "NO_DATA",
+          createdAt: feedbackQuestion.createdAt,
+          RATING: {
+            average: 0,
+            distribution: {
+              1: "0%",
+              2: "0%",
+              3: "0%",
+              4: "0%",
+              5: "0%",
+              6: "0%",
+              7: "0%",
+              8: "0%",
+              9: "0%",
+              10: "0%",
+            },
+          },
+          FEEDBACK: {
+            GOOD: "0%",
+            DECENT: "0%",
+            BAD: "0%",
+          },
+          BOOLEAN: {
+            TRUE: "0%",
+            FALSE: "0%",
+            NEUTRAL: "0%",
+          },
+        };
+      }
+    });
+  }
 
   // console.log({ finalStats });
   // if (finalStats && finalStats[0]) {
@@ -2747,7 +2765,7 @@ if (feedbackQuestions.length) {
   return {
     // feedbacks,
     feedbackStats: finalStats,
-    totalReviews
+    totalReviews,
   };
 };
 
@@ -2804,13 +2822,15 @@ module.exports.addFeedbackQuestions = async (req) => {
     });
   }
 
-  return FeedbackQuestions.create({
+  const feedback = FeedbackQuestions.create({
     userId,
     entityId,
     question: question.trim(),
     answerType,
     comment,
   });
+  io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
+  return feedback;
 };
 
 // module.exports.deleteFeedbackQuestions = async (req) => {
@@ -2905,7 +2925,7 @@ module.exports.restaurantOpen = async (req) => {
 };
 
 module.exports.emailExist = async (req) => {
-  const { email, contactNumber } = req.body;
+  const { email, contactNumber, countrTag } = req.body;
   const emailExist = await User.exists({
     email,
     // email: { $regex: new RegExp(`^${email}$`, "i") },
@@ -2916,7 +2936,16 @@ module.exports.emailExist = async (req) => {
     status: STATUS.ACTIVE,
   });
 
-  return { emailExist: !!emailExist, phoneExist: !!phoneExist };
+  const countrTagExists = await User.exists({
+    countrTag,
+    status: STATUS.ACTIVE,
+  });
+
+  return {
+    emailExist: !!emailExist,
+    phoneExist: !!phoneExist,
+    countrTagExists: !!countrTagExists,
+  };
 };
 
 module.exports.deleteEntityAccount = async (req) => {
