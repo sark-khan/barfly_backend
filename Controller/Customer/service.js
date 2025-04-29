@@ -1130,11 +1130,21 @@ module.exports.getTablesUserSide = async (req) => {
     tableCount: 1,
     counterIds: 1,
     entityId: 1,
-  });
+  }).populate("counterIds");
   if (!tables) {
     return [];
   }
-  return tables;
+  // console.log({ tables: tables.counterIds[1] });
+
+  tables.counterIds.map((counter) => {
+    if (counter._id == counterId && counter.isTableService == true) {
+      return tables;
+    }
+  });
+  throwError({
+    status: STATUS_CODES.NOT_FOUND,
+    message: "Table service for this is turned off",
+  });
 };
 
 module.exports.fetchNotificationSettings = async (req) => {
