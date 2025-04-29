@@ -2926,26 +2926,30 @@ module.exports.restaurantOpen = async (req) => {
 
 module.exports.emailExist = async (req) => {
   const { email, contactNumber, countrTag } = req.body;
-  const emailExist = await User.exists({
-    email,
-    // email: { $regex: new RegExp(`^${email}$`, "i") },
-    status: STATUS.ACTIVE,
-  });
-  const phoneExist = await User.exists({
-    contactNumber,
-    status: STATUS.ACTIVE,
-  });
 
-  const countrTagExists = await User.exists({
-    countrTag,
+  const query = {
     status: STATUS.ACTIVE,
-  });
-
-  return {
-    emailExist: !!emailExist,
-    phoneExist: !!phoneExist,
-    countrTagExists: !!countrTagExists,
   };
+
+  if (email) {
+    query.email = email;
+    const exists = await User.exists(query);
+    return { emailExist: !!exists };
+  }
+
+  if (contactNumber) {
+    query.contactNumber = contactNumber;
+    const exists = await User.exists(query);
+    return { phoneExist: !!exists };
+  }
+
+  if (countrTag) {
+    query.countrTag = countrTag;
+    const exists = await User.exists(query);
+    return { countrTagExists: !!exists };
+  }
+
+  return {};
 };
 
 module.exports.deleteEntityAccount = async (req) => {
