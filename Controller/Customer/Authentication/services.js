@@ -16,6 +16,7 @@ const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
+const notificationSettings = require("../../../Models/notificationSettings");
 
 module.exports.register = async (req) => {
   const {
@@ -81,6 +82,13 @@ module.exports.register = async (req) => {
     // houseNo,
     age: String(age),
     countrTag,
+  });
+
+  await notificationSettings.create({
+    userId: userObj._id,
+    isEmailOn: true,
+    isPushOn: true,
+    isPromotionalOn: true,
   });
 
   delete userObj.password;

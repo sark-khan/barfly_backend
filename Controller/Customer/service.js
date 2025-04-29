@@ -1169,7 +1169,7 @@ module.exports.updateNotificationSettings = async (req) => {
   }
 
   await notificationSettings.updateOne(
-    { userId: req.id },
+    { userId: req.userId },
     { $set: updatedValue },
     { upsert: true }
   );
