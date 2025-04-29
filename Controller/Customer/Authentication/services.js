@@ -20,16 +20,19 @@ const redisClient = require("./../../../redis");
 module.exports.register = async (req) => {
   const {
     email,
-    fullName,
-    city,
-    street,
-    zipcode,
+    // fullName,
+    firstName,
+    lastName,
+    // city,
+    // street,
+    // zipcode,
     password,
     dob,
-    country,
-    address,
-    contactNumber,
-    houseNo,
+    // country,
+    // address,
+    // contactNumber,
+    // houseNo,
+    countrTag,
   } = req.body;
 
   const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
@@ -37,6 +40,13 @@ module.exports.register = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "User already registerd",
+    });
+  }
+  const countrTagExists = await User.findOne({ countrTag });
+  if (countrTagExists) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Countr Tag already exists.",
     });
   }
 
@@ -55,19 +65,22 @@ module.exports.register = async (req) => {
 
   const userObj = await User.create({
     role: ROLES.CUSTOMER,
-    fullName,
+    fullName: `${firstName} ${lastName}`,
+    firstName,
+    lastName,
     email,
     password: hashedPassword,
-    city,
-    street,
-    zipcode,
+    // city,
+    // street,
+    // zipcode,
     dob,
-    country,
-    address,
-    contactNumber,
+    // country,
+    // address,
+    // contactNumber,
     status: STATUS.ACTIVE,
-    houseNo,
+    // houseNo,
     age: String(age),
+    countrTag,
   });
 
   delete userObj.password;
@@ -119,52 +132,49 @@ module.exports.login = async (req) => {
   return { user, token };
 };
 
-module.exports.countRTag = async (req) => {
-  const { countRTag, userId } = req.body;
+// module.exports.countRTag = async (req) => {
+//   const { countRTag, userId } = req.body;
 
-  const user = await User.findById(userId);
-  if (!user) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist",
-    });
-  }
+//   const user = await User.findById(userId);
+//   if (!user) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "User doesn't exist",
+//     });
+//   }
 
-  const countRTagExists = await CountRTags.findOne({ countRTag }).lean();
-  if (countRTagExists) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Oops! This username is not available. Please try again.",
-    });
-  }
+//   const countRTagExists = await CountRTags.findOne({ countRTag }).lean();
+//   if (countRTagExists) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Oops! This username is not available. Please try again.",
+//     });
+//   }
 
-  const obj = {
-    userId: user._id,
-    countRTag: `${countRTag}`,
-  };
-  await CountRTags.create(obj);
-  // await User.findOneAndUpdate(
-  //   { _id: userId },
-  //   { $set: { isRegistrationCompleted: true } }
-  // );
-};
+//   const obj = {
+//     userId: user._id,
+//     countRTag: `${countRTag}`,
+//   };
+//   await CountRTags.create(obj);
+// };
 
 module.exports.checkAndProvideCountRTag = async (req) => {
-  const { userId } = req.query;
-  const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
+  const { firstName, lastName } = req.query;
+  // const { userId } = req.query;
+  // const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
 
-  if (!user) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
-    });
-    return;
-  }
+  // if (!user) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message: "User doesn't exist.",
+  //   });
+  //   return;
+  // }
 
-  let [firstName = "", lastName = ""] = user.fullName.split(" ");
+  // let [firstName = "", lastName = ""] = user.fullName.split(" ");
 
   const isUsernameExists = async (username) => {
-    return CountRTags.exists({ countRTag: username });
+    return User.exists({ countrTag: username });
   };
 
   const generateUniqueUsername = async (baseUsername) => {
@@ -193,7 +203,7 @@ module.exports.checkAndProvideCountRTag = async (req) => {
     uniqueUsernames.push(await generateUniqueUsername(base));
   }
 
-  const existingTags = await CountRTags.distinct("countRTag");
+  const existingTags = await User.distinct("countrTag");
 
   const availableTags = uniqueUsernames.filter(
     (tag) => !existingTags.includes(tag)

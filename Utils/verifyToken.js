@@ -20,11 +20,12 @@ const verifyToken = (req, res, next) => {
     req.userId = decoded.userId;
     req.role = decoded.role;
     req.email = decoded.email;
-    req.contactNumber = decoded.contactNumber;
+    // req.contactNumber = decoded.contactNumber;
     req.entityName = decoded.entityName;
     req.entityId = decoded.entityId;
     req.entityType = decoded.entityType;
     req.isAdmin = decoded.role == ROLES.ADMIN;
+    req.countrTag = decoded.countrTag;
     next();
   });
 };
