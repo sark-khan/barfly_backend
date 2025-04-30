@@ -50,7 +50,7 @@ module.exports.register = async (req) => {
   if (countrTagExists) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Countr Tag already exists.",
+      message: "Count Tag already exists.",
     });
   }
 
