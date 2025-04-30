@@ -127,6 +127,7 @@ const createOrder = async (req, session) => {
   // }
 
   const createdOrder = await Order.create([orderData], { session });
+  // await OrderLogs(createdOrder[0]);
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
@@ -198,6 +199,8 @@ const createOrder = async (req, session) => {
   return createdOrder;
 };
 
+// const OrderLogs = async (req) => {};
+
 const updateStatusOfOrder = async (req) => {
   const { orderId, status } = req.body;
   if (
@@ -211,7 +214,7 @@ const updateStatusOfOrder = async (req) => {
       message: "Not a valid status.",
     });
   }
-  const order = await Order.exists({ _id: orderId });
+  const order = await Order.findOne({ _id: orderId });
 
   if (!order) {
     throwError({
@@ -224,6 +227,11 @@ const updateStatusOfOrder = async (req) => {
     { $set: { status } },
     { new: true }
   ).populate("userId");
+
+  io.to(order.entityId.toString()).emit("orderStatusUpdate", {
+    orderId: order._id,
+    status: status,
+  });
 
   if (
     !updatedOrder?.userId?.fcmToken ||
@@ -914,7 +922,7 @@ const cancelOrder = async (req) => {
   const order = await Order.findOne({
     _id: orderId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-  });
+  }).populate({ path: "entityId", select: "userId", model: "EntityDetails" });
 
   if (!order) {
     throwError({
@@ -945,6 +953,63 @@ const cancelOrder = async (req) => {
     orderId: order._id,
     status: ORDER_STATUS.CANCELLED,
   });
+
+  const payload = {
+    notification: {
+      title: "Order Cancelled.",
+      body: `Order Cancelled. Tap to view details.`,
+    },
+
+    data: {
+      orderId: `${order._id}`,
+      data: JSON.stringify(order),
+      // status: status,
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+
+    token: order.entityId.userId.fcmToken,
+
+    android: {
+      priority: "high",
+      notification: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+    },
+
+    apns: {
+      payload: {
+        aps: {
+          content_available: true,
+          category: "FLUTTER_NOTIFICATION_CLICK",
+          mutableContent: 1,
+          alert: {
+            title: "Order Cancelled.",
+            body: `Order cancelled. Tap to view details.`,
+          },
+        },
+      },
+    },
+  };
+
+  try {
+    await messagingPlus.send(payload);
+    console.info("Notification Pushed");
+  } catch (err) {
+    console.error("Push Notification Error:", err.message);
+
+    if (
+      err.code === "messaging/invalid-argument" ||
+      err.code === "messaging/registration-token-not-registered" ||
+      err.code === "messaging/invalid-recipient"
+    ) {
+      // Remove invalid token from user
+      await User.updateOne(
+        { _id: entityDetails.userId },
+        { $unset: { fcmToken: "" } }
+      );
+    }
+  }
 };
 
 const getEventOrderSummary = async (req) => {
@@ -1063,4 +1128,5 @@ module.exports = {
   getRestaurantOrdersAndCount,
   particularOrderDetailsCustomer,
   getEventOrderSummary,
+  // OrderLogs,
 };

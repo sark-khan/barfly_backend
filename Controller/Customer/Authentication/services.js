@@ -16,6 +16,7 @@ const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
+const notificationSettings = require("../../../Models/notificationSettings");
 
 module.exports.register = async (req) => {
   const {
@@ -35,11 +36,14 @@ module.exports.register = async (req) => {
     countrTag,
   } = req.body;
 
-  const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
+  const userExist = await User.findOne({
+    email,
+    status: STATUS.ACTIVE,
+  }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registerd",
+      message: "Apologies! user already registered with this email.",
     });
   }
   const countrTagExists = await User.findOne({ countrTag });
@@ -81,6 +85,13 @@ module.exports.register = async (req) => {
     // houseNo,
     age: String(age),
     countrTag,
+  });
+
+  await notificationSettings.create({
+    userId: userObj._id,
+    isEmailOn: true,
+    isPushOn: true,
+    isPromotionalOn: true,
   });
 
   delete userObj.password;

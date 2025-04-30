@@ -162,9 +162,9 @@ const validateCoupon = async (couponCode, totalAmount) => {
     throw new Error("Coupon is not valid at this time");
   }
 
-  if (discount.usedCount >= discount.usageLimit) {
-    throw new Error("Coupon usage limit reached");
-  }
+  // if (discount.usedCount >= discount.usageLimit) {
+  //   throw new Error("Coupon usage limit reached");
+  // }
 
   // if (totalAmount < discount.minAmount) {
   //   throw new Error(`Minimum order amount should be ${discount.minAmount}`);

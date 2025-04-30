@@ -27,7 +27,7 @@ const userSchema = new Schema(
     socketId: { type: String },
     // houseNo: { type: String, default: "" },
     age: { type: String },
-    countrTag: { type: String, required: true },
+    countrTag: { type: String },
   },
   { timestamps: true, minimize: false }
 );

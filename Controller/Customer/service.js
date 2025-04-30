@@ -703,10 +703,10 @@ module.exports.getUserDetails = async (req) => {
     _id: userId,
     status: STATUS.ACTIVE,
   });
-  const couterTag = await CountRTags.findOne(
-    { userId },
-    { countRTag: 1, _id: 0 }
-  );
+  // const couterTag = await CountRTags.findOne(
+  //   { userId },
+  //   { countRTag: 1, _id: 0 }
+  // );
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -716,7 +716,7 @@ module.exports.getUserDetails = async (req) => {
 
   return {
     ...userDetails.toObject(),
-    countRTag: couterTag ? couterTag.countRTag : "",
+    // countRTag: couterTag ? couterTag.countRTag : "",
   };
 };
 
@@ -725,6 +725,7 @@ module.exports.updateUserDetails = async (req) => {
     userId,
     body: { email, contactNumber, newPassword, enteredOtp },
   } = req;
+  console.log({ body: req.body });
 
   let message = "";
 
@@ -809,6 +810,16 @@ module.exports.updateUserDetails = async (req) => {
           message: "Invalid OTP or OTP expired.",
         });
       }
+      // if (
+      //   !otpRecord ||
+      //   otpRecord.otp.toString() !== enteredOtp ||
+      //   new Date() > otpRecord.expiresAt
+      // ) {
+      //   throwError({
+      //     status: STATUS_CODES.BAD_REQUEST,
+      //     message: "Invalid OTP or OTP expired.",
+      //   });
+      // }
 
       await Otp.deleteOne({ email });
 
@@ -1126,11 +1137,25 @@ module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
   const query = { entityId, counterIds: counterId };
 
-  const tables = await Tables.findOne(query);
+  const tables = await Tables.findOne(query, {
+    tableCount: 1,
+    counterIds: 1,
+    entityId: 1,
+  }).populate("counterIds");
   if (!tables) {
     return [];
   }
-  return tables;
+  // console.log({ tables: tables.counterIds[1] });
+
+  tables.counterIds.map((counter) => {
+    if (counter._id == counterId && counter.isTableService == true) {
+      return tables;
+    }
+  });
+  throwError({
+    status: STATUS_CODES.NOT_FOUND,
+    message: "Table service for this is turned off",
+  });
 };
 
 module.exports.fetchNotificationSettings = async (req) => {
@@ -1155,7 +1180,7 @@ module.exports.updateNotificationSettings = async (req) => {
   }
 
   await notificationSettings.updateOne(
-    { userId: req.id },
+    { userId: req.userId },
     { $set: updatedValue },
     { upsert: true }
   );
