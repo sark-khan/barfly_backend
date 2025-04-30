@@ -1144,7 +1144,6 @@ module.exports.getTablesUserSide = async (req) => {
   })
     .populate({
       path: "counterIds",
-      select: { isTableService: 1 },
       model: "Counter",
     })
     .lean();
