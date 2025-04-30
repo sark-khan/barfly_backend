@@ -1141,21 +1141,33 @@ module.exports.getTablesUserSide = async (req) => {
     tableCount: 1,
     counterIds: 1,
     entityId: 1,
-  }).populate("counterIds");
+  })
+    .populate({
+      path: "counterIds",
+      select: { isTableService: 1 },
+      model: "Counter",
+    })
+    .lean();
+
   if (!tables) {
     return [];
   }
-  // console.log({ tables: tables.counterIds[1] });
+  // console.log("reache dehr ehr vef[ier");
+  // if (tables.isTableService) {
+  //   console.log("eache dher er");
+  //   return tables;
+  // }
 
-  tables.counterIds.map((counter) => {
+  console.log({ tables });
+  const tablesRes = [];
+  tables.counterIds.forEach((counter) => {
     if (counter._id == counterId && counter.isTableService == true) {
-      return tables;
+      tablesRes.push(tables);
     }
+    // return false;
   });
-  throwError({
-    status: STATUS_CODES.NOT_FOUND,
-    message: "Table service for this is turned off",
-  });
+
+  return tablesRes;
 };
 
 module.exports.fetchNotificationSettings = async (req) => {
