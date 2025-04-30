@@ -221,12 +221,12 @@ module.exports.login = async (req) => {
       message: "Entity not found.",
     });
 
-  if (user.role !== ROLES.STORE_OWNER) {
-    throwError({
-      status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Only owners can log in",
-    });
-  }
+  // if (user.role !== ROLES.STORE_OWNER) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_AUTHORIZED,
+  //     message: "Only owners can log in",
+  //   });
+  // }
 
   if (password) {
     const isPasswordValid = await comparePassword(password, user.password);
