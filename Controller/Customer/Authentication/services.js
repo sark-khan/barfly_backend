@@ -39,7 +39,6 @@ module.exports.register = async (req) => {
   const userExist = await User.findOne({
     email,
     status: STATUS.ACTIVE,
-    role: ROLES.CUSTOMER,
   }).lean();
   if (userExist) {
     throwError({
@@ -124,12 +123,12 @@ module.exports.login = async (req) => {
     });
   }
 
-  // if (user.role !== ROLES.CUSTOMER) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_AUTHORIZED,
-  //     message: "Only Customers can log in",
-  //   });
-  // }
+  if (user.role !== ROLES.CUSTOMER) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "Only Customers can log in",
+    });
+  }
 
   const isPasswordValid = await comparePassword(password, user.password);
   if (!isPasswordValid) {

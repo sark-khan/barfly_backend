@@ -47,7 +47,7 @@ module.exports.register = async (req) => {
     },
   } = req;
 
-  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  const query = { status: STATUS.ACTIVE };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
 
@@ -221,12 +221,12 @@ module.exports.login = async (req) => {
       message: "Entity not found.",
     });
 
-  // if (user.role !== ROLES.STORE_OWNER) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_AUTHORIZED,
-  //     message: "Only owners can log in",
-  //   });
-  // }
+  if (user.role !== ROLES.STORE_OWNER) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: "Only owners can log in",
+    });
+  }
 
   if (password) {
     const isPasswordValid = await comparePassword(password, user.password);
