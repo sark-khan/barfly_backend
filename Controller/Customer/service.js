@@ -284,7 +284,7 @@ module.exports.counterList = async (req) => {
   }
   const counters = await Counter.find(
     query,
-    { counterName: 1, totalTables: 1 },
+    { counterName: 1, totalTables: 1, isTableService: 1 },
     { sort: { _id: -1 }, lean: true }
   );
   const counterIds = counters.map((counter) => ObjectId(counter._id));
