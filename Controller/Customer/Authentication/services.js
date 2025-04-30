@@ -36,7 +36,11 @@ module.exports.register = async (req) => {
     countrTag,
   } = req.body;
 
-  const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
+  const userExist = await User.findOne({
+    email,
+    status: STATUS.ACTIVE,
+    role: ROLES.CUSTOMER,
+  }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,

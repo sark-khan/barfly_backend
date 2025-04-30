@@ -47,7 +47,7 @@ module.exports.register = async (req) => {
     },
   } = req;
 
-  const query = { status: STATUS.ACTIVE };
+  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
 
