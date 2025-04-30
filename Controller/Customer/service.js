@@ -800,19 +800,9 @@ module.exports.updateUserDetails = async (req) => {
       return (message = "OTP sent to your new email.");
     } else {
       const otpRecord = await Otp.findOne({ email });
-      // if (
-      //   !otpRecord ||
-      //   otpRecord.otp !== enteredOtp ||
-      //   new Date() > otpRecord.expiresAt
-      // ) {
-      //   throwError({
-      //     status: STATUS_CODES.BAD_REQUEST,
-      //     message: "Invalid OTP or OTP expired.",
-      //   });
-      // }
       if (
         !otpRecord ||
-        otpRecord.otp.toString() !== enteredOtp ||
+        otpRecord.otp !== enteredOtp ||
         new Date() > otpRecord.expiresAt
       ) {
         throwError({
@@ -820,6 +810,16 @@ module.exports.updateUserDetails = async (req) => {
           message: "Invalid OTP or OTP expired.",
         });
       }
+      // if (
+      //   !otpRecord ||
+      //   otpRecord.otp.toString() !== enteredOtp ||
+      //   new Date() > otpRecord.expiresAt
+      // ) {
+      //   throwError({
+      //     status: STATUS_CODES.BAD_REQUEST,
+      //     message: "Invalid OTP or OTP expired.",
+      //   });
+      // }
 
       await Otp.deleteOne({ email });
 
