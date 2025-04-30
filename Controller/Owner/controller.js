@@ -716,9 +716,9 @@ router.post("/email-exist", async (req, res) => {
     const data = await emailExist(req);
     return res
       .status(STATUS_CODES.OK)
-      .json({ message: "Emails fetched successfully.", data });
+      .json({ message: "Data fetched successfully.", data });
   } catch (error) {
-    console.error("Error while fetching the emails.", error);
+    console.error("Error while fetching the data.", error);
     return res
       .status(STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
