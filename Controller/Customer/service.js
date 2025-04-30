@@ -725,6 +725,7 @@ module.exports.updateUserDetails = async (req) => {
     userId,
     body: { email, contactNumber, newPassword, enteredOtp },
   } = req;
+  console.log({ body: req.body });
 
   let message = "";
 
