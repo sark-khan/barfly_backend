@@ -43,7 +43,7 @@ module.exports.register = async (req) => {
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registerd",
+      message: "Apologies! user already registered with this email.",
     });
   }
   const countrTagExists = await User.findOne({ countrTag });
