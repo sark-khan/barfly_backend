@@ -61,6 +61,7 @@ module.exports.register = async (req) => {
   }
 
   let message = "";
+  let otpVerified = false;
 
   let otpRecord = await Otp.findOne({ contactNumber });
 
@@ -81,7 +82,7 @@ module.exports.register = async (req) => {
   }
 
   if (otpRecord) {
-    if (otpRecord.expiresAt < Date.now()) {
+    if (otpRecord.expiresAt < Date.now() && otpVerified) {
       await Otp.deleteOne({ contactNumber });
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
