@@ -421,12 +421,16 @@ const getStripeAccount = async (req) => {
     });
 
     return {
-      account,
-      bankAccounts: bankAccounts.data,
+      account: account || [],
+      bankAccounts: bankAccounts?.data || [],
     };
   } catch (err) {
     console.error("Error fetching Stripe account:", err);
-    throw err;
+    return {
+      account: null,
+      bankAccounts: [],
+      error: err.message,
+    };
   }
 };
 
