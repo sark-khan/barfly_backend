@@ -19,7 +19,7 @@ eventQueue.process(async (job, done) => {
     });
 
     if (upcomingEvents.length === 0) {
-      console.log("⏱️ No events in the next 5 minutes");
+      console.log("⏱️ No events in the next 2 minutes");
       return done();
     }
 
