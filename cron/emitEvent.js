@@ -52,7 +52,7 @@
 
 // module.exports = emitOngoingEvents;
 
-const { client } = require("./redis");
+const client = require("../redis");
 const moment = require("moment");
 
 const emitOngoingEvents = async (io) => {
@@ -74,3 +74,5 @@ const emitOngoingEvents = async (io) => {
     console.error("Emit error:", err.message);
   }
 };
+
+module.exports = emitOngoingEvents;
