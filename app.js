@@ -4,7 +4,8 @@ require("./redis");
 require("./cron/emitEvent");
 require("./server");
 require("./Utils/bullQueue");
-const setupCron = require("./cron/cron");
+require("./Utils/emitProcessor");
+// const setupCron = require("./cron/cron");
 
 const path = require("path");
 const app = express();
@@ -13,6 +14,7 @@ const cors = require("cors");
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
+const { setIo } = require("./Utils/socket");
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -26,7 +28,9 @@ const io = new Server(server, {
 
 const { orderSocket } = require("./server");
 orderSocket(io);
-setupCron(io);
+setIo(io);
+
+// setupCron(io);
 module.exports = { io };
 
 const orderController = require("./Controller/orderController");

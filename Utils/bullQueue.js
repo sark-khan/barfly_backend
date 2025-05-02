@@ -11,33 +11,31 @@ const eventQueue = new Queue("event-checker", {
 
 eventQueue.process(async (job, done) => {
   try {
-    const now = new Date();
-    const fiveMinutesLater = new Date(now.getTime() + 1 * 60000); // 5 minutes later
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const dayAfter = new Date(tomorrow);
+    dayAfter.setDate(dayAfter.getDate() + 1);
 
     const upcomingEvents = await Event.find({
-      from: { $gte: now, $lte: fiveMinutesLater },
+      from: { $gte: tomorrow, $lt: dayAfter },
     });
 
     if (upcomingEvents.length === 0) {
-      console.log("⏱️ No events in the next 2 minutes");
+      console.log("🌙 No events scheduled for tomorrow");
       return done();
     }
 
-    // Cache each event using event ID and start time
     for (const event of upcomingEvents) {
       const eventKey = `upcoming_event:${event._id}`;
-      const isCached = await client.exists(eventKey);
-      if (!isCached) {
-        await client.set(eventKey, JSON.stringify(event), "EX", 600); // expire in 10 min
-        console.log(`✅ Cached event starting soon: ${event.eventName}`);
-      } else {
-        console.log(`🟡 Event already cached: ${event.eventName}`);
-      }
+      await client.set(eventKey, JSON.stringify(event), "EX", 60 * 60 * 24); // 24h TTL
+      console.log(`✅ Cached tomorrow's event: ${event.eventName}`);
     }
 
     done();
   } catch (err) {
-    console.error("❌ Error caching upcoming events:", err);
+    console.error("❌ Error caching tomorrow's events:", err);
     done(err);
   }
 });

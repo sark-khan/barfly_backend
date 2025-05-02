@@ -1,27 +1,25 @@
-const cron = require("node-cron");
-const emitOngoingEvents = require("./emitEvent");
-const eventQueue = require("../Utils/bullQueue");
+// const cron = require("node-cron");
+// const emitOngoingEvents = require("./emitEvent");
+// const eventQueue = require("../Utils/bullQueue");
 
-let ioInstance = null;
+// let ioInstance = null;
 
-const setupCron = (io) => {
-  ioInstance = io;
+// const setupCron = (io) => {
+//   ioInstance = io;
 
-  cron.schedule("* * * * *", async () => {
-    console.log("Running cron to emit events...");
+//   cron.schedule("0 0 * * *", async () => {
+//     console.log("Running midnight cron to emit and cache events...");
 
-    // 1. Emit active events via socket
-    emitOngoingEvents(ioInstance);
+//     emitOngoingEvents(ioInstance);
 
-    // 2. Cache upcoming events via Bull queue
-    await eventQueue.add(
-      {},
-      {
-        removeOnComplete: true,
-        removeOnFail: true,
-      }
-    );
-  });
-};
+//     await eventQueue.add(
+//       {},
+//       {
+//         removeOnComplete: true,
+//         removeOnFail: true,
+//       }
+//     );
+//   });
+// };
 
-module.exports = setupCron;
+// module.exports = setupCron;
