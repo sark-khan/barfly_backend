@@ -1014,8 +1014,6 @@ module.exports.getOngoingEventDetails = async (req) => {
     })
     .lean();
 
-  console.log("Fetched Events:", events);
-
   const eventDetailsMap = new Map();
 
   const ongoingEvents = events.filter((event) => {
