@@ -1214,6 +1214,13 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
     })
     .sort({ from: -1 });
 
+  events.map((event) => {
+    if (event.image) {
+      event.image = generatePresignedUrl(event.image);
+    }
+    return event;
+  });
+
   const pastEvents = events.filter((event) => new Date(event.to) < currentDate);
 
   const eventsWithOrders = await Promise.all(
@@ -1223,7 +1230,7 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
     })
   );
 
-  return eventsWithOrders;
+  return { events: eventsWithOrders };
 };
 
 module.exports.getCounterAndCategory = async (req) => {
