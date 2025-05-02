@@ -1,8 +1,10 @@
 const express = require("express");
 require("./db");
 require("./redis");
-require("./cron");
+require("./cron/emitEvent");
 require("./server");
+const setupCron = require("./cron/cron");
+
 const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
@@ -23,6 +25,7 @@ const io = new Server(server, {
 
 const { orderSocket } = require("./server");
 orderSocket(io);
+setupCron(io);
 module.exports = { io };
 
 const orderController = require("./Controller/orderController");
@@ -64,7 +67,6 @@ const unProtectedApis = {
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
 
-  "/api/stripe/account-link": true,
   "/api/stripe/get-stripe-accounts": true,
 };
 
