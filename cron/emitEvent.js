@@ -53,7 +53,6 @@
 // module.exports = emitOngoingEvents;
 
 const client = require("../redis");
-const moment = require("moment");
 
 const emitOngoingEvents = async (io) => {
   try {
