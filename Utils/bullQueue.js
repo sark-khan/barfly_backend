@@ -1,7 +1,6 @@
 const Queue = require("bull");
-const client = require("./../redis");
+const client = require("../redis");
 const Event = require("../Models/Event");
-// const { client } = require("../redis");
 
 const eventQueue = new Queue("event-checker", {
   redis: {
@@ -12,29 +11,33 @@ const eventQueue = new Queue("event-checker", {
 
 eventQueue.process(async (job, done) => {
   try {
-    // Get today's date (in GMT) and set it to midnight for tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const fiveMinutesLater = new Date(now.getTime() + 5 * 60000); // 5 minutes later
 
-    const dayAfter = new Date(tomorrow);
-    dayAfter.setDate(tomorrow.getDate() + 1);
-
-    // Query for events happening tomorrow
-    const events = await Event.find({
-      from: { $gte: tomorrow, $lt: dayAfter },
+    const upcomingEvents = await Event.find({
+      from: { $gte: now, $lte: fiveMinutesLater },
     });
 
-    // Save events to Redis
-    await client.set(
-      `events:${tomorrow.toISOString().split("T")[0]}`,
-      JSON.stringify(events)
-    );
+    if (upcomingEvents.length === 0) {
+      console.log("⏱️ No events in the next 5 minutes");
+      return done();
+    }
 
-    console.log("Cached tomorrow's events in Redis");
+    // Cache each event using event ID and start time
+    for (const event of upcomingEvents) {
+      const eventKey = `upcoming_event:${event._id}`;
+      const isCached = await client.exists(eventKey);
+      if (!isCached) {
+        await client.set(eventKey, JSON.stringify(event), "EX", 600); // expire in 10 min
+        console.log(`✅ Cached event starting soon: ${event.eventName}`);
+      } else {
+        console.log(`🟡 Event already cached: ${event.eventName}`);
+      }
+    }
+
     done();
   } catch (err) {
-    console.error("Error caching tomorrow's events", err);
+    console.error("❌ Error caching upcoming events:", err);
     done(err);
   }
 });
