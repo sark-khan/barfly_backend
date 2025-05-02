@@ -12,7 +12,7 @@ const eventQueue = new Queue("event-checker", {
 eventQueue.process(async (job, done) => {
   try {
     const now = new Date();
-    const fiveMinutesLater = new Date(now.getTime() + 5 * 60000); // 5 minutes later
+    const fiveMinutesLater = new Date(now.getTime() + 2 * 60000); // 5 minutes later
 
     const upcomingEvents = await Event.find({
       from: { $gte: now, $lte: fiveMinutesLater },

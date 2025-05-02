@@ -3,6 +3,7 @@ require("./db");
 require("./redis");
 require("./cron/emitEvent");
 require("./server");
+require("./Utils/bullQueue");
 const setupCron = require("./cron/cron");
 
 const path = require("path");
