@@ -994,6 +994,9 @@ module.exports.getDistinctYears = async (req) => {
 
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
+  let currentUTCday = currentTime.getUTCDay();
+
+  currentUTCday = currentUTCday === 0 ? 6 : currentUTCday - 1;
 
   const events = await Event.find(
     {
@@ -1011,26 +1014,26 @@ module.exports.getOngoingEventDetails = async (req) => {
     })
     .lean();
 
+  console.log("Fetched Events:", events);
+
   const eventDetailsMap = new Map();
 
   const ongoingEvents = events.filter((event) => {
     if (event.isRepetitive) {
-      const currentUTCday = currentTime.getUTCDay();
-
       if (
         !Array.isArray(event.repetitiveDays) ||
         event.repetitiveDays.length !== 7
       ) {
-        return false;
+        console.log(
+          `Treating non-repetitive event (invalid repetitiveDays): ${event.eventName}`
+        );
+        return true;
       }
 
-      // const adjustedRepetitiveDays = [
-      //   event.repetitiveDays[6],
-      //   ...event.repetitiveDays.slice(0, 6),
-      // ];
-      // console.log({adjustedRepetitiveDays});
-
       if (event.repetitiveDays[currentUTCday] !== 1) {
+        console.log(
+          `Skipping event as it doesn't repeat today: ${event.eventName}`
+        );
         return false;
       }
     }
