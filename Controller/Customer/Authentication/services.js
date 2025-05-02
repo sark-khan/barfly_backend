@@ -39,6 +39,7 @@ module.exports.register = async (req) => {
   const userExist = await User.findOne({
     email,
     status: STATUS.ACTIVE,
+    role: ROLES.CUSTOMER,
   }).lean();
   if (userExist) {
     throwError({
@@ -112,7 +113,7 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email, status: STATUS.ACTIVE },
+    { email, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
     userProjection
   ).lean();
 
