@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const emitOngoingEvents = require("./emitEvent");
-const eventQueue = require("./queues/eventQueue");
+const eventQueue = require("../Utils/bullQueue");
 
 let ioInstance = null;
 
