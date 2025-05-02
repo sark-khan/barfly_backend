@@ -1,9 +1,7 @@
-const Queue = require("bull");
+const Queue = require("bull"); // Ensure Queue is imported
+const { getIo } = require("./socket"); // Assuming this gives you access to the Socket.IO instance
 const client = require("../redis");
 
-const { getIo } = require("./socket");
-
-// A function to process and emit events from Bull queue
 const emitEventQueue = new Queue("event-emitter", {
   redis: {
     host: "127.0.0.1",
@@ -11,13 +9,13 @@ const emitEventQueue = new Queue("event-emitter", {
   },
 });
 
+// Processing job for emitting events
 emitEventQueue.process(async (job, done) => {
   try {
     const { eventId } = job.data; // The event ID passed to the job
-
     console.log(`🛠️ Processing job to emit event with ID: ${eventId}`);
 
-    // Get the global io instance
+    // Get the global socket.io instance
     const io = getIo();
 
     if (!io) {
@@ -37,9 +35,14 @@ emitEventQueue.process(async (job, done) => {
     const event = JSON.parse(eventData);
     console.log(`📢 Retrieved event: ${event.eventName}`);
 
-    // Check if the event is ongoing (match event start time with current time)
+    // Check if the event's start time matches the current time
     const currentTime = new Date();
-    const eventStartTime = new Date(event.from); // assuming 'from' is the event start time
+    const eventStartTime = new Date(event.from);
+
+    // Log the comparison for debugging
+    console.log(
+      `Current time: ${currentTime.toISOString()}\nEvent start time: ${eventStartTime.toISOString()}`
+    );
 
     if (
       eventStartTime.getUTCDay() === currentTime.getUTCDay() &&
@@ -49,10 +52,8 @@ emitEventQueue.process(async (job, done) => {
       console.log(
         `📢 Emitting event "${event.eventName}" to room: ${event.entityId}`
       );
-
-      const room = event.entityId.toString(); // Assuming each event is emitted to a room identified by entityId
+      const room = event.entityId.toString();
       io.to(room).emit("ongoingEvent", event); // Emit the event via socket to the specific room
-
       console.log(`✅ Event "${event.eventName}" emitted to socket.`);
     } else {
       console.log("⏳ Event is not yet due for emission.");
@@ -61,7 +62,7 @@ emitEventQueue.process(async (job, done) => {
     done(); // Mark the job as complete
   } catch (err) {
     console.error("❌ Error processing job", err);
-    done(err); // Pass error to done() to mark job as failed
+    done(err); // Pass error to done() to mark the job as failed
   }
 });
 
