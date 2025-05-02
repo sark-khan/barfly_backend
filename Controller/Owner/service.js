@@ -1215,9 +1215,10 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
     .sort({ from: -1 });
 
   events.map((event) => {
-    if (event.image) {
-      event.image = generatePresignedUrl(event.image);
+    if (!event.image) {
+      return event;
     }
+    event.image = generatePresignedUrl(event.image);
     return event;
   });
 
@@ -1230,7 +1231,7 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
     })
   );
 
-  return { events: eventsWithOrders };
+  return eventsWithOrders;
 };
 
 module.exports.getCounterAndCategory = async (req) => {
