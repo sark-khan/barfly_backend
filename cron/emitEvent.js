@@ -56,34 +56,44 @@ const client = require("../redis");
 
 const emitOngoingEvents = async (io) => {
   try {
-    // Get current time in GMT
     const now = new Date();
     const currentTime = new Date(
       now.getTime() + now.getTimezoneOffset() * 60000
-    ); // Convert to UTC time
+    ); // Convert to UTC
+    console.log("🕐 Current UTC Time:", currentTime.toISOString());
 
-    const events = await client.get(
-      `events:${currentTime.toISOString().split("T")[0]}`
-    );
+    // 1. Get all cached upcoming event keys
+    const keys = await client.keys("upcoming_event:*");
+    console.log(`🔍 Found ${keys.length} upcoming cached events`);
 
-    if (events) {
-      const parsedEvents = JSON.parse(events);
+    for (const key of keys) {
+      const eventData = await client.get(key);
+      if (!eventData) continue;
 
-      parsedEvents.forEach((event) => {
-        // Check if the event's 'from' time is the same as the current time
-        const eventStartTime = new Date(event.from);
-        if (
-          eventStartTime.getUTCDay() === currentTime.getUTCDay() &&
-          eventStartTime.getUTCHours() === currentTime.getUTCHours() &&
-          eventStartTime.getUTCMinutes() === currentTime.getUTCMinutes()
-        ) {
-          console.log("Emitting event:", event);
-          io.to(event.entityId.toString()).emit("ongoingEvent", event);
-        }
-      });
+      const event = JSON.parse(eventData);
+      const eventStart = new Date(event.from);
+
+      const sameMinute =
+        eventStart.getUTCHours() === currentTime.getUTCHours() &&
+        eventStart.getUTCMinutes() === currentTime.getUTCMinutes();
+
+      if (sameMinute) {
+        console.log(
+          `🚀 Emitting event '${
+            event.eventName
+          }' at ${eventStart.toISOString()}`
+        );
+        io.to(event.entityId.toString()).emit("ongoingEvent", event);
+      } else {
+        console.log(
+          `⏳ Not time yet for '${
+            event.eventName
+          }' -> Starts at ${eventStart.toISOString()}`
+        );
+      }
     }
   } catch (err) {
-    console.error("Error emitting ongoing events:", err);
+    console.error("❌ Error emitting ongoing events:", err);
   }
 };
 
