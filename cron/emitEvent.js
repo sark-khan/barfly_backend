@@ -52,37 +52,25 @@
 
 // module.exports = emitOngoingEvents;
 
-const client = require("../redis");
+const { client } = require("./redis");
+const moment = require("moment");
 
 const emitOngoingEvents = async (io) => {
   try {
-    const now = new Date();
-    now.setSeconds(0, 0); // Normalize to the current minute
+    const now = moment.utc().startOf("minute"); // current UTC minute
+    const todayKey = `events:${now.format("YYYY-MM-DD")}`;
 
-    const dateKey = now.toISOString().split("T")[0]; // 'YYYY-MM-DD'
-    const redisKey = `events:${dateKey}`;
+    const data = await client.get(todayKey);
+    const events = JSON.parse(data || "[]");
 
-    const cachedData = await client.get(redisKey);
-    const events = cachedData ? JSON.parse(cachedData) : [];
-
-    events.forEach((event) => {
-      const eventTime = new Date(event.from);
-      eventTime.setSeconds(0, 0); // Normalize to minute precision
-
-      if (eventTime.getTime() === now.getTime()) {
-        const roomId = event.entityId || "default-room";
-        io.to(roomId.toString()).emit("event:start", {
-          message: "Event is starting",
-          event,
-        });
-        console.log(
-          `🔔 Emitted event for room ${roomId} at ${now.toISOString()}`
-        );
+    for (const event of events) {
+      const eventTime = moment.utc(event.from).startOf("minute");
+      if (eventTime.isSame(now)) {
+        console.log(">>> Emitting event to room:", event.entityId);
+        io.to(event.entityId.toString()).emit("event:start", event);
       }
-    });
-  } catch (error) {
-    console.error("Error in emitOngoingEvents:", error);
+    }
+  } catch (err) {
+    console.error("Emit error:", err.message);
   }
 };
-
-module.exports = emitOngoingEvents;

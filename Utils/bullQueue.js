@@ -1,5 +1,4 @@
 const Queue = require("bull");
-const { redisClient } = require("./../redis");
 const Event = require("../Models/Event");
 const { client } = require("../redis");
 
@@ -12,26 +11,31 @@ const eventQueue = new Queue("event-checker", {
 
 eventQueue.process(async (job, done) => {
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    // Get today's date in UTC
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
 
-    const dayAfter = new Date(tomorrow);
-    dayAfter.setDate(tomorrow.getDate() + 1);
+    const endOfDay = new Date(today);
+    endOfDay.setUTCDate(today.getUTCDate() + 1);
 
+    // Find all events for today based on `from` field (assumed to be in GMT)
     const events = await Event.find({
-      from: { $gte: tomorrow, $lt: dayAfter },
+      from: {
+        $gte: today,
+        $lt: endOfDay,
+      },
     });
 
-    await client.set(
-      `events:${tomorrow.toISOString().split("T")[0]}`,
-      JSON.stringify(events)
-    );
+    // Cache the events in Redis with key like: events:2025-04-28
+    const redisKey = `events:${today.toISOString().split("T")[0]}`;
+    await client.set(redisKey, JSON.stringify(events));
 
-    console.log("Cached tomorrow's events in Redis");
+    console.log(
+      `✅ Cached ${events.length} event(s) for today in Redis with key: ${redisKey}`
+    );
     done();
   } catch (err) {
-    console.error("Error caching tomorrow's events", err);
+    console.error("❌ Error caching today's events in Redis:", err);
     done(err);
   }
 });
