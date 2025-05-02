@@ -57,21 +57,34 @@ const moment = require("moment");
 
 const emitOngoingEvents = async (io) => {
   try {
-    const now = moment.utc().startOf("minute"); // current UTC minute
-    const todayKey = `events:${now.format("YYYY-MM-DD")}`;
+    // Get current time in GMT
+    const now = new Date();
+    const currentTime = new Date(
+      now.getTime() + now.getTimezoneOffset() * 60000
+    ); // Convert to UTC time
 
-    const data = await client.get(todayKey);
-    const events = JSON.parse(data || "[]");
+    const events = await client.get(
+      `events:${currentTime.toISOString().split("T")[0]}`
+    );
 
-    for (const event of events) {
-      const eventTime = moment.utc(event.from).startOf("minute");
-      if (eventTime.isSame(now)) {
-        console.log(">>> Emitting event to room:", event.entityId);
-        io.to(event.entityId.toString()).emit("event:start", event);
-      }
+    if (events) {
+      const parsedEvents = JSON.parse(events);
+
+      parsedEvents.forEach((event) => {
+        // Check if the event's 'from' time is the same as the current time
+        const eventStartTime = new Date(event.from);
+        if (
+          eventStartTime.getUTCDay() === currentTime.getUTCDay() &&
+          eventStartTime.getUTCHours() === currentTime.getUTCHours() &&
+          eventStartTime.getUTCMinutes() === currentTime.getUTCMinutes()
+        ) {
+          console.log("Emitting event:", event);
+          io.to(event.entityId.toString()).emit("ongoingEvent", event);
+        }
+      });
     }
   } catch (err) {
-    console.error("Emit error:", err.message);
+    console.error("Error emitting ongoing events:", err);
   }
 };
 
