@@ -138,8 +138,8 @@ const createOrder = async (req, session) => {
         body: `New Order Received. Tap to view details.`,
       },
       data: {
-        orderId: `${createdOrder[0]._id}`,
-        data: JSON.stringify(createdOrder[0]),
+        orderId: createdOrder._id.toString(),
+        data: JSON.stringify(createdOrder),
         screen: "landing_home",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
