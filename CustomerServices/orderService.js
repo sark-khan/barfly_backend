@@ -38,8 +38,8 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     if (!item.inStock) {
       throwError({
-        status: STATUS_CODES.BAD_REQUEST,
         message: `Item ${item.itemName} is out of Stock`,
+        status: STATUS_CODES.BAD_REQUEST,
       });
     }
     itemNameMapper[`${item._id}`] = item;
@@ -92,6 +92,7 @@ const createOrder = async (req, session) => {
 
   const originalAmount = amount;
   let discountAmount = 0;
+
   if (couponCode) {
     const couponValidation = await validateCoupon(couponCode, originalAmount);
     discountAmount = couponValidation.discountAmount;
@@ -118,81 +119,81 @@ const createOrder = async (req, session) => {
     platformFees: global.PLATFORM_FEES,
   };
 
-  const [createdOrder] = await Order.create([orderData], { session });
+  // if (tableNo) {
+  //   await Counter.findOneAndUpdate(
+  //     { _id: counterId, tableNo },
+  //     { $set: { tableStatus: TABLE_STATUS.OCCUPIED } }
+  //   );
+  // }
 
+  const createdOrder = await Order.create([orderData], { session });
+  // await OrderLogs(createdOrder[0]);
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
+  ``;
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
 
-  const ownerId = entityDetails.owner;
-  const owner = await User.findOne({ _id: ownerId }, { fcmToken: 1 });
-  const tokens = Array.isArray(owner.fcmToken) ? owner.fcmToken : [];
+  if (!entityDetails.owner.fcmToken) {
+    return createdOrder;
+  }
 
-  if (tokens.length > 0) {
-    const messages = tokens.map((token) => ({
-      token,
+  const payload = {
+    notification: {
+      title: "Order Received",
+      body: `New Order Received. Tap to view details.`,
+    },
+
+    data: {
+      orderId: `${createdOrder[0]._id}`,
+      data: JSON.stringify(createdOrder[0]),
+      // status: status,
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+
+    token: entityDetails.owner.fcmToken,
+
+    android: {
+      priority: "high",
       notification: {
-        title: "Order Received",
-        body: `New Order Received. Tap to view details.`,
-      },
-      data: {
-        orderId: createdOrder._id.toString(),
-        data: JSON.stringify(createdOrder),
-        screen: "landing_home",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-      android: {
-        priority: "high",
-        notification: { click_action: "FLUTTER_NOTIFICATION_CLICK" },
-      },
-      apns: {
-        payload: {
-          aps: {
-            content_available: true,
-            category: "FLUTTER_NOTIFICATION_CLICK",
-            mutableContent: 1,
-            alert: {
-              title: "Order Received",
-              body: `New order received. Tap to view details.`,
-            },
+    },
+
+    apns: {
+      payload: {
+        aps: {
+          content_available: true,
+          category: "FLUTTER_NOTIFICATION_CLICK",
+          mutableContent: 1,
+          alert: {
+            title: "Order Received ",
+            body: `New order received. Tap to view details.`,
           },
         },
       },
-    }));
+    },
+  };
 
-    try {
-      const response = await messagingPlus.sendEach(messages);
-      console.info(
-        `FCM: ${response.successCount} sent, ${response.failureCount} failed`
+  try {
+    await messagingPlus.send(payload);
+    console.info("Notification Pushed");
+  } catch (err) {
+    console.error("Push Notification Error:", err.message);
+
+    if (
+      err.code === "messaging/invalid-argument" ||
+      err.code === "messaging/registration-token-not-registered" ||
+      err.code === "messaging/invalid-recipient"
+    ) {
+      // Remove invalid token from user
+      await User.updateOne(
+        { _id: entityDetails.userId },
+        { $unset: { fcmToken: "" } }
       );
-
-      const invalidTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const code = resp.error.code;
-          if (
-            code === "messaging/invalid-argument" ||
-            code === "messaging/registration-token-not-registered" ||
-            code === "messaging/invalid-recipient"
-          ) {
-            invalidTokens.push(tokens[idx]);
-          }
-        }
-      });
-      if (invalidTokens.length) {
-        await User.updateOne(
-          { _id: ownerId },
-          { $pull: { fcmToken: { $in: invalidTokens } } }
-        );
-        console.warn("Removed invalid FCM tokens:", invalidTokens);
-      }
-    } catch (err) {
-      console.error("FCM sendEach error:", err);
     }
-  } else {
-    console.log("No FCM tokens for owner, skipping push");
   }
 
   return createdOrder;
