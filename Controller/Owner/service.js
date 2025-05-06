@@ -115,13 +115,10 @@ module.exports.createCounter = async (req) => {
     status: STATUS.ACTIVE,
   });
 
-  // const user = await User.findOne(
-  //   {
-  //     userId: req.userId,
-  //     fcmToken: { $exists: true, $ne: null },
-  //   },
-  //   { fcmToken: 1 }
-  // );
+  const owner = await User.findOne(
+    { _id: newCounter.ownerId, fcmToken: { $exists: true, $ne: null } },
+    { fcmToken: 1 }
+  );
 
   const payload = {
     notification: {
@@ -133,7 +130,7 @@ module.exports.createCounter = async (req) => {
       entityId: req.entityId.toString(),
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
-    token: newCounter.ownerId.fcmToken,
+    token: owner.fcmToken,
 
     android: {
       priority: "high",
@@ -155,13 +152,12 @@ module.exports.createCounter = async (req) => {
       },
     },
   };
-  console.log({ payload });
 
   try {
     await messagingPlus.send(payload);
     console.log("Notification Pusheddddd");
   } catch (err) {
-    console.error("FCM multicast push failed:", err);
+    console.error("FCM push failed:", err);
   }
 
   return newCounter.toObject();
