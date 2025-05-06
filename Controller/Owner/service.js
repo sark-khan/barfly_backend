@@ -34,6 +34,8 @@ const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
 const { path } = require("pdfkit");
 const { io } = require("../../app");
+const { messaging } = require("firebase-admin");
+const { messagingPlus } = require("../../firebaseAdmin");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -71,13 +73,6 @@ module.exports.createCounter = async (req) => {
     };
   }
 
-  // if (existingCounter.tableSectionName === tableSectionName) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "Table with this name already exists.",
-  //   });
-  // }
-
   if (Number(tableFrom) >= Number(tableTo)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -107,6 +102,7 @@ module.exports.createCounter = async (req) => {
     { entityId: req.entityId },
     { tableSetionNo: 1 }
   ).sort({ createdAt: -1 });
+
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
 
   await Tables.create({
@@ -118,6 +114,51 @@ module.exports.createCounter = async (req) => {
     tableSetionNo: newTableSectionNo,
     status: STATUS.ACTIVE,
   });
+
+  const owner = await User.findOne(
+    { _id: newCounter.ownerId, fcmToken: { $exists: true, $ne: null } },
+    { fcmToken: 1 }
+  );
+
+  const payload = {
+    notification: {
+      title: "New Counter Created",
+      body: `Counter "${counterName}" is now available.`,
+    },
+    data: {
+      screen: "counter",
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+    token: owner.fcmToken,
+
+    android: {
+      priority: "high",
+      notification: {
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          content_available: true,
+          alert: {
+            title: "New Counter Created",
+            body: `Counter "${counterName}" is now available.`,
+          },
+          category: "FLUTTER_NOTIFICATION_CLICK",
+          mutableContent: 1,
+        },
+      },
+    },
+  };
+
+  try {
+    await messagingPlus.send(payload);
+    console.log("Notification Pusheddddd");
+  } catch (err) {
+    console.error("FCM push failed:", err);
+  }
 
   return newCounter.toObject();
 };
@@ -994,6 +1035,9 @@ module.exports.getDistinctYears = async (req) => {
 
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
+  let currentUTCday = currentTime.getUTCDay();
+
+  currentUTCday = currentUTCday === 0 ? 6 : currentUTCday - 1;
 
   const events = await Event.find(
     {
@@ -1015,22 +1059,20 @@ module.exports.getOngoingEventDetails = async (req) => {
 
   const ongoingEvents = events.filter((event) => {
     if (event.isRepetitive) {
-      const currentUTCday = currentTime.getUTCDay();
-
       if (
         !Array.isArray(event.repetitiveDays) ||
         event.repetitiveDays.length !== 7
       ) {
-        return false;
+        console.log(
+          `Treating non-repetitive event (invalid repetitiveDays): ${event.eventName}`
+        );
+        return true;
       }
 
-      // const adjustedRepetitiveDays = [
-      //   event.repetitiveDays[6],
-      //   ...event.repetitiveDays.slice(0, 6),
-      // ];
-      // console.log({adjustedRepetitiveDays});
-
       if (event.repetitiveDays[currentUTCday] !== 1) {
+        console.log(
+          `Skipping event as it doesn't repeat today: ${event.eventName}`
+        );
         return false;
       }
     }
@@ -1212,6 +1254,14 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
       model: "Counter",
     })
     .sort({ from: -1 });
+
+  events.map((event) => {
+    if (!event.image) {
+      return event;
+    }
+    event.image = generatePresignedUrl(event.image);
+    return event;
+  });
 
   const pastEvents = events.filter((event) => new Date(event.to) < currentDate);
 

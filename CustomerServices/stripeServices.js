@@ -282,6 +282,69 @@ const createStripeOnboardingLink = async (req) => {
   // }
 };
 
+// const checkStripeAccountMissingFields = async (req) => {
+//   try {
+//     const { entityId } = req;
+
+//     if (!entityId) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Missing entityId",
+//       });
+//     }
+
+//     const entity = await EntityDetails.findById(entityId);
+//     if (!entity?.stripeAccountId) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "No Stripe account found for this entity",
+//       });
+//     }
+
+//     const account = await stripe.accounts.retrieve(entity.stripeAccountId);
+
+//     const missingFields = [];
+
+//     if (!account.business_profile?.name) {
+//       missingFields.push("Business Profile Name");
+//     }
+//     if (!account.business_profile?.mcc) {
+//       missingFields.push("MCC (Merchant Category Code)");
+//     }
+//     if (!account.business_profile?.url) {
+//       missingFields.push("Business URL");
+//     }
+
+//     if (
+//       !account.documents?.verification?.status ||
+//       account.documents?.verification?.status !== "verified"
+//     ) {
+//       missingFields.push("Identity Verification Document");
+//     }
+//     if (!account.business_type || account.business_type === "individual") {
+//       missingFields.push("Business Type or Incorporation Document");
+//     }
+
+//     if (!account.external_accounts?.data?.length) {
+//       missingFields.push("Bank Account");
+//     }
+
+//     return {
+//       success: true,
+//       message: "Stripe account check complete",
+//       missingFields: missingFields.length
+//         ? missingFields
+//         : ["No fields missing"],
+//     };
+//   } catch (error) {
+//     console.error("Stripe Account Check Error:", error);
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Failed to check Stripe account fields",
+//     });
+//   }
+// };
+
 const checkStripeAccountMissingFields = async (req) => {
   try {
     const { entityId } = req;
@@ -295,46 +358,61 @@ const checkStripeAccountMissingFields = async (req) => {
 
     const entity = await EntityDetails.findById(entityId);
     if (!entity?.stripeAccountId) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "No Stripe account found for this entity",
-      });
+      // Return empty array when no Stripe account is found
+      return {
+        success: true,
+        message: "No Stripe account associated with this entity",
+        hasMissingFields: true,
+        missingFields: [],
+      };
     }
 
-    const account = await stripe.accounts.retrieve(entity.stripeAccountId);
+    let account;
+    try {
+      account = await stripe.accounts.retrieve(entity.stripeAccountId);
+    } catch (err) {
+      console.error("Stripe retrieve failed:", err);
+      // Return empty array if Stripe fails to retrieve account
+      return {
+        success: true,
+        message: "Stripe account not found or inaccessible",
+        hasMissingFields: true,
+        missingFields: [],
+      };
+    }
 
     const missingFields = [];
 
-    if (!account.business_profile?.name) {
+    if (!account?.business_profile?.name) {
       missingFields.push("Business Profile Name");
     }
-    if (!account.business_profile?.mcc) {
+    if (!account?.business_profile?.mcc) {
       missingFields.push("MCC (Merchant Category Code)");
     }
-    if (!account.business_profile?.url) {
+    if (!account?.business_profile?.url) {
       missingFields.push("Business URL");
     }
 
     if (
-      !account.documents?.verification?.status ||
-      account.documents?.verification?.status !== "verified"
+      account?.verification?.disabled_reason ||
+      account?.requirements?.disabled_reason
     ) {
       missingFields.push("Identity Verification Document");
     }
-    if (!account.business_type || account.business_type === "individual") {
+
+    if (!account?.business_type || account.business_type === "individual") {
       missingFields.push("Business Type or Incorporation Document");
     }
 
-    if (!account.external_accounts?.data?.length) {
+    if (!account?.external_accounts?.data?.length) {
       missingFields.push("Bank Account");
     }
 
     return {
       success: true,
       message: "Stripe account check complete",
-      missingFields: missingFields.length
-        ? missingFields
-        : ["No fields missing"],
+      hasMissingFields: !!missingFields.length,
+      missingFields,
     };
   } catch (error) {
     console.error("Stripe Account Check Error:", error);
@@ -421,12 +499,16 @@ const getStripeAccount = async (req) => {
     });
 
     return {
-      account,
-      bankAccounts: bankAccounts.data,
+      account: account || [],
+      bankAccounts: bankAccounts?.data || [],
     };
   } catch (err) {
     console.error("Error fetching Stripe account:", err);
-    throw err;
+    return {
+      account: null,
+      bankAccounts: [],
+      error: err.message,
+    };
   }
 };
 

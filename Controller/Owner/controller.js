@@ -52,6 +52,8 @@ const ItemDetails = require("../../Models/ItemDetails");
 const MenuItem = require("../../Models/MenuItem");
 const { addExistingItemToMenu } = require("../Customer/service");
 const MenuCategory = require("../../Models/MenuCategory");
+const { client } = require("../../Utils/bullQueue");
+const { scheduleEmit } = require("../../Utils/emitQueue");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 // router.use(verifyToken);
@@ -278,6 +280,16 @@ router.get("/get-menu-particular-item", async (req, res) => {
 router.post("/create-event", upload.single("file"), async (req, res) => {
   try {
     const response = await createEvent(req);
+    console.log(`🆕 Event created: ${response.eventName} at ${response.from}`);
+
+    // Cache it
+    const redisKey = `upcoming_event:${response._id}`;
+    await client.set(redisKey, JSON.stringify(response), "EX", 86400); // 24 hours TTL
+
+    console.log(`💾 Cached event with key: ${redisKey}`);
+
+    // Schedule emit job
+    scheduleEmit(response);
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Event succesfully created", data: response });

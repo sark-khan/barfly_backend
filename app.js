@@ -1,8 +1,12 @@
 const express = require("express");
 require("./db");
 require("./redis");
-require("./cron");
+require("./cron/emitEvent");
 require("./server");
+require("./Utils/bullQueue");
+require("./Utils/emitProcessor");
+// const setupCron = require("./cron/cron");
+
 const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
@@ -10,6 +14,7 @@ const cors = require("cors");
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
+const { setIo } = require("./Utils/socket");
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -23,6 +28,9 @@ const io = new Server(server, {
 
 const { orderSocket } = require("./server");
 orderSocket(io);
+setIo(io);
+
+// setupCron(io);
 module.exports = { io };
 
 const orderController = require("./Controller/orderController");
@@ -64,7 +72,6 @@ const unProtectedApis = {
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
 
-  "/api/stripe/account-link": true,
   "/api/stripe/get-stripe-accounts": true,
 };
 
@@ -203,20 +210,18 @@ app.post("/send-firebase-notification", async (req, res) => {
 app.post("/api/register-token", async (req, res) => {
   const { fcmToken } = req.body;
 
-  try {
-    await User.findOneAndUpdate({ _id: req.userId }, { $set: { fcmToken } });
-
-    console.log(`FCM Token registered for user ${req.userId}`);
-    return res
-      .status(STATUS_CODES.OK)
-      .send({ success: true, message: "FCM Token registered!" });
-  } catch (error) {
-    console.error("Error registering FCM Token:", error);
-    res
-      .status(STATUS_CODES.SERVER_ERROR)
-      .send({ success: false, message: "Failed to register FCM Token" });
+  if (!fcmToken) {
+    throw {
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "FCM token is required",
+    };
   }
+
+  await User.updateOne({ _id: req.userId }, { $addToSet: { fcmToken } });
+
+  return { message: "FCM token registered successfully" };
 });
+
 const port = process.env.PORT;
 
 server.listen(port, () => {

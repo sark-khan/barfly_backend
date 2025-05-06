@@ -1005,10 +1005,7 @@ const cancelOrder = async (req) => {
       err.code === "messaging/invalid-recipient"
     ) {
       // Remove invalid token from user
-      await User.updateOne(
-        { _id: entityDetails.userId },
-        { $unset: { fcmToken: "" } }
-      );
+      await User.updateOne({ _id: Order.userId }, { $unset: { fcmToken: "" } });
     }
   }
 };
@@ -1043,6 +1040,7 @@ const getEventOrderSummary = async (req) => {
     .map((order) => {
       const {
         counterId,
+        totalAmount: orderTotalAmount,
         finalAmount,
         tokenNumber,
         items,
@@ -1067,16 +1065,18 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      counterSummary[counterKey].totalOrders += 1;
-      counterSummary[counterKey].totalAmount += finalAmount;
+      if (orders.status !== ORDER_STATUS.CANCELLED) {
+        counterSummary[counterKey].totalOrders += 1;
+        counterSummary[counterKey].totalAmount += orderTotalAmount;
 
-      totalOrders += 1;
-      totalAmount += finalAmount;
+        totalOrders += 1;
+        totalAmount += orderTotalAmount;
+      }
 
       return {
         orderId: order._id,
         tokenNumber,
-        finalAmount,
+        totalAmount: orderTotalAmount,
         counterId: counterKey,
         counterName,
         tableNo,
