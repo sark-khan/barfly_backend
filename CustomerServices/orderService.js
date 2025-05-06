@@ -1042,6 +1042,7 @@ const getEventOrderSummary = async (req) => {
     .map((order) => {
       const {
         counterId,
+        totalAmount: orderTotalAmount,
         finalAmount,
         tokenNumber,
         items,
@@ -1066,18 +1067,18 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      if (status !== STATUS.CANCELLED) {
+      if (orders.status !== ORDER_STATUS.CANCELLED) {
         counterSummary[counterKey].totalOrders += 1;
-        counterSummary[counterKey].totalAmount += finalAmount;
+        counterSummary[counterKey].totalAmount += orderTotalAmount;
 
         totalOrders += 1;
-        totalAmount += finalAmount;
+        totalAmount += orderTotalAmount;
       }
 
       return {
         orderId: order._id,
         tokenNumber,
-        finalAmount,
+        totalAmount: orderTotalAmount,
         counterId: counterKey,
         counterName,
         tableNo,
