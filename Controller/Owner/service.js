@@ -115,82 +115,53 @@ module.exports.createCounter = async (req) => {
     status: STATUS.ACTIVE,
   });
 
-  // 🔔 Notify all users of the entity
-  const users = await User.find(
-    {
-      userId: req.userId,
-      fcmToken: { $exists: true, $ne: null },
+  // const user = await User.findOne(
+  //   {
+  //     userId: req.userId,
+  //     fcmToken: { $exists: true, $ne: null },
+  //   },
+  //   { fcmToken: 1 }
+  // );
+
+  const payload = {
+    notification: {
+      title: "New Counter Created",
+      body: `Counter "${counterName}" is now available.`,
     },
-    { fcmToken: 1 }
-  );
+    data: {
+      screen: "counter",
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+    token: newCounter.ownerId.fcmToken,
 
-  const tokens = users
-    .map((u) => u.fcmToken)
-    .filter((t) => typeof t === "string");
-
-  if (tokens.length > 0) {
-    const payload = {
+    android: {
+      priority: "high",
       notification: {
-        title: "New Counter Created",
-        body: `Counter "${counterName}" is now available.`,
-      },
-      data: {
-        screen: "counter",
-        entityId: req.entityId.toString(),
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-      android: {
-        priority: "high",
-        notification: {
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            content_available: true,
-            alert: {
-              title: "New Counter Created",
-              body: `Counter "${counterName}" is now available.`,
-            },
-            category: "FLUTTER_NOTIFICATION_CLICK",
-            mutableContent: 1,
+    },
+    apns: {
+      payload: {
+        aps: {
+          content_available: true,
+          alert: {
+            title: "New Counter Created",
+            body: `Counter "${counterName}" is now available.`,
           },
+          category: "FLUTTER_NOTIFICATION_CLICK",
+          mutableContent: 1,
         },
       },
-    };
+    },
+  };
+  console.log({ payload });
 
-    try {
-      const response = await messagingPlus.sendMulticast({
-        tokens,
-        ...payload,
-      });
-      console.info("Notification Pusheddddd");
-
-      const invalidTokens = [];
-
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          const err = resp.error;
-          if (
-            err.code === "messaging/invalid-argument" ||
-            err.code === "messaging/registration-token-not-registered"
-          ) {
-            invalidTokens.push(tokens[idx]);
-          }
-        }
-      });
-
-      if (invalidTokens.length > 0) {
-        await User.updateMany(
-          { fcmToken: { $in: invalidTokens } },
-          { $unset: { fcmToken: "" } }
-        );
-        console.warn("Removed invalid FCM tokens:", invalidTokens);
-      }
-    } catch (err) {
-      console.error("FCM multicast push failed:", err);
-    }
+  try {
+    await messagingPlus.send(payload);
+    console.log("Notification Pusheddddd");
+  } catch (err) {
+    console.error("FCM multicast push failed:", err);
   }
 
   return newCounter.toObject();
