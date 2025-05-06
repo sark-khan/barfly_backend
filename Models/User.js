@@ -23,7 +23,9 @@ const userSchema = new Schema(
     locationEnabled: { type: Boolean, default: false },
     status: { type: String, enum: Object.values(STATUS) },
     isRegistrationCompleted: { type: Boolean, default: false },
-    fcmToken: { type: String },
+    // fcmToken: { type: String },
+    fcmToken: { type: [String], default: [] },
+
     socketId: { type: String },
     // houseNo: { type: String, default: "" },
     age: { type: String },

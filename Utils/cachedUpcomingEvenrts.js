@@ -16,10 +16,10 @@ const cacheUpcomingEvents = async () => {
 
       // Cache the event with a 10-minute expiry
       await client.set(eventKey, JSON.stringify(event), "EX", 600);
-      console.log(`✅ Cached upcoming event: ${event.eventName}`);
+      console.log(`Cached upcoming event: ${event.eventName}`);
     }
   } catch (err) {
-    console.error("❌ Error caching upcoming events", err);
+    console.error("Error caching upcoming events", err);
   }
 };
 
