@@ -34,6 +34,8 @@ const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
 const { path } = require("pdfkit");
 const { io } = require("../../app");
+const { messaging } = require("firebase-admin");
+const { messagingPlus } = require("../../firebaseAdmin");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -71,13 +73,6 @@ module.exports.createCounter = async (req) => {
     };
   }
 
-  // if (existingCounter.tableSectionName === tableSectionName) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "Table with this name already exists.",
-  //   });
-  // }
-
   if (Number(tableFrom) >= Number(tableTo)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -107,6 +102,7 @@ module.exports.createCounter = async (req) => {
     { entityId: req.entityId },
     { tableSetionNo: 1 }
   ).sort({ createdAt: -1 });
+
   const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
 
   await Tables.create({
@@ -118,6 +114,83 @@ module.exports.createCounter = async (req) => {
     tableSetionNo: newTableSectionNo,
     status: STATUS.ACTIVE,
   });
+
+  // 🔔 Notify all users of the entity
+  const users = await User.find(
+    {
+      userId: req.userId,
+      fcmToken: { $exists: true, $ne: null },
+    },
+    { fcmToken: 1 }
+  );
+
+  const tokens = users
+    .map((u) => u.fcmToken)
+    .filter((t) => typeof t === "string");
+
+  if (tokens.length > 0) {
+    const payload = {
+      notification: {
+        title: "New Counter Created",
+        body: `Counter "${counterName}" is now available.`,
+      },
+      data: {
+        screen: "counter",
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+      android: {
+        priority: "high",
+        notification: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            content_available: true,
+            alert: {
+              title: "New Counter Created",
+              body: `Counter "${counterName}" is now available.`,
+            },
+            category: "FLUTTER_NOTIFICATION_CLICK",
+            mutableContent: 1,
+          },
+        },
+      },
+    };
+
+    try {
+      const response = await messaging.sendMulticast({
+        tokens,
+        ...payload,
+      });
+
+      const invalidTokens = [];
+
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const err = resp.error;
+          if (
+            err.code === "messaging/invalid-argument" ||
+            err.code === "messaging/registration-token-not-registered"
+          ) {
+            invalidTokens.push(tokens[idx]);
+          }
+        }
+      });
+
+      if (invalidTokens.length > 0) {
+        await User.updateMany(
+          { fcmToken: { $in: invalidTokens } },
+          { $unset: { fcmToken: "" } }
+        );
+        console.warn("Removed invalid FCM tokens:", invalidTokens);
+      }
+    } catch (err) {
+      console.error("FCM multicast push failed:", err);
+    }
+  }
 
   return newCounter.toObject();
 };
