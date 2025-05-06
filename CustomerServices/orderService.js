@@ -1066,11 +1066,13 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      counterSummary[counterKey].totalOrders += 1;
-      counterSummary[counterKey].totalAmount += finalAmount;
+      if (status !== STATUS.CANCELLED) {
+        counterSummary[counterKey].totalOrders += 1;
+        counterSummary[counterKey].totalAmount += finalAmount;
 
-      totalOrders += 1;
-      totalAmount += finalAmount;
+        totalOrders += 1;
+        totalAmount += finalAmount;
+      }
 
       return {
         orderId: order._id,
