@@ -161,10 +161,11 @@ module.exports.createCounter = async (req) => {
     };
 
     try {
-      const response = await messaging.sendMulticast({
+      const response = await messagingPlus.sendMulticast({
         tokens,
         ...payload,
       });
+      console.info("Notification Pusheddddd");
 
       const invalidTokens = [];
 
