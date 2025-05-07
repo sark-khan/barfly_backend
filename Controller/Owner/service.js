@@ -116,11 +116,16 @@ module.exports.createCounter = async (req) => {
   });
 
   const owner = await User.findOne(
-    { _id: newCounter.ownerId, fcmToken: { $exists: true, $ne: null } },
+    {
+      _id: newCounter.ownerId,
+      fcmToken: { $exists: true, $not: { $size: 0 } },
+    },
     { fcmToken: 1 }
   );
 
-  const payload = {
+  if (!owner?.fcmToken?.length) return newCounter.toObject();
+
+  const notificationPayload = (token) => ({
     notification: {
       title: "New Counter Created",
       body: `Counter "${counterName}" is now available.`,
@@ -130,8 +135,7 @@ module.exports.createCounter = async (req) => {
       entityId: req.entityId.toString(),
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
-    token: owner.fcmToken,
-
+    token,
     android: {
       priority: "high",
       notification: {
@@ -151,13 +155,27 @@ module.exports.createCounter = async (req) => {
         },
       },
     },
-  };
+  });
 
-  try {
-    await messagingPlus.send(payload);
-    console.log("Notification Pusheddddd");
-  } catch (err) {
-    console.error("FCM push failed:", err);
+  for (const token of owner.fcmToken) {
+    try {
+      await messagingPlus.send(notificationPayload(token));
+      console.log(`Notification sent to token: ${token}`);
+    } catch (err) {
+      console.error("FCM push failed for token:", token, err.message);
+
+      // Optional: Remove invalid tokens
+      if (
+        err.code === "messaging/invalid-argument" ||
+        err.code === "messaging/registration-token-not-registered" ||
+        err.code === "messaging/invalid-recipient"
+      ) {
+        await User.updateOne(
+          { _id: newCounter.ownerId },
+          { $pull: { fcmToken: token } }
+        );
+      }
+    }
   }
 
   return newCounter.toObject();
