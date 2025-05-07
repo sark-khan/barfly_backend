@@ -824,6 +824,7 @@ const getOrderGroupByMonths = async (req) => {
             items: "$items",
             totalAmount: "$totalAmount",
             createdAt: "$createdAt",
+            finalAmount: "$finalAmount"
           },
         },
       },
