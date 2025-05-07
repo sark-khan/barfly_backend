@@ -205,9 +205,7 @@ const createOfflineOrder = async (req) => {
     entityId,
     body: { items, counterId, internalNumber, countrTag },
   } = req;
-  const itemIds = items.map((item) => {
-    item._id;
-  });
+  const itemIds = items?.map((item) => item.itemId);
   if (!itemIds) return;
 
   const itemDetails = await ItemDetails.find({ _id: { $in: itemIds } });
@@ -228,25 +226,17 @@ const createOfflineOrder = async (req) => {
     }
     mapper[item._id] = item;
   });
-  let amount = 0;
-  items.forEach((item) => {
-    const itemDetails = itemNameMapper[item.itemId];
-    if (menuItem) {
-      amount += item.quantity * itemDetails.price;
-    }
-  });
 
-  const offlineOrderObj = OfflineOrders.create({
+  const offlineOrderObj = await OfflineOrders.create({
     items,
     counterId,
     internalNumber,
     countrTag,
     entityId,
     userId,
-    totalAmount: amount,
   });
 
-  return offlineOrderObj.toObject();
+  return offlineOrderObj;
 };
 
 const updateStatusOfOrder = async (req) => {
@@ -533,6 +523,122 @@ const getEntityOrders = async (req) => {
     completedOrders,
     cancelledOrders,
   };
+};
+
+const getOfflineOrders = async (req) => {
+  const {
+    entityId,
+    query: { pageNo = 1, pageLimit = 10, counterId, status, searchTerm },
+  } = req;
+
+  const limit = Math.max(Number(pageLimit), 1);
+  const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
+
+  const query = { entityId };
+
+  if (counterId) {
+    query.counterId = counterId;
+  }
+
+  if (status) {
+    query.status = status;
+  }
+  if (searchTerm) {
+    const searchRegex = new RegExp(searchTerm, "i");
+    const searchConditions = [];
+
+    if (mongoose.Types.ObjectId.isValid(searchTerm)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
+    }
+
+    const matchingItems = await ItemDetails.find(
+      { itemName: { $regex: searchRegex } },
+      { _id: 1 }
+    ).lean();
+
+    if (matchingItems.length > 0) {
+      const matchingItemIds = matchingItems.map((item) => item._id);
+      searchConditions.push({ "items.itemId": { $in: matchingItemIds } });
+    }
+
+    if (searchConditions.length > 0) {
+      query.$or = searchConditions;
+    }
+  }
+
+  const data = await OfflineOrders.find(query)
+    .populate({
+      path: "items.itemId",
+      select: "itemName quantity description type currency image createdAt",
+      model: "ItemDetails",
+    })
+    .populate({
+      path: "counterId",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ internalNumber: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  const baseQuery = { ...query };
+
+  const [preparing, readyOrders, completedOrders] = await Promise.all([
+    OfflineOrders.countDocuments({
+      ...baseQuery,
+      status: ORDER_STATUS.IN_PROGRESS,
+    }),
+    OfflineOrders.countDocuments({
+      ...baseQuery,
+      status: ORDER_STATUS.READY,
+    }),
+    OfflineOrders.countDocuments({
+      ...baseQuery,
+      status: ORDER_STATUS.COMPLETED,
+    }),
+  ]);
+
+  return {
+    data,
+    preparing,
+    readyOrders,
+    completedOrders,
+  };
+};
+
+const updateOfflineOrders = async (req) => {
+  const {
+    entityId,
+    body: { orderId, status },
+  } = req;
+
+  if (
+    ![
+      ORDER_STATUS.COMPLETED,
+      ORDER_STATUS.READY,
+      ORDER_STATUS.IN_PROGRESS,
+    ].includes(status)
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Not a valid status.",
+    });
+  }
+
+  const order = await OfflineOrders.findOne({ _id: orderId });
+
+  if (!order) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "No Such order exist.",
+    });
+  }
+
+  await OfflineOrders.findOneAndUpdate(
+    { _id: orderId },
+    { $set: { status } },
+    { new: true }
+  ).populate("userId");
 };
 
 const getLiveOrdersUsers = async (req) => {
@@ -1187,4 +1293,6 @@ module.exports = {
   particularOrderDetailsCustomer,
   getEventOrderSummary,
   createOfflineOrder,
+  getOfflineOrders,
+  updateOfflineOrders,
 };

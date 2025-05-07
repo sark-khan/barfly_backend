@@ -690,7 +690,7 @@ module.exports.createEvent = async (req) => {
       from,
       to,
       counterIds,
-      ageLimit,
+      // ageLimit,
       location,
     },
   } = req;
@@ -770,7 +770,7 @@ module.exports.createEvent = async (req) => {
     // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
-    ageLimit,
+    // ageLimit,
     ownerId,
     userId,
     counterIds,

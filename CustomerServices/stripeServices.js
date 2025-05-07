@@ -358,7 +358,6 @@ const checkStripeAccountMissingFields = async (req) => {
 
     const entity = await EntityDetails.findById(entityId);
     if (!entity?.stripeAccountId) {
-      // Return empty array when no Stripe account is found
       return {
         success: true,
         message: "No Stripe account associated with this entity",
@@ -372,7 +371,6 @@ const checkStripeAccountMissingFields = async (req) => {
       account = await stripe.accounts.retrieve(entity.stripeAccountId);
     } catch (err) {
       console.error("Stripe retrieve failed:", err);
-      // Return empty array if Stripe fails to retrieve account
       return {
         success: true,
         message: "Stripe account not found or inaccessible",

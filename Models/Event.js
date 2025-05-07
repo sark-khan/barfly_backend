@@ -18,7 +18,7 @@ const eventSchema = new Schema(
         required: true,
       },
     ],
-    ageLimit: { type: String, required: true },
+    // ageLimit: { type: String, required: true },
     ownerId: { type: ObjectId, ref: "User" },
     entityId: {
       type: ObjectId,

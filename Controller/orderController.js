@@ -17,6 +17,9 @@ const {
   getRestaurantOrdersAndCount,
   particularOrderDetailsCustomer,
   getEventOrderSummary,
+  createOfflineOrder,
+  getOfflineOrders,
+  updateOfflineOrders,
 } = require("../CustomerServices/orderService");
 
 const { STATUS_CODES } = require("../Utils/globalConstants");
@@ -57,6 +60,20 @@ router.post("/create-order", async (req, res) => {
   }
 });
 
+router.post("/create-offline-order", async (req, res) => {
+  try {
+    const response = await createOfflineOrder(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Order logs created successfully.", response });
+  } catch (error) {
+    console.error("Error while creating order logs:", error);
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while creating order logs" });
+  }
+});
+
 router.post("/update-status-of-order", async (req, res) => {
   try {
     await updateStatusOfOrder(req);
@@ -93,6 +110,39 @@ router.get("/get-entity-orders", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while fetching orders" });
+  }
+});
+
+router.get("/get-offline-orders", async (req, res) => {
+  try {
+    const { data, preparing, readyOrders, completedOrders } =
+      await getOfflineOrders(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Offline orders fetched successfully.",
+      data,
+      preparing,
+      readyOrders,
+      completedOrders,
+    });
+  } catch (error) {
+    console.error("Error while fetching offline orders", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching offline orders",
+    });
+  }
+});
+
+router.post("/update-offline-status-of-order", async (req, res) => {
+  try {
+    await updateOfflineOrders(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Status of order updated successfully." });
+  } catch (error) {
+    console.error("Error while updating order status", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message || "Error while updating order status" });
   }
 });
 

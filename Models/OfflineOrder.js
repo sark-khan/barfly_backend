@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { ORDER_STATUS } = require("../Utils/globalConstants");
 
 const Schema = mongoose.Schema;
 const { ObjectId } = mongoose.Types;
@@ -30,7 +31,7 @@ const offlineOrderLogsSchema = new Schema(
       required: true,
     },
     internalNumber: { type: String, default: "" },
-    totalAmount: { type: Number, required: true },
+    status: { type: String, enum: Object.values(ORDER_STATUS) },
   },
   { timestamps: true, minimize: false }
 );

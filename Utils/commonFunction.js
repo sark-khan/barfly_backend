@@ -213,9 +213,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const sendFirebaseNotification = async ({ isOwner = false, titleText="", body="",data={}, ownerToken="" , customerToken="", isCustomer=false, showNotification= false, topic=""}) => {
+const sendFirebaseNotification = async ({
+  isOwner = false,
+  titleText = "",
+  body = "",
+  data = {},
+  ownerToken = "",
+  customerToken = "",
+  isCustomer = false,
+  showNotification = false,
+  topic = "",
+}) => {
   try {
-    if(token==""){
+    if (token == "") {
       console.error("No fcm token found");
       return;
     }
@@ -223,20 +233,20 @@ const sendFirebaseNotification = async ({ isOwner = false, titleText="", body=""
       token: ownerToken,
       data: data,
     };
-    
+
     if (showNotification) {
       payload.notification = {
         title: titleText,
         body: body,
       };
-    
+
       payload.android = {
         priority: "high",
         notification: {
           click_action: "FLUTTER_NOTIFICATION_CLICK",
         },
       };
-    
+
       payload.apns = {
         payload: {
           aps: {
@@ -254,7 +264,7 @@ const sendFirebaseNotification = async ({ isOwner = false, titleText="", body=""
       payload.android = {
         priority: "high",
       };
-    
+
       payload.apns = {
         headers: {
           "apns-priority": "5",
@@ -269,8 +279,8 @@ const sendFirebaseNotification = async ({ isOwner = false, titleText="", body=""
     if (isOwner) {
       await messagingPlus.send(payload);
       console.info("Notification Pushed for admin");
-    } else if(isCustomer) {
-      payload.token= customerToken;
+    } else if (isCustomer) {
+      payload.token = customerToken;
       await messaging.send(payload);
       console.info("Notifiaction pushed for customer");
     }
