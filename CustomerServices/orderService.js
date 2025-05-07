@@ -131,68 +131,68 @@ const createOrder = async (req, session) => {
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
-  ``;
 
   io.to(entityId.toString()).emit("newOrder", createdOrder);
 
-  if (!entityDetails.owner.fcmToken) {
-    return createdOrder;
-  }
+  const fcmTokens = Array.isArray(entityDetails.owner.fcmToken)
+    ? entityDetails.owner.fcmToken
+    : [];
 
-  const payload = {
-    notification: {
-      title: "Order Received",
-      body: `New Order Received. Tap to view details.`,
-    },
-
-    data: {
-      orderId: `${createdOrder[0]._id}`,
-      data: JSON.stringify(createdOrder[0]),
-      // status: status,
-      screen: "landing_home",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-
-    token: entityDetails.owner.fcmToken,
-
-    android: {
-      priority: "high",
+  for (const token of fcmTokens) {
+    const payload = {
       notification: {
+        title: "Order Received",
+        body: `New Order Received. Tap to view details.`,
+      },
+
+      data: {
+        orderId: `${createdOrder[0]._id}`,
+        data: JSON.stringify(createdOrder[0]),
+        screen: "landing_home",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-    },
 
-    apns: {
-      payload: {
-        aps: {
-          content_available: true,
-          category: "FLUTTER_NOTIFICATION_CLICK",
-          mutableContent: 1,
-          alert: {
-            title: "Order Received ",
-            body: `New order received. Tap to view details.`,
+      token,
+
+      android: {
+        priority: "high",
+        notification: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      },
+
+      apns: {
+        payload: {
+          aps: {
+            content_available: true,
+            category: "FLUTTER_NOTIFICATION_CLICK",
+            mutableContent: 1,
+            alert: {
+              title: "Order Received ",
+              body: `New order received. Tap to view details.`,
+            },
           },
         },
       },
-    },
-  };
+    };
 
-  try {
-    await messagingPlus.send(payload);
-    console.info("Notification Pushed");
-  } catch (err) {
-    console.error("Push Notification Error:", err.message);
+    try {
+      await messagingPlus.send(payload);
+      console.info("Notification sent to", token);
+    } catch (err) {
+      console.error("Push Notification Error:", err.message);
 
-    if (
-      err.code === "messaging/invalid-argument" ||
-      err.code === "messaging/registration-token-not-registered" ||
-      err.code === "messaging/invalid-recipient"
-    ) {
-      // Remove invalid token from user
-      await User.updateOne(
-        { _id: entityDetails.userId },
-        { $unset: { fcmToken: "" } }
-      );
+      if (
+        err.code === "messaging/invalid-argument" ||
+        err.code === "messaging/registration-token-not-registered" ||
+        err.code === "messaging/invalid-recipient"
+      ) {
+        await User.updateOne(
+          { _id: entityDetails.userId },
+          { $pull: { fcmToken: token } }
+        );
+        console.warn("Removed invalid token:", token);
+      }
     }
   }
 
