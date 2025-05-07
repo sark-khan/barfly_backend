@@ -15,7 +15,7 @@ const { validateCoupon } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
-const OrderLogs = require("../Models/OrderLogs");
+const OfflineOrders = require("../Models/OfflineOrder");
 const User = require("../Models/User");
 
 const createOrder = async (req, session) => {
@@ -199,21 +199,73 @@ const createOrder = async (req, session) => {
   return createdOrder;
 };
 
-// const OrderLogs = async (req) => {};
+const createOfflineOrder = async (req) => {
+  const {
+    userId,
+    entityId,
+    body: { items, counterId, internalNumber, countrTag },
+  } = req;
+  const itemIds = items.map((item) => {
+    item._id;
+  });
+  if (!itemIds) return;
+
+  const itemDetails = await ItemDetails.find({ _id: { $in: itemIds } });
+  if (!itemDetails.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Items you are looking for doesn't exists.",
+    });
+  }
+
+  const mapper = {};
+  itemDetails.forEach((item) => {
+    if (!item.inStock) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: `${item.itemName} is out of stock.`,
+      });
+    }
+    mapper[item._id] = item;
+  });
+  let amount = 0;
+  items.forEach((item) => {
+    const itemDetails = itemNameMapper[item.itemId];
+    if (menuItem) {
+      amount += item.quantity * itemDetails.price;
+    }
+  });
+
+  const offlineOrderObj = OfflineOrders.create({
+    items,
+    counterId,
+    internalNumber,
+    countrTag,
+    entityId,
+    userId,
+    totalAmount: amount,
+  });
+
+  return offlineOrderObj.toObject();
+};
 
 const updateStatusOfOrder = async (req) => {
   const { orderId, status } = req.body;
+
   if (
-    status !== ORDER_STATUS.COMPLETED &&
-    status !== ORDER_STATUS.READY &&
-    status !== ORDER_STATUS.IN_PROGRESS &&
-    status !== ORDER_STATUS.CANCELLED
+    ![
+      ORDER_STATUS.COMPLETED,
+      ORDER_STATUS.READY,
+      ORDER_STATUS.IN_PROGRESS,
+      ORDER_STATUS.CANCELLED,
+    ].includes(status)
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "Not a valid status.",
     });
   }
+
   const order = await Order.findOne({ _id: orderId });
 
   if (!order) {
@@ -222,6 +274,7 @@ const updateStatusOfOrder = async (req) => {
       message: "No Such order exist.",
     });
   }
+
   const updatedOrder = await Order.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
@@ -230,18 +283,17 @@ const updateStatusOfOrder = async (req) => {
 
   io.to(order.entityId.toString()).emit("orderStatusUpdate", {
     orderId: order._id,
-    status: status,
+    status,
   });
 
-  if (
-    !updatedOrder?.userId?.fcmToken ||
-    typeof updatedOrder.userId.fcmToken !== "string"
-  ) {
-    console.warn("Invalid or missing FCM token. Skipping push.");
+  const userTokens = updatedOrder?.userId?.fcmToken;
+
+  if (!Array.isArray(userTokens) || userTokens.length === 0) {
+    console.warn("No valid FCM tokens found. Skipping push.");
     return;
   }
 
-  const payload = {
+  const payloadTemplate = (token) => ({
     notification: {
       title: "Order Status Updated",
       body: `Your order is now ${status}. Tap to view details.`,
@@ -252,7 +304,7 @@ const updateStatusOfOrder = async (req) => {
       screen: "status",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
-    token: updatedOrder.userId.fcmToken,
+    token,
     android: {
       priority: "high",
       notification: {
@@ -272,22 +324,27 @@ const updateStatusOfOrder = async (req) => {
         },
       },
     },
-  };
+  });
 
-  try {
-    await messaging.send(payload);
-  } catch (error) {
-    console.error("Push failed:", error);
+  for (const token of userTokens) {
+    try {
+      await messaging.send(payloadTemplate(token));
+    } catch (error) {
+      console.error("Push failed for token:", token, error.message);
 
-    if (
-      error.code === "messaging/invalid-argument" ||
-      error.code === "messaging/registration-token-not-registered"
-    ) {
-      await User.updateOne(
-        { _id: updatedOrder.userId },
-        { $unset: { fcmToken: "" } }
-      );
-      console.warn("Removed invalid fcmToken for user", updatedOrder.userId);
+      if (
+        error.code === "messaging/invalid-argument" ||
+        error.code === "messaging/registration-token-not-registered"
+      ) {
+        await User.updateOne(
+          { _id: updatedOrder.userId._id },
+          { $pull: { fcmToken: token } }
+        );
+        console.warn(
+          "Removed invalid fcmToken for user",
+          updatedOrder.userId._id
+        );
+      }
     }
   }
 };
@@ -824,7 +881,7 @@ const getOrderGroupByMonths = async (req) => {
             items: "$items",
             totalAmount: "$totalAmount",
             createdAt: "$createdAt",
-            finalAmount: "$finalAmount"
+            finalAmount: "$finalAmount",
           },
         },
       },
@@ -1129,5 +1186,5 @@ module.exports = {
   getRestaurantOrdersAndCount,
   particularOrderDetailsCustomer,
   getEventOrderSummary,
-  // OrderLogs,
+  createOfflineOrder,
 };
