@@ -2993,7 +2993,7 @@ module.exports.restaurantOpen = async (req) => {
 };
 
 module.exports.emailExist = async (req) => {
-  const { email, contactNumber, countrTag, role } = req.body;
+  const { email, contactNumber, countrTag } = req.body;
 
   const query = {
     status: STATUS.ACTIVE,
@@ -3001,24 +3001,34 @@ module.exports.emailExist = async (req) => {
 
   if (email) {
     query.email = email;
-    const user = await User.findOne(query).lean();
-    const emailExists = user && user.role === globalConstants.ROLES.CUSTOMER;
-    return { emailExist: !!emailExists };
+    const users = await User.find(query).lean();
+
+    const emailExist = users.some(
+      (u) => u.role === globalConstants.ROLES.STORE_OWNER
+    );
+
+    return {
+      emailExist,
+    };
   }
 
   if (contactNumber) {
     query.contactNumber = contactNumber;
-    const user = await User.findOne(query).lean();
-    const phoneExists = user && user.role === globalConstants.ROLES.CUSTOMER;
-    return { phoneExist: !!phoneExists };
+    const users = await User.find(query).lean();
+    const phoneExists = users.some(
+      (u) => u.role === globalConstants.ROLES.STORE_OWNER
+    );
+
+    return {
+      phoneExist,
+    };
   }
 
   if (countrTag) {
     query.countrTag = countrTag;
-    const user = await User.findOne(query).lean();
-    const countrTagExists =
-      user && user.role === globalConstants.ROLES.CUSTOMER;
-    return { countrTagExists: !!countrTagExists };
+    query.role = globalConstants.ROLES.CUSTOMER;
+    const exists = await User.exists(query);
+    return { countrTagExists: !!exists };
   }
 
   return {};
