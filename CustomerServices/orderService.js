@@ -1086,8 +1086,11 @@ const cancelOrder = async (req) => {
   const order = await Order.findOne({
     _id: orderId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
-  }).populate({ path: "entityId", select: "userId", model: "EntityDetails" });
-  console.log({ order: order });
+  }).populate({
+    path: "entityId",
+    select: "userId fcmToken",
+    model: "EntityDetails",
+  });
 
   if (!order) {
     throwError({
@@ -1119,29 +1122,27 @@ const cancelOrder = async (req) => {
     status: ORDER_STATUS.CANCELLED,
   });
 
+  const tokens = Array.isArray(order.entityId.userId.fcmToken)
+    ? order.entityId.userId.fcmToken.filter(Boolean)
+    : [];
+
   const payload = {
     notification: {
       title: "Order Cancelled.",
       body: `Order Cancelled. Tap to view details.`,
     },
-
     data: {
       orderId: `${order._id}`,
       data: JSON.stringify(order),
-      // status: status,
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
-
-    token: order.entityId.userId.fcmToken,
-
     android: {
       priority: "high",
       notification: {
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
     },
-
     apns: {
       payload: {
         aps: {
@@ -1158,19 +1159,31 @@ const cancelOrder = async (req) => {
   };
 
   try {
-    await messagingPlus.send(payload);
-    console.info("Notification Pushed");
+    if (tokens.length > 0) {
+      const response = await messagingPlus.sendEachForMulticast({
+        tokens,
+        ...payload,
+      });
+
+      console.info("Notification Pushed");
+
+      // Remove invalid tokens
+      const failedTokens = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          failedTokens.push(tokens[idx]);
+        }
+      });
+
+      if (failedTokens.length) {
+        await User.updateOne(
+          { _id: order.entityId.userId._id },
+          { $pull: { fcmToken: { $in: failedTokens } } }
+        );
+      }
+    }
   } catch (err) {
     console.error("Push Notification Error:", err.message);
-
-    if (
-      err.code === "messaging/invalid-argument" ||
-      err.code === "messaging/registration-token-not-registered" ||
-      err.code === "messaging/invalid-recipient"
-    ) {
-      // Remove invalid token from user
-      await User.updateOne({ _id: Order.userId }, { $unset: { fcmToken: "" } });
-    }
   }
 };
 
