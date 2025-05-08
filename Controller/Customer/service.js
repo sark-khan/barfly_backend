@@ -276,112 +276,25 @@ module.exports.visitorCount = async (req) => {
   return Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
 };
 
-// module.exports.counterList = async (req) => {
-//   const { entityId, searchTerm } = req.query;
-//   const query = { entityId, status: STATUS.ACTIVE };
-//   if (searchTerm) {
-//     query.counterName = { $regex: searchTerm, $options: "i" };
-//   }
-//   const counters = await Counter.find(
-//     query,
-//     { counterName: 1, totalTables: 1, isTableService: 1 },
-//     { sort: { _id: -1 }, lean: true }
-//   );
-//   const counterIds = counters.map((counter) => ObjectId(counter._id));
-
-//   const now = new Date();
-//   const eventOfThisCounters = await Event.find(
-//     {
-//       counterIds: { $in: counterIds },
-//       from: { $lte: now },
-//       to: { $gte: now },
-//     },
-//     {
-//       from: 1,
-//       to: 1,
-//       startingDate: 1,
-//       endDate: 1,
-//       isRepetitive: 1,
-//       repetitiveDays: 1,
-//       counterIds: 1,
-//     }
-//   ).lean();
-
-//   // const counterIdsList = new Set();
-//   // console.log({ eventOfThisCounters });
-//   // eventOfThisCounters.forEach((event) => {
-//   //   console.log({ event }, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-//   //   event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
-//   // });
-
-//   const counterLists = [];
-//   const counterIdsSet = new Set();
-
-//   eventOfThisCounters.forEach((event) => {
-//     event.counterIds.forEach((counterId) => {
-//       counterIdsSet.add(counterId.toString());
-//       counterLists.push({
-//         counterId: counterId.toString(),
-//         eventId: event._id.toString(),
-//       });
-//     });
-//   });
-
-//   await EntityDetails.findByIdAndUpdate(
-//     { _id: entityId },
-//     { $inc: { views: 1 } }
-//   );
-
-//   const counterList = counters
-//     .map((counter) => {
-//       const matchedCounter = counterLists.find(
-//         (c) => c.counterId == counter._id.toString()
-//       );
-
-//       return {
-//         ...counter,
-//         isLive: counterIdsSet.has(counter._id.toString()),
-//         eventId: matchedCounter ? matchedCounter.eventId : null,
-//       };
-//     })
-//     .sort((a, b) => b.isLive - a.isLive);
-
-//   return counterList;
-// };
-
 module.exports.counterList = async (req) => {
   const { entityId, searchTerm } = req.query;
   const query = { entityId, status: STATUS.ACTIVE };
   if (searchTerm) {
     query.counterName = { $regex: searchTerm, $options: "i" };
   }
-
   const counters = await Counter.find(
     query,
     { counterName: 1, totalTables: 1, isTableService: 1 },
     { sort: { _id: -1 }, lean: true }
   );
-
   const counterIds = counters.map((counter) => ObjectId(counter._id));
 
   const now = new Date();
-  const currentDay = now.getDay();
-  const currentTime = now.getTime();
-
   const eventOfThisCounters = await Event.find(
     {
-      $or: [
-        {
-          isRepetitive: false,
-          from: { $lte: now },
-          to: { $gte: now },
-        },
-        {
-          isRepetitive: true,
-          repetitiveDays: { $exists: true, $ne: [], $in: [currentDay] },
-        },
-      ],
       counterIds: { $in: counterIds },
+      from: { $lte: now },
+      to: { $gte: now },
     },
     {
       from: 1,
@@ -394,27 +307,17 @@ module.exports.counterList = async (req) => {
     }
   ).lean();
 
-  const validEvents = eventOfThisCounters.filter((event) => {
-    if (!event.isRepetitive) return true;
-
-    const fromTime = new Date(event.from).setFullYear(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const toTime = new Date(event.to).setFullYear(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-
-    return currentTime >= fromTime && currentTime <= toTime;
-  });
+  // const counterIdsList = new Set();
+  // console.log({ eventOfThisCounters });
+  // eventOfThisCounters.forEach((event) => {
+  //   console.log({ event }, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+  //   event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
+  // });
 
   const counterLists = [];
   const counterIdsSet = new Set();
 
-  validEvents.forEach((event) => {
+  eventOfThisCounters.forEach((event) => {
     event.counterIds.forEach((counterId) => {
       counterIdsSet.add(counterId.toString());
       counterLists.push({
@@ -445,6 +348,103 @@ module.exports.counterList = async (req) => {
 
   return counterList;
 };
+
+// module.exports.counterList = async (req) => {
+//   const { entityId, searchTerm } = req.query;
+//   const query = { entityId, status: STATUS.ACTIVE };
+//   if (searchTerm) {
+//     query.counterName = { $regex: searchTerm, $options: "i" };
+//   }
+
+//   const counters = await Counter.find(
+//     query,
+//     { counterName: 1, totalTables: 1, isTableService: 1 },
+//     { sort: { _id: -1 }, lean: true }
+//   );
+
+//   const counterIds = counters.map((counter) => ObjectId(counter._id));
+
+//   const now = new Date();
+//   const currentDay = now.getDay();
+//   const currentTime = now.getTime();
+
+//   const eventOfThisCounters = await Event.find(
+//     {
+//       $or: [
+//         {
+//           isRepetitive: false,
+//           from: { $lte: now },
+//           to: { $gte: now },
+//         },
+//         {
+//           isRepetitive: true,
+//           repetitiveDays: { $exists: true, $ne: [], $in: [currentDay] },
+//         },
+//       ],
+//       counterIds: { $in: counterIds },
+//     },
+//     {
+//       from: 1,
+//       to: 1,
+//       startingDate: 1,
+//       endDate: 1,
+//       isRepetitive: 1,
+//       repetitiveDays: 1,
+//       counterIds: 1,
+//     }
+//   ).lean();
+
+//   const validEvents = eventOfThisCounters.filter((event) => {
+//     if (!event.isRepetitive) return true;
+
+//     const fromTime = new Date(event.from).setFullYear(
+//       now.getFullYear(),
+//       now.getMonth(),
+//       now.getDate()
+//     );
+//     const toTime = new Date(event.to).setFullYear(
+//       now.getFullYear(),
+//       now.getMonth(),
+//       now.getDate()
+//     );
+
+//     return currentTime >= fromTime && currentTime <= toTime;
+//   });
+
+//   const counterLists = [];
+//   const counterIdsSet = new Set();
+
+//   validEvents.forEach((event) => {
+//     event.counterIds.forEach((counterId) => {
+//       counterIdsSet.add(counterId.toString());
+//       counterLists.push({
+//         counterId: counterId.toString(),
+//         eventId: event._id.toString(),
+//       });
+//     });
+//   });
+
+//   await EntityDetails.findByIdAndUpdate(
+//     { _id: entityId },
+//     { $inc: { views: 1 } }
+//   );
+
+//   const counterList = counters
+//     .map((counter) => {
+//       const matchedCounter = counterLists.find(
+//         (c) => c.counterId == counter._id.toString()
+//       );
+
+//       return {
+//         ...counter,
+//         isLive: counterIdsSet.has(counter._id.toString()),
+//         eventId: matchedCounter ? matchedCounter.eventId : null,
+//       };
+//     })
+//     .sort((a, b) => b.isLive - a.isLive);
+
+//   return counterList;
+// };
 
 module.exports.getCounterMenuCategory = async (req) => {
   const { counterId, searchTerm } = req.query;

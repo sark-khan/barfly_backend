@@ -3015,7 +3015,7 @@ module.exports.emailExist = async (req) => {
   if (contactNumber) {
     query.contactNumber = contactNumber;
     const users = await User.find(query).lean();
-    const phoneExists = users.some(
+    const phoneExist = users.some(
       (u) => u.role === globalConstants.ROLES.STORE_OWNER
     );
 
