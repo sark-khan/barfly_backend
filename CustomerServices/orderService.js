@@ -1117,7 +1117,7 @@ const cancelOrder = async (req) => {
     { $set: { status: ORDER_STATUS.CANCELLED } }
   );
   console.log({ id: order.entityId });
-  io.to(order.entityId.toString()).emit("cancelOrder", {
+  io.to(order.entityId._id.toString()).emit("cancelOrder", {
     orderId: order._id,
     status: ORDER_STATUS.CANCELLED,
   });
