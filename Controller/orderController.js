@@ -41,6 +41,8 @@ router.post("/create-order", async (req, res) => {
     await session.withTransaction(async () => {
       response = await createOrder(req, session);
     });
+    io.to(req.entityId.toString()).emit("newOrder");
+
     // const userDetails = await User.findById(req.userId, { socketId: 1 });
     // if (userDetails && userDetails.socketId) {
 

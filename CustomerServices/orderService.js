@@ -132,8 +132,6 @@ const createOrder = async (req, session) => {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
 
-  io.to(entityId.toString()).emit("newOrder", createdOrder);
-
   const fcmTokens = Array.isArray(entityDetails.owner.fcmToken)
     ? entityDetails.owner.fcmToken
     : [];
