@@ -223,10 +223,9 @@ const getPaymentStatus = async (req) => {
 };
 
 const createStripeOnboardingLink = async (req) => {
-  // try {
   const {
     entityId,
-    body: { email },
+    body: { email, platform },
   } = req;
 
   if (!entityId || !email) {
@@ -249,19 +248,24 @@ const createStripeOnboardingLink = async (req) => {
       entityId,
     },
   });
-  console.log({ account });
 
   await EntityDetails.updateOne(
     { _id: entityId },
     { stripeAccountId: account.id }
   );
 
+  const isMobile = platform === "app";
+  const redirectUrl = isMobile
+    ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+    : `${process.env.HOST_URL}/app/profile/bank-account`;
+
   const accountLink = await stripe.accountLinks.create({
     account: account.id,
-    refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
-    return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+    refresh_url: redirectUrl,
+    return_url: redirectUrl,
     type: "account_onboarding",
   });
+
   await EntityDetails.updateOne(
     { _id: entityId },
     { bankLinkUrl: accountLink.url }
@@ -272,14 +276,6 @@ const createStripeOnboardingLink = async (req) => {
     message: "Stripe onboarding link created",
     url: accountLink.url,
   };
-  // } catch (error) {
-  //   console.error("Stripe Onboarding Error:", error);
-  //   return {
-  //     success: false,
-  //     message: "Failed to create Stripe onboarding link",
-  //     error: error.message,
-  //   };
-  // }
 };
 
 // const checkStripeAccountMissingFields = async (req) => {
@@ -423,7 +419,10 @@ const checkStripeAccountMissingFields = async (req) => {
 
 const continueStripeOnboarding = async (req) => {
   try {
-    const { entityId } = req;
+    const {
+      entityId,
+      body: { platform },
+    } = req;
 
     if (!entityId) {
       throwError({
@@ -432,7 +431,6 @@ const continueStripeOnboarding = async (req) => {
       });
     }
 
-    // Get the Stripe account ID from your database
     const entity = await EntityDetails.findById(entityId);
     if (!entity?.stripeAccountId) {
       throwError({
@@ -441,11 +439,15 @@ const continueStripeOnboarding = async (req) => {
       });
     }
 
-    // Generate a new onboarding link
+    const isMobile = platform === "app";
+    const redirectUrl = isMobile
+      ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+      : `${process.env.HOST_URL}/app/profile/bank-account`;
+
     const accountLink = await stripe.accountLinks.create({
-      account: entity.stripeAccountId,
-      refresh_url: `${process.env.HOST_URL}/app/profile/bank-account`,
-      return_url: `${process.env.HOST_URL}/app/profile/bank-account`,
+      account: account.id,
+      refresh_url: redirectUrl,
+      return_url: redirectUrl,
       type: "account_onboarding",
     });
 
