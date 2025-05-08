@@ -1087,6 +1087,7 @@ const cancelOrder = async (req) => {
     _id: orderId,
     status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
   }).populate({ path: "entityId", select: "userId", model: "EntityDetails" });
+  console.log({ order: order });
 
   if (!order) {
     throwError({
