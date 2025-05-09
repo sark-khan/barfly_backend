@@ -445,7 +445,7 @@ const continueStripeOnboarding = async (req) => {
       : `${process.env.HOST_URL}/app/profile/bank-account`;
 
     const accountLink = await stripe.accountLinks.create({
-      account: account.id,
+      account: entity.stripeAccountId,
       refresh_url: redirectUrl,
       return_url: redirectUrl,
       type: "account_onboarding",

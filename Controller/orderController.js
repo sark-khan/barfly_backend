@@ -43,13 +43,6 @@ router.post("/create-order", async (req, res) => {
     });
     console.log({ response });
     io.to(response[0].entityId.toString()).emit("newOrder", response);
-
-    // const userDetails = await User.findById(req.userId, { socketId: 1 });
-    // if (userDetails && userDetails.socketId) {
-
-    // io.to(req.userId.toString()).emit("newOrder", response);
-    // }
-
     return res
       .status(STATUS_CODES.OK)
       .json({ message: "Order created successfully.", response });
