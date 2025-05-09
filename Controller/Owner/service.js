@@ -3168,7 +3168,7 @@ module.exports.restaurantCancelOrder = async (req) => {
 
 module.exports.getSalesReportHistory = async (req) => {
   const { userId, entityId } = req;
-  const history = await SalesReport.find({ userId }).sort({
+  const history = await SalesReport.find({ userId, entityId }).sort({
     createdAt: -1,
   });
   if (!history) return [];

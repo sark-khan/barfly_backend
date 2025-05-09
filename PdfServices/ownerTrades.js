@@ -427,7 +427,7 @@ module.exports.ownerTrades = async (req, res) => {
 
     doc
       .moveTo(leftMargin + 12, doc.y + 20)
-      .lineTo(pageWidth - rightMargin - 95, doc.y + 20)
+      .lineTo(pageWidth - rightMargin - 40, doc.y + 20)
       .lineWidth(1)
       .strokeColor("#000000")
       .stroke();
