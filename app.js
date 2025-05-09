@@ -45,7 +45,7 @@ const {
 const ItemDetails = require("./Models/ItemDetails");
 const MenuItem = require("./Models/MenuItem");
 const Admin = require("./Models/Admin");
-const { STATUS_CODES } = require("./Utils/globalConstants");
+const { STATUS_CODES, ORDER_STATUS } = require("./Utils/globalConstants");
 const { ownerTrades } = require("./PdfServices/ownerTrades");
 const verifyToken = require("./Utils/verifyToken");
 const { sendFirebaseNotification } = require("./Utils/commonFunction");
@@ -185,13 +185,10 @@ app.get("/api/get-trade-pdf", async (req, res) => {
     );
     res.setHeader("Content-Type", "application/pdf");
 
-    // Call the ownerTrades function, passing the response object `res`
-    ownerTrades(res);
+    await ownerTrades(req, res);
   } catch (error) {
-    console.error("Error occured whule creating trade pdf", error);
-    return res
-      .status(STATUS_CODES.BAD_REQUEST)
-      .json({ message: "Error occured while trade pdf", error });
+    console.error("Error occurred while creating trade PDF", error);
+    return res.status(400).json({ message: "PDF creation failed", error });
   }
 });
 
