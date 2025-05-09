@@ -451,7 +451,6 @@ const continueStripeOnboarding = async (req) => {
       type: "account_onboarding",
     });
 
-    // Optional: Update latest link in DB
     await EntityDetails.updateOne(
       { _id: entityId },
       { bankLinkUrl: accountLink.url }
