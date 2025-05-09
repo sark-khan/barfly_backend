@@ -314,6 +314,8 @@ const User = require("../Models/User");
 const Order = require("../Models/Order");
 const Counter = require("../Models/Counter");
 const EntityDetails = require("../Models/EntityDetails");
+const { uploadBufferToS3 } = require("../Controller/aws-service");
+const SalesReport = require("../Models/SalesReport");
 // const path = require("path");
 // const Order = require("../models/Order");
 // const Counter = require("../models/Counter");
@@ -329,6 +331,24 @@ module.exports.ownerTrades = async (req, res) => {
     const payload = { status: ORDER_STATUS.COMPLETED };
     const doc = new PDFDocument({ size: [595, 842] });
     const buffers = [];
+
+    doc.on("data", (chunk) => buffers.push(chunk));
+    doc.on("end", async () => {
+      const pdfBuffer = Buffer.concat(buffers);
+      const timestamp = Date.now();
+      const fileKey = `reports/${userId}/owner_trades_${timestamp}.pdf`;
+
+      const s3Data = await uploadBufferToS3(pdfBuffer, fileKey);
+
+      await SalesReport.create({
+        userId,
+        entityId,
+        fromDate,
+        toDate,
+        filename: fileKey.split("/").pop(),
+        filePath: s3Data.Location,
+      });
+    });
 
     doc.registerFont(
       "Helveticaneue-Light",
@@ -352,7 +372,6 @@ module.exports.ownerTrades = async (req, res) => {
     const rightMargin = 20;
     const topMargin = 30;
 
-    // ─── Add Header ─────────────────────────────
     doc.image(logoPath, leftMargin, topMargin, { width: 250, height: 70 });
 
     doc
@@ -413,7 +432,6 @@ module.exports.ownerTrades = async (req, res) => {
       .strokeColor("#000000")
       .stroke();
 
-    // ─── Table Headers ──────────────────────────
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
@@ -426,15 +444,11 @@ module.exports.ownerTrades = async (req, res) => {
         doc.y - 28
       );
 
-    // ─── Fetch Orders ─────────────────
     const orders = await Order.find({
       status: payload.status,
       createdAt: { $gte: new Date(fromDate), $lte: new Date(toDate) },
     });
 
-    console.log({ orders });
-
-    // Group Orders by Counter
     const counterMap = {};
     for (const order of orders) {
       const cid = order.counterId.toString();
@@ -446,14 +460,13 @@ module.exports.ownerTrades = async (req, res) => {
       const counter = await Counter.findById(counterId);
       const totalOrders = orderList.length;
 
-      // Sum the amounts, filtering out invalid values (undefined, null, NaN)
       const totalAmount = orderList.reduce((sum, o) => {
         const amount = o.totalAmount;
         if (typeof amount === "number" && !isNaN(amount)) {
           return sum + amount;
         } else {
           console.log(`Invalid totalAmount for order ${o._id}: ${amount}`);
-          return sum; // Ignore invalid amounts and proceed with summing valid ones
+          return sum;
         }
       }, 0);
 
@@ -465,8 +478,7 @@ module.exports.ownerTrades = async (req, res) => {
       const amountPerOrder =
         totalOrders > 0 ? (totalAmount / totalOrders).toFixed(2) : "0.00";
 
-      console.log(`Total Amount for ${counter.counterName}: ${totalAmount}`); // Debugging log to check totalAmount
-
+      console.log(`Total Amount for ${counter.counterName}: ${totalAmount}`);
       doc
         .fontSize(12)
         .font("Helveticaneue-Light")

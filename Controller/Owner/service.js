@@ -15,7 +15,11 @@ const throwError = require("../../Utils/throwError");
 const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
-const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
+const {
+  uploadBufferToS3,
+  generatePresignedUrl,
+  downloadBufferFromS3,
+} = require("../aws-service");
 const {
   shiftArrayRight,
   comparePassword,
@@ -32,10 +36,12 @@ const globalConstants = require("../../Utils/globalConstants");
 const ItemSearchLogs = require("../../Models/ItemSearchLogs");
 const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
-const { path } = require("pdfkit");
+// const { path } = require("pdfkit");
+const path = require("path");
 const { io } = require("../../app");
 const { messaging } = require("firebase-admin");
 const { messagingPlus } = require("../../firebaseAdmin");
+const SalesReport = require("../../Models/SalesReport");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
@@ -3158,4 +3164,32 @@ module.exports.restaurantCancelOrder = async (req) => {
     orderId: order._id,
     status: globalConstants.ORDER_STATUS.CANCELLED,
   });
+};
+
+module.exports.getSalesReportHistory = async (req) => {
+  const { userId, entityId } = req;
+  const history = await SalesReport.find({ userId }).sort({
+    createdAt: -1,
+  });
+  if (!history) return [];
+  return history;
+};
+
+module.exports.downloadSalesReport = async (req, res) => {
+  try {
+    const { key } = req.query;
+
+    if (!key) {
+      return res.status(400).json({ message: "Key is missing" });
+    }
+
+    const fileName = path.basename(key);
+    const fileBuffer = await downloadBufferFromS3(key);
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("Content-Type", "application/pdf");
+
+    return fileBuffer;
+  } catch (error) {
+    console.error("Error downloading sales report:", error);
+  }
 };

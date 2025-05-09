@@ -44,6 +44,8 @@ const {
   deleteFeedbackQuestions,
   getCounterAndCategory,
   restaurantCancelOrder,
+  downloadSalesReport,
+  getSalesReportHistory,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -804,6 +806,35 @@ router.post("/restaurant-cancel-order", async (req, res) => {
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message || "Error while cancelling the order" });
+  }
+});
+
+router.get("/get-sales-report-history", async (req, res) => {
+  try {
+    const response = await getSalesReportHistory(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: "Sales report history fetched successfully.",
+      response,
+    });
+  } catch (error) {
+    console.error("Error while fetching the sales report", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while fetching the sales report",
+    });
+  }
+});
+
+router.get("/download-sales-report", async (req, res) => {
+  try {
+    const response = await downloadSalesReport(req, res);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Sales report downloaded successfully.", response });
+  } catch (error) {
+    console.error("Error while downloading the sales report", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || "Error while downloading the sales report",
+    });
   }
 });
 
