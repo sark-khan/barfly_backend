@@ -308,18 +308,12 @@ const PDFDocument = require("pdfkit");
 //   doc.end();
 // };
 
-// const PDFDocument = require("pdfkit");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
-const User = require("../Models/User");
 const Order = require("../Models/Order");
 const Counter = require("../Models/Counter");
 const EntityDetails = require("../Models/EntityDetails");
 const { uploadBufferToS3 } = require("../Controller/aws-service");
 const SalesReport = require("../Models/SalesReport");
-// const path = require("path");
-// const Order = require("../models/Order");
-// const Counter = require("../models/Counter");
-// const User = require("../models/User");
 
 module.exports.ownerTrades = async (req, res) => {
   try {
@@ -328,6 +322,7 @@ module.exports.ownerTrades = async (req, res) => {
       entityId,
       query: { fromDate, toDate },
     } = req;
+
     const payload = { status: ORDER_STATUS.COMPLETED };
     const doc = new PDFDocument({ size: [595, 842] });
     const buffers = [];
