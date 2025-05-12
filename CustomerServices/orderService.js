@@ -99,7 +99,7 @@ const createOrder = async (req, session) => {
   }
 
   const platformFees = global.PLATFORM_FEES || 0;
-  const finalAmount = originalAmount - discountAmount + platformFees;
+  const finalAmount = originalAmount - discountAmount + platformFees + 1;
 
   const orderData = {
     status: ORDER_STATUS.WAITING,

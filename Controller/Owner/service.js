@@ -293,7 +293,6 @@ module.exports.getCounters = async (req) => {
     return counters;
   }
 
-  // Fetch active counters' IDs
   const activeCounterIds = counters.map((counter) => counter._id.toString());
 
   // Fetch items that have at least one active counter
@@ -305,7 +304,6 @@ module.exports.getCounters = async (req) => {
   const itemMapping = {};
 
   items.forEach((item) => {
-    // Check if all counterIds for this item are in activeCounterIds
     const validCounterIds = item.counterIds.filter((id) =>
       activeCounterIds.includes(id.toString())
     );
@@ -324,7 +322,6 @@ module.exports.getCounters = async (req) => {
     }
   });
 
-  // Attach only items belonging to active counters
   const counterDetails = counters.map((counter) => ({
     ...counter,
     items: itemMapping[counter._id] || [],
@@ -3168,28 +3165,28 @@ module.exports.restaurantCancelOrder = async (req) => {
 
 module.exports.getSalesReportHistory = async (req) => {
   const { userId } = req;
-  const history = await SalesReport.find({ userId }).sort({
-    createdAt: -1,
+
+  const history = await SalesReport.find({ userId }).sort({ createdAt: -1 });
+
+  if (!history || history.length === 0) return [];
+
+  const enrichedHistory = history.map((item) => {
+    const url = generatePresignedUrl(`reports/${userId}/${item.filename}`);
+    return {
+      ...item.toObject(),
+      url,
+    };
   });
-  if (!history) return [];
-  return history;
+
+  return enrichedHistory;
 };
 
 module.exports.downloadSalesReport = async (req, res) => {
   try {
     const { key } = req.query;
-
-    if (!key) {
-      return res.status(400).json({ message: "Key is missing" });
-    }
-
-    const fileName = path.basename(key);
-    const fileBuffer = await downloadBufferFromS3(key);
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-    res.setHeader("Content-Type", "application/pdf");
-
-    return fileBuffer;
+    const url = generatePresignedUrl(key);
+    return { url };
   } catch (error) {
-    console.error("Error downloading sales report:", error);
+    throw new Error("Failed to generate presigned URL");
   }
 };

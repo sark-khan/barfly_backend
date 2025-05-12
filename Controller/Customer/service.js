@@ -469,7 +469,7 @@ module.exports.counterList = async (req) => {
   const counterIds = counters.map((counter) => ObjectId(counter._id));
 
   const now = new Date();
-  const currentDay = (now.getDay() + 6) % 7; // Make Monday = 0
+  const currentDay = (now.getDay() + 6) % 7;
   const nowUTC = new Date();
 
   const events = await Event.find(
@@ -524,7 +524,6 @@ module.exports.counterList = async (req) => {
           )
         );
 
-        // Handle overnight event (end time is before or equal to start time)
         if (eventEndToday <= eventStartToday) {
           eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
         }

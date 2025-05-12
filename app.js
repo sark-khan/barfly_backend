@@ -67,10 +67,11 @@ const unProtectedApis = {
 
   "/api/customer/entities/get-menu-category-items": true,
   "/api/customer/entities/recommended-items": true,
-  "/api/get-trade-pdf": true,
+  // "/api/get-trade-pdf": true,
   "/api/owner/restaurant/email-exist": true,
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
+  // "/api/admins/add-admin": true,
 
   "/api/stripe/get-stripe-accounts": true,
 };
@@ -177,18 +178,15 @@ app.post("/update-entity-items", async (req, res) => {
   }
 });
 
-app.get("/api/get-trade-pdf", async (req, res) => {
+app.get("/api/get-trade-and-download-pdf", async (req, res) => {
   try {
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="trade_confirmation.pdf"'
-    );
-    res.setHeader("Content-Type", "application/pdf");
-
-    await ownerTrades(req, res);
+    const signedUrl = await ownerTrades(req);
+    return res.status(STATUS_CODES.OK).json({ downloadUrl: signedUrl });
   } catch (error) {
     console.error("Error occurred while creating trade PDF", error);
-    return res.status(400).json({ message: "PDF creation failed", error });
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: "PDF creation failed", error });
   }
 });
 
