@@ -225,6 +225,15 @@ const createOfflineOrder = async (req) => {
     mapper[item._id] = item;
   });
 
+  let amount = 0;
+
+  items.forEach((doc) => {
+    const itemDetails = mapper[`${doc.itemId}`];
+    if (itemDetails) {
+      amount += doc.quantity * itemDetails.price;
+    }
+  });
+
   const offlineOrderObj = await OfflineOrders.create({
     items,
     counterId,
@@ -232,6 +241,8 @@ const createOfflineOrder = async (req) => {
     countrTag,
     entityId,
     userId,
+    totalAmount: amount,
+    status: ORDER_STATUS.IN_PROGRESS,
   });
 
   return offlineOrderObj;

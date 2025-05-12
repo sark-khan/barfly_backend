@@ -32,6 +32,7 @@ const offlineOrderLogsSchema = new Schema(
     },
     internalNumber: { type: String, default: "" },
     status: { type: String, enum: Object.values(ORDER_STATUS) },
+    totalAmount: { type: Number, default: 0 },
   },
   { timestamps: true, minimize: false }
 );
