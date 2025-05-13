@@ -3,7 +3,6 @@ const { getIo } = require("./socket");
 const client = require("../redis");
 
 const emitEventQueue = new Queue("emit-event", {
-  // 🔥 Fixed queue name
   redis: {
     host: "127.0.0.1",
     port: 6379,
@@ -19,7 +18,7 @@ emitEventQueue.process(async (job, done) => {
 
     const io = getIo();
     if (!io) {
-      console.error("❌ Socket.IO instance not available!");
+      console.error("Socket.IO instance not available!");
       return done(new Error("Socket.IO instance not available"));
     }
 
@@ -27,12 +26,12 @@ emitEventQueue.process(async (job, done) => {
     const eventData = await client.get(eventKey);
 
     if (!eventData) {
-      console.log("⏳ Event not found in cache, skipping emission.");
+      console.log("Event not found in cache, skipping emission.");
       return done();
     }
 
     const cachedEvent = JSON.parse(eventData);
-    console.log(`📢 Retrieved event: ${cachedEvent.eventName}`);
+    console.log(`Retrieved event: ${cachedEvent.eventName}`);
 
     const currentTime = new Date();
     const eventStartTime = new Date(cachedEvent.from);
@@ -48,14 +47,14 @@ emitEventQueue.process(async (job, done) => {
     ) {
       const room = cachedEvent.entityId.toString();
       io.to(room).emit("ongoingEvent", cachedEvent);
-      console.log(`✅ Emitted "ongoingEvent" to room: ${room}`);
+      console.log(`Emitted "ongoingEvent" to room: ${room}`);
     } else {
-      console.log("⏳ Event is not yet due for emission.");
+      console.log("Event is not yet due for emission.");
     }
 
     done();
   } catch (err) {
-    console.error("❌ Error processing job", err);
+    console.error("Error processing job", err);
     done(err);
   }
 });

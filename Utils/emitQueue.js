@@ -9,7 +9,7 @@ const scheduleEmit = (event) => {
 
   if (delay > 0) {
     console.log(
-      `📅 Scheduling emit for event "${event.eventName}" (ID: ${event._id}) in ${delay}ms at ${event.from}`
+      `Scheduling emit for event "${event.eventName}" (ID: ${event._id}) in ${delay}ms at ${event.from}`
     );
 
     emitEventQueue.add(
