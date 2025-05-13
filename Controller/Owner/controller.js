@@ -282,13 +282,12 @@ router.get("/get-menu-particular-item", async (req, res) => {
 router.post("/create-event", upload.single("file"), async (req, res) => {
   try {
     const response = await createEvent(req);
-    console.log(`🆕 Event created: ${response.eventName} at ${response.from}`);
+    console.log(`Event created: ${response.eventName} at ${response.from}`);
 
-    // Cache it
     const redisKey = `upcoming_event:${response._id}`;
     await client.set(redisKey, JSON.stringify(response), "EX", 86400); // 24 hours TTL
 
-    console.log(`💾 Cached event with key: ${redisKey}`);
+    console.log(`Cached event with key: ${redisKey}`);
 
     // Schedule emit job
     scheduleEmit(response);
