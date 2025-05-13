@@ -590,7 +590,7 @@ const getOfflineOrders = async (req) => {
       select: "counterName",
       model: "Counter",
     })
-    .sort({ internalNumber: -1 })
+    .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
