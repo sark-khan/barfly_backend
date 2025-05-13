@@ -19,22 +19,7 @@ const redisClient = require("./../../../redis");
 const notificationSettings = require("../../../Models/notificationSettings");
 
 module.exports.register = async (req) => {
-  const {
-    email,
-    // fullName,
-    firstName,
-    lastName,
-    // city,
-    // street,
-    // zipcode,
-    password,
-    dob,
-    // country,
-    // address,
-    // contactNumber,
-    // houseNo,
-    countrTag,
-  } = req.body;
+  const { email, firstName, lastName, password, dob, countrTag } = req.body;
 
   const userExist = await User.findOne({
     email,
@@ -75,16 +60,7 @@ module.exports.register = async (req) => {
     lastName,
     email,
     password: hashedPassword,
-    // city,
-    // street,
-    // zipcode,
-    dob,
-    // country,
-    // address,
-    // contactNumber,
     status: STATUS.ACTIVE,
-    // houseNo,
-    age: String(age),
     countrTag,
   });
 
@@ -144,46 +120,8 @@ module.exports.login = async (req) => {
   return { user, token };
 };
 
-// module.exports.countRTag = async (req) => {
-//   const { countRTag, userId } = req.body;
-
-//   const user = await User.findById(userId);
-//   if (!user) {
-//     throwError({
-//       status: STATUS_CODES.BAD_REQUEST,
-//       message: "User doesn't exist",
-//     });
-//   }
-
-//   const countRTagExists = await CountRTags.findOne({ countRTag }).lean();
-//   if (countRTagExists) {
-//     throwError({
-//       status: STATUS_CODES.BAD_REQUEST,
-//       message: "Oops! This username is not available. Please try again.",
-//     });
-//   }
-
-//   const obj = {
-//     userId: user._id,
-//     countRTag: `${countRTag}`,
-//   };
-//   await CountRTags.create(obj);
-// };
-
 module.exports.checkAndProvideCountRTag = async (req) => {
   const { firstName, lastName } = req.query;
-  // const { userId } = req.query;
-  // const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
-
-  // if (!user) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "User doesn't exist.",
-  //   });
-  //   return;
-  // }
-
-  // let [firstName = "", lastName = ""] = user.fullName.split(" ");
 
   const isUsernameExists = async (username) => {
     return User.exists({ countrTag: username });
