@@ -38,15 +38,6 @@ const {
   updateNotificationSettings,
 } = require("./service");
 
-// router.use((req, res, next) => {
-//   if (req.role != ROLES.CUSTOMER) {
-//     return res
-//       .status(STATUS_CODES.NOT_AUTHORIZED)
-//       .json({ message: "Only Customer can perform this action" });
-//   }
-//   return next();
-// });
-
 router.get("/fetch-notification-settings", async (req, res) => {
   try {
     const notificationSettingsDetails = await fetchNotificationSettings(req);

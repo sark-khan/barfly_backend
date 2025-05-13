@@ -30,7 +30,6 @@ const {
   comparePassword,
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
-const CountRTags = require("../../Models/CountRTags");
 const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
 const Discount = require("../../Models/Discount");
@@ -87,7 +86,7 @@ module.exports.getEntities = async (req) => {
   }
 
   if (searchTerm) {
-    query.entityName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
+    query.entityName = { $regex: searchTerm, $options: "i" };
   }
 
   const currentRunningEntitiesDetails1 = await EntityDetails.find(query, {
@@ -111,9 +110,6 @@ module.exports.getEntities = async (req) => {
     fortyEightHoursago.setHours(fortyEightHoursago.getHours() - 48);
     query2.createdAt = { $gte: fortyEightHoursago };
   }
-  // else if (isPopular) {
-  //   sort.views = -1;
-  // }
 
   currentRunningEntitiesDetails1.map((items) => {
     if (!items.image) {
@@ -136,7 +132,7 @@ module.exports.getEntities = async (req) => {
   );
 
   if (req.query?.searchTerm && req.query.searchTerm != "") {
-    query2.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+    query2.entityName = { $regex: req.query.searchTerm, $options: "i" };
   }
 
   const remainingEntities = await EntityDetails.find(
@@ -194,26 +190,6 @@ module.exports.getEntities = async (req) => {
         : uniqueRemainingEntities,
   };
 };
-
-// module.exports.getEntitiesList= async(req)=>{
-//   const now = new Date();
-//   const favouritesList = await FavouriteEntity.find(
-//     { userId: req.id, isFavourite: true },
-//     { _id: 1, entityId: 1 },
-//     { lean: true }
-//   );
-
-//   const ongoingEvents= await Event.find({
-//       $and: [
-//         { from: { $lte: now } },
-//         { to: { $gte: now } },
-//         { entityId: { $exists: true } },
-//       ],
-//     },
-//     { entityId: 1 }
-//   );
-//   const
-// }
 
 module.exports.addFavouriteEntity = async (req) => {
   const userId = req.id;
@@ -573,10 +549,6 @@ module.exports.getCounterMenuCategory = async (req) => {
 module.exports.getMenuItems = async (req) => {
   let { menuCategoryId, searchTerm } = req.query;
 
-  // if (mongoose.Types.ObjectId.isValid(menuCategoryId)) {
-  //   menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
-  // }
-
   let filter = { menuCategoryId, inStock: true };
 
   if (searchTerm && searchTerm.trim()) {
@@ -589,12 +561,6 @@ module.exports.getMenuItems = async (req) => {
   if (!menuItems.length) {
     return [];
   }
-
-  // console.log({menuItems: menuItems[0].menuCategoryId.categoryName});
-  // // const name = await MenuCategory.findOne(
-  // //   { _id: menuCategoryId },
-  // //   { name: 1, _id: 0 }
-  // // ).lean();
 
   const favouriteItemList = await FavouriteItem.find(
     {
@@ -618,7 +584,6 @@ module.exports.getMenuItems = async (req) => {
     } else {
       menuItem.isFavourite = false;
     }
-    // itemDetails.image = generatePresignedUrl(itemDetails?.image);
     delete menuItem.itemId;
     acc.push({
       ...menuItem,
@@ -628,29 +593,6 @@ module.exports.getMenuItems = async (req) => {
   }, []);
   return menuItemsResp;
 };
-
-// module.exports.getRecommendedItems = async (req) => {
-//   const { entityId, counterId, searchTerm } = req.query;
-
-//   const query = { entityId, counterIds: counterId };
-
-//   if (searchTerm) {
-//     query.itemName = { $regex: searchTerm, $options: "i" };
-//   }
-
-//   const allItems = await ItemDetails.find(query).populate("menuCategoryId");
-
-//   const categoryMap = {};
-
-//   allItems.forEach((item) => {
-//     item.image = generatePresignedUrl(item.image);
-//     if (!categoryMap[item.menuCategoryId]) {
-//       categoryMap[item.menuCategoryId] = item;
-//     }
-//   });
-
-//   return Object.values(categoryMap);
-// };
 
 module.exports.getRecommendedItems = async (req) => {
   const { entityId, counterId, searchTerm } = req.query;
@@ -743,50 +685,43 @@ module.exports.getFavouriteItems = async (req) => {
     { favouriteItemId: 1 }
   );
 
-  const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+  const searchTerm = req.query.searchTerm?.trim();
 
-  // Fetch the list of favourite item IDs
   const favouriteItemIds = favouriteItemList.map(
     (item) => item.favouriteItemId
   );
 
   const menuItems = await ItemDetails.aggregate([
-    // Match documents in `ItemDetails` based on `counterId`
     {
       $match: {
-        counterId: ObjectId(counterId), // Ensure `counterId` is an ObjectId
+        counterId: ObjectId(counterId),
       },
     },
-    // Populate `itemId` from `MenuItem` collection
     {
       $lookup: {
-        from: "menuitems", // Collection name for `MenuItem`
+        from: "menuitems",
         localField: "itemId",
         foreignField: "_id",
-        as: "item", // Name for the populated field
+        as: "item",
       },
     },
-    // Unwind the `item` array to treat it as a single object
     {
       $unwind: "$item",
     },
-    // Match items that are in the `favouriteItemList`
     {
       $match: {
         "item._id": { $in: favouriteItemIds },
       },
     },
-    // Apply regex search for `item.itemName` if `searchTerm` is provided
     ...(searchTerm
       ? [
           {
             $match: {
-              "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
+              "item.itemName": { $regex: searchTerm, $options: "i" },
             },
           },
         ]
       : []),
-    // Project only the necessary fields
     {
       $project: {
         "item._id": 1,
@@ -797,7 +732,7 @@ module.exports.getFavouriteItems = async (req) => {
         "item.currency": 1,
         "item.image": 1,
         "item.quantity": 1,
-        price: 1, // Price from `ItemDetails`
+        price: 1,
         availableQuantity: 1,
         counterId: 1,
         entityId: 1,
@@ -806,7 +741,6 @@ module.exports.getFavouriteItems = async (req) => {
         currency: 1,
       },
     },
-    // Sort the results by `updatedAt`
     {
       $sort: { updatedAt: -1 },
     },
@@ -913,10 +847,7 @@ module.exports.getUserDetails = async (req) => {
     _id: userId,
     status: STATUS.ACTIVE,
   });
-  // const couterTag = await CountRTags.findOne(
-  //   { userId },
-  //   { countRTag: 1, _id: 0 }
-  // );
+
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -926,7 +857,6 @@ module.exports.getUserDetails = async (req) => {
 
   return {
     ...userDetails.toObject(),
-    // countRTag: couterTag ? couterTag.countRTag : "",
   };
 };
 
@@ -988,7 +918,7 @@ module.exports.updateUserDetails = async (req) => {
   if (email) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
         { email },
@@ -1020,16 +950,6 @@ module.exports.updateUserDetails = async (req) => {
           message: "Invalid OTP or OTP expired.",
         });
       }
-      // if (
-      //   !otpRecord ||
-      //   otpRecord.otp.toString() !== enteredOtp ||
-      //   new Date() > otpRecord.expiresAt
-      // ) {
-      //   throwError({
-      //     status: STATUS_CODES.BAD_REQUEST,
-      //     message: "Invalid OTP or OTP expired.",
-      //   });
-      // }
 
       await Otp.deleteOne({ email });
 

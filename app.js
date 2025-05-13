@@ -172,9 +172,11 @@ app.post("/update-entity-items", async (req, res) => {
       { _id: { $in: itemIds } },
       { $set: { entityId: req.entityId } }
     );
-    return res.status(200).json({ message: "Updated all the doc" });
+    return res.status(STATUS_CODES.OK).json({ message: "Updated all the doc" });
   } catch (error) {
-    return res.status(200).json({ message: error });
+    return res
+      .status(STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
   }
 });
 
