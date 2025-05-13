@@ -14,13 +14,8 @@ const verifyToken = async (token) => {
 
 const orderSocket = async (io) => {
   io.on("connection", async (socket) => {
-    console.log(socket.handshake.headers);
-    console.log(">>>>>>>>>>>>>>.");
-    console.log(socket.handshake.query);
-    console.log(socket.id);
     const token =
       socket.handshake.headers.token || socket.handshake.query.token;
-    // socket.handshake.headers.token?.split(" ")[1];
 
     if (!token) {
       console.log("No token provided, disconnecting...");
@@ -41,19 +36,14 @@ const orderSocket = async (io) => {
 
       await User.updateOne({ _id: userId }, { $set: { socketId: socket.id } });
 
-      // socket.on("newOrder", async () => {
-      //   console.log(`New order event received from ${userId}`);
-      // });
-      console.log({ entityId, sss: socket.id });
       socket.join(entityId.toString());
 
-      console.log(`User ${userId} joined room: ${entityId}`);
+      console.info(`User ${userId} joined room: ${entityId}`);
       const sockets = await io.in(entityId.toString()).fetchSockets();
       console.log(
         `Sockets in room ${entityId}:`,
         sockets.map((s) => s.id)
       );
-      // seeder.setSocketId(socket.id);
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
         await User.updateOne({ _id: userId }, { $unset: { socketId: "" } });
