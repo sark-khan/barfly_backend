@@ -196,6 +196,7 @@ const getRestaurants = async (req) => {
   }
   const [entity, totalCount] = await Promise.all([
     EntityDetails.find(query)
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageLimit)
       .populate({ path: "userId", select: "email", model: "User" })
@@ -270,6 +271,7 @@ const getTransactionLogs = async (req) => {
       path: "userId",
       select: "fullName",
     })
+    .sort({ _id: -1 })
     .skip(skip)
     .limit(pageLimit);
   const totalCount = await Stripe.countDocuments();
@@ -314,6 +316,7 @@ const editRestaurantsOrUsers = async (req) => {
 
   const updateOperations = [];
   let message = "";
+  let blockedAt = new Date();
 
   if (entityId) {
     const entity = await EntityDetails.findOne({
@@ -329,7 +332,10 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      EntityDetails.updateOne({ _id: entityId }, { $set: { status } })
+      EntityDetails.updateOne(
+        { _id: entityId },
+        { $set: { status, blockedAt } }
+      )
     );
     message = "Restaurant updated successfully.";
   }
@@ -349,7 +355,7 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      User.updateOne({ _id: userId }, { $set: { status } })
+      User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
     );
     message = "User updated successfully.";
   }

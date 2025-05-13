@@ -26,6 +26,7 @@ const entityDetailsSchema = new Schema(
     isOpen: { type: Boolean, default: true },
     stripeAccountId: { type: String },
     bankLinkUrl: { type: String },
+    blockedAt: { type: Date },
   },
   { timestamps: true }
 );

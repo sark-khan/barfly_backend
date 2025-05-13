@@ -30,6 +30,7 @@ const userSchema = new Schema(
     // houseNo: { type: String, default: "" },
     age: { type: String },
     countrTag: { type: String },
+    blockedAt: { type: Date },
   },
   { timestamps: true, minimize: false }
 );
