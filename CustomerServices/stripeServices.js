@@ -256,7 +256,7 @@ const createStripeOnboardingLink = async (req) => {
 
   const isMobile = platform === "app";
   const redirectUrl = isMobile
-    ? `countrplus://bank` // 👈 Deep link for mobile
+    ? `${process.env.HOST_URL}/countrplus://bank`
     : `${process.env.HOST_URL}/app/profile/bank-account`;
 
   const accountLink = await stripe.accountLinks.create({
