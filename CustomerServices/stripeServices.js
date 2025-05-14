@@ -256,9 +256,9 @@ const createStripeOnboardingLink = async (req) => {
 
   const isMobile = platform === "app";
   const redirectUrl = isMobile
-    ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+    ? // ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+      "countrplus://bank"
     : `${process.env.HOST_URL}/app/profile/bank-account`;
-
   const accountLink = await stripe.accountLinks.create({
     account: account.id,
     refresh_url: redirectUrl,
@@ -441,7 +441,8 @@ const continueStripeOnboarding = async (req) => {
 
     const isMobile = platform === "app";
     const redirectUrl = isMobile
-      ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+      ? // ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+        "countrplus://bank"
       : `${process.env.HOST_URL}/app/profile/bank-account`;
 
     const accountLink = await stripe.accountLinks.create({
