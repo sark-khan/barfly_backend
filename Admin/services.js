@@ -497,7 +497,7 @@ const platformmFees = async (req) => {
     userId,
     body: { platformFees },
   } = req;
-  const admin = Admin.findById(userId);
+  const admin = await Admin.findById(userId);
   if (!admin) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,

@@ -219,7 +219,7 @@ router.post("/add-platform-fees", async (req, res) => {
       .status(STATUS_CODES.OK)
       .json({ message: "Platform fees added successfuly" });
   } catch (error) {
-    console.error("Error while adding platform fees");
+    console.error("Error while adding platform fees", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

@@ -102,8 +102,7 @@ const createOrder = async (req, session) => {
   const finalAmount =
     parseFloat(originalAmount) -
     parseFloat(discountAmount) +
-    parseFloat(platformFees) +
-    1.0;
+    parseFloat(platformFees);
 
   const orderData = {
     status: ORDER_STATUS.WAITING,
