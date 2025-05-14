@@ -212,7 +212,7 @@ router.post("/logout-admin", async (req, res) => {
   }
 });
 
-router.post("/add-platform-fees", async (req) => {
+router.post("/add-platform-fees", async (req, res) => {
   try {
     await platformmFees(req);
     return res
