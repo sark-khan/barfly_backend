@@ -256,7 +256,8 @@ const createStripeOnboardingLink = async (req) => {
 
   const isMobile = platform === "app";
   const redirectUrl = isMobile
-    ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+    ? // ? `${process.env.HOST_URL}/stripe/redirect-bank?platform=app`
+      `${process.env.HOST_URL}/.well-known/apple-app-site-association`
     : `${process.env.HOST_URL}/app/profile/bank-account`;
 
   const accountLink = await stripe.accountLinks.create({
