@@ -226,7 +226,7 @@ app.post("/api/register-token", async (req, res) => {
 });
 
 app.post(
-  "/webhook",
+  "/webhooks",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     let event;
