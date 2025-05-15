@@ -80,6 +80,7 @@ const unProtectedApis = {
   // "/api/admins/add-admin": true,
 
   "/api/stripe/get-stripe-accounts": true,
+  "/webhooks": true,
 };
 
 app.use("/api/health-check", (req, res) => {
@@ -226,7 +227,7 @@ app.post("/api/register-token", async (req, res) => {
 });
 
 app.post(
-  "/webhook",
+  "/webhooks",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     let event;
