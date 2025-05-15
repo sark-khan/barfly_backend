@@ -463,7 +463,7 @@ const resetPassword = async (req) => {
 
     const fullName = `${adminUser.firstName} ${adminUser.lastName}`;
 
-    const resetLink = `${process.env.HOST_URL}/api/admins/reset-password?auth=${authToken}`;
+    const resetLink = `${process.env.HOST_URL}/admins/reset-password?auth=${authToken}`;
     const mailData = {
       to: email,
       subject: "COUNTR: Reset Password Request",
