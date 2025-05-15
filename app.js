@@ -281,6 +281,7 @@ app.post(
     res.sendStatus(STATUS_CODES.OK);
   }
 );
+app.use(express.json());
 
 const port = process.env.PORT;
 
