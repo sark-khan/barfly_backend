@@ -10,65 +10,6 @@ const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
 
-// const createPaymentIntent = async (req) => {
-//   const {
-//     userId,
-//     body: { amount, currency, paymentMethodType },
-//   } = req;
-
-//   const paymentIntent = await stripe.paymentIntents.create({
-//     amount: Math.round(amount * 100),
-//     currency,
-//     payment_method_types: [paymentMethodType],
-//   });
-
-//   const obj = {
-//     amount,
-//     currency,
-//     paymentMethodType,
-//     userId,
-//     stripePaymentIntentId: paymentIntent.id,
-//     lastPaymentDate: new Date(),
-//   };
-
-//   await StripeModel.create(obj);
-//   return paymentIntent;
-// };
-
-// const createPaymentIntent = async (req) => {
-//   const {
-//     userId,
-//     body: { amount, currency, paymentMethodType = "card" },
-//   } = req;
-
-//   if (paymentMethodType === "twint" && currency.toLowerCase() !== "chf") {
-//     throw new Error("TWINT is only supported for CHF currency.");
-//   }
-
-//   const paymentIntent = await stripe.paymentIntents.create({
-//     amount: Math.round(amount * 100),
-//     currency,
-//     payment_method_types: [paymentMethodType],
-//     metadata: {
-//       integration_check: paymentMethodType,
-//       userId,
-//     },
-//   });
-
-//   const obj = {
-//     amount,
-//     currency,
-//     paymentMethodType,
-//     userId,
-//     stripePaymentIntentId: paymentIntent.id,
-//     lastPaymentDate: new Date(),
-//   };
-
-//   await StripeModel.create(obj);
-
-//   return paymentIntent;
-// };
-
 const createPaymentIntent = async (req) => {
   const {
     userId,
@@ -158,15 +99,82 @@ const getPaymentStatusForStripe = (stripeStatus) => {
   }
 };
 
+// const confirmPaymentIntent = async (req) => {
+//   const { paymentIntentId, paymentMethodId, paymentMethodType } = req.body;
+
+//   try {
+//     const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
+//       payment_method: paymentMethodId,
+//     });
+
+//     console.log("Stripe payment intent status:", paymentIntent.status);
+
+//     const mappedStatus = getPaymentStatusForStripe(paymentIntent.status);
+//     console.log("Mapped status for DB:", mappedStatus);
+
+//     const updatePayload = {
+//       paymentStatus: mappedStatus,
+//       paymentMethodUsed: paymentMethodType || "unknown",
+//     };
+
+//     const existing = await StripeModel.findOne({
+//       stripePaymentIntentId: paymentIntentId,
+//     });
+//     console.log("Before update, DB record is:", existing);
+//     const result = await StripeModel.updateOne(
+//       { stripePaymentIntentId: paymentIntentId },
+//       { $set: updatePayload }
+//     );
+
+//     if (result.matchedCount === 0) {
+//       console.warn("No document found with this paymentIntentId");
+//     } else if (result.modifiedCount === 0) {
+//       console.warn(
+//         "Document found but no fields were modified. Maybe already up-to-date?"
+//       );
+//     } else {
+//       console.log("Payment status successfully updated in DB");
+//     }
+
+//     console.log(
+//       "Confirmed payment intent:",
+//       paymentIntent.id,
+//       "Status:",
+//       paymentIntent.status
+//     );
+
+//     return paymentIntent;
+//   } catch (error) {
+//     console.error("Error confirming payment intent:", error.message);
+
+//     // Optional: update the DB to mark the payment as failed
+//     await StripeModel.updateOne(
+//       { stripePaymentIntentId: paymentIntentId },
+//       { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+//     );
+
+//     throw error;
+//   }
+// };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const confirmPaymentIntent = async (req) => {
   const { paymentIntentId, paymentMethodId, paymentMethodType } = req.body;
 
   try {
-    const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
+    // Step 1: Confirm payment
+    await stripe.paymentIntents.confirm(paymentIntentId, {
       payment_method: paymentMethodId,
     });
 
-    console.log("Stripe payment intent status:", paymentIntent.status);
+    // Step 2: Optional delay to allow Stripe to update status
+    await sleep(2000); // wait 2 seconds
+
+    // Step 3: Re-fetch updated payment intent
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    console.log("Stripe payment intent final status:", paymentIntent.status);
 
     const mappedStatus = getPaymentStatusForStripe(paymentIntent.status);
     console.log("Mapped status for DB:", mappedStatus);
@@ -176,10 +184,6 @@ const confirmPaymentIntent = async (req) => {
       paymentMethodUsed: paymentMethodType || "unknown",
     };
 
-    const existing = await StripeModel.findOne({
-      stripePaymentIntentId: paymentIntentId,
-    });
-    console.log("Before update, DB record is:", existing);
     const result = await StripeModel.updateOne(
       { stripePaymentIntentId: paymentIntentId },
       { $set: updatePayload }
@@ -188,25 +192,16 @@ const confirmPaymentIntent = async (req) => {
     if (result.matchedCount === 0) {
       console.warn("No document found with this paymentIntentId");
     } else if (result.modifiedCount === 0) {
-      console.warn(
-        "Document found but no fields were modified. Maybe already up-to-date?"
-      );
+      console.warn("Document found but no fields were modified.");
     } else {
       console.log("Payment status successfully updated in DB");
     }
-
-    console.log(
-      "Confirmed payment intent:",
-      paymentIntent.id,
-      "Status:",
-      paymentIntent.status
-    );
 
     return paymentIntent;
   } catch (error) {
     console.error("Error confirming payment intent:", error.message);
 
-    // Optional: update the DB to mark the payment as failed
+    // Optional fallback update
     await StripeModel.updateOne(
       { stripePaymentIntentId: paymentIntentId },
       { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
