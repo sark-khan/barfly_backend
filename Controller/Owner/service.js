@@ -2600,7 +2600,7 @@ module.exports.getUsersFeedback = async (req) => {
   const feedbacks = await Feedbacks.find(query)
     .populate({
       path: "answers.questionId",
-      select: "question answerType",
+      select: "question answerType createdAt",
     })
     .sort({ createdAt: -1 });
 
@@ -2634,6 +2634,7 @@ module.exports.getUsersFeedback = async (req) => {
 
       const questionStats = feedbackStats[yearMonth][questionId._id] || {
         question: questionId.question,
+        createdAt: questionId.createdAt,
         RATING: { total: 0, count: 0, values: {} },
         FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
         BOOLEAN: { TRUE: 0, FALSE: 0, NEUTRAL: 0 },
@@ -2727,6 +2728,7 @@ module.exports.getUsersFeedback = async (req) => {
       finalStats[yearMonth][questionId] = {
         question: stats.question,
         type,
+        createdAt: stats.createdAt,
         RATING: {
           average: avgRating,
           distribution,
