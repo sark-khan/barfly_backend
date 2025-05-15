@@ -343,7 +343,7 @@ const editRestaurantsOrUsers = async (req) => {
   if (userId) {
     const user = await User.findOne({
       _id: userId,
-      status: STATUS.ACTIVE,
+      status: { $in: [STATUS.ACTIVE, STATUS.BLOCKED] },
       role: ROLES.CUSTOMER,
     }).lean();
 
