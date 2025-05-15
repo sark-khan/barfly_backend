@@ -234,7 +234,7 @@ app.post(
     try {
       const sig = req.headers["stripe-signature"];
       event = stripe.webhooks.constructEvent(
-        req.body,
+        // req.body,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
@@ -269,8 +269,6 @@ app.post(
           { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
         );
         break;
-
-      // Add other statuses if needed
 
       default:
         console.log(`Unhandled event type ${event.type}`);
