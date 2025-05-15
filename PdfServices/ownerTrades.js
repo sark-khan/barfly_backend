@@ -381,7 +381,7 @@ module.exports.ownerTrades = async (req) => {
     "Assets/fonts/HelveticaNeue Regular.ttf"
   );
 
-  const logoPath = "Assets/logo_export.png";
+  const logoPath = "Assets/countr_logo.png";
   const pageWidth = doc.page.width;
   const leftMargin = 25;
   const rightMargin = 20;
