@@ -79,25 +79,25 @@ const createPaymentIntent = async (req) => {
 //   return paymentMethod;
 // };
 
-const getPaymentStatusForStripe = (stripeStatus) => {
-  switch (stripeStatus) {
-    case "succeeded":
-      return STRIPE_PAYMENT_STATUS.SUCCESSFUL;
-    case "processing":
-      return STRIPE_PAYMENT_STATUS.PENDING;
-    case "canceled":
-      return STRIPE_PAYMENT_STATUS.CANCELLED;
-    case "incomplete":
-      return STRIPE_PAYMENT_STATUS.INCOMPLETE;
-    case "requires_payment_method":
-    case "requires_action":
-    case "requires_confirmation":
-    case "requires_capture":
-      return STRIPE_PAYMENT_STATUS.PENDING;
-    default:
-      return STRIPE_PAYMENT_STATUS.FAILED;
-  }
-};
+// const getPaymentStatusForStripe = (stripeStatus) => {
+//   switch (stripeStatus) {
+//     case "succeeded":
+//       return STRIPE_PAYMENT_STATUS.SUCCESSFUL;
+//     case "processing":
+//       return STRIPE_PAYMENT_STATUS.PENDING;
+//     case "canceled":
+//       return STRIPE_PAYMENT_STATUS.CANCELLED;
+//     case "incomplete":
+//       return STRIPE_PAYMENT_STATUS.INCOMPLETE;
+//     case "requires_payment_method":
+//     case "requires_action":
+//     case "requires_confirmation":
+//     case "requires_capture":
+//       return STRIPE_PAYMENT_STATUS.PENDING;
+//     default:
+//       return STRIPE_PAYMENT_STATUS.FAILED;
+//   }
+// };
 
 // const confirmPaymentIntent = async (req) => {
 //   const { paymentIntentId, paymentMethodId, paymentMethodType } = req.body;
@@ -157,56 +157,19 @@ const getPaymentStatusForStripe = (stripeStatus) => {
 //   }
 // };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const confirmPaymentIntent = async (req) => {
-  const { paymentIntentId, paymentMethodId, paymentMethodType } = req.body;
+  const { paymentIntentId, paymentMethodId } = req.body;
 
   try {
-    // Step 1: Confirm payment
-    await stripe.paymentIntents.confirm(paymentIntentId, {
+    const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
       payment_method: paymentMethodId,
     });
 
-    // Step 2: Optional delay to allow Stripe to update status
-    await sleep(2000); // wait 2 seconds
-
-    // Step 3: Re-fetch updated payment intent
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    console.log("Stripe payment intent final status:", paymentIntent.status);
-
-    const mappedStatus = getPaymentStatusForStripe(paymentIntent.status);
-    console.log("Mapped status for DB:", mappedStatus);
-
-    const updatePayload = {
-      paymentStatus: mappedStatus,
-      paymentMethodUsed: paymentMethodType || "unknown",
-    };
-
-    const result = await StripeModel.updateOne(
-      { stripePaymentIntentId: paymentIntentId },
-      { $set: updatePayload }
-    );
-
-    if (result.matchedCount === 0) {
-      console.warn("No document found with this paymentIntentId");
-    } else if (result.modifiedCount === 0) {
-      console.warn("Document found but no fields were modified.");
-    } else {
-      console.log("Payment status successfully updated in DB");
-    }
+    console.log("Stripe payment intent confirmed:", paymentIntent.id);
 
     return paymentIntent;
   } catch (error) {
     console.error("Error confirming payment intent:", error.message);
-
-    // Optional fallback update
-    await StripeModel.updateOne(
-      { stripePaymentIntentId: paymentIntentId },
-      { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
-    );
-
     throw error;
   }
 };
