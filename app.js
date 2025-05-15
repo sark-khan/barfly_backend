@@ -80,6 +80,7 @@ const unProtectedApis = {
   // "/api/admins/add-admin": true,
 
   "/api/stripe/get-stripe-accounts": true,
+  "/webhooks": true,
 };
 
 app.use("/api/health-check", (req, res) => {
