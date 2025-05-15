@@ -15,8 +15,9 @@ app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 const { setIo } = require("./Utils/socket");
-const stripe = require("stripe");
 const StripeModel = require("./Models/Stripe");
+const Stripe = require("stripe");
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -230,11 +231,12 @@ app.post(
   "/webhooks",
   express.raw({ type: "application/json" }),
   async (req, res) => {
-    console.log("Received webhook call"); // ADD THIS
+    console.log("Received webhook call");
+
+    const sig = req.headers["stripe-signature"];
     let event;
 
     try {
-      const sig = req.headers["stripe-signature"];
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
@@ -271,8 +273,6 @@ app.post(
           { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
         );
         break;
-
-      // Add other statuses if needed
 
       default:
         console.log(`Unhandled event type ${event.type}`);
