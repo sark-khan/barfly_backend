@@ -363,48 +363,6 @@ const editRestaurantsOrUsers = async (req) => {
   await Promise.all(updateOperations);
 };
 
-// const resetPassword = async (req) => {
-//   const { email, newPassword } = req.body;
-
-//   let message = "";
-//   const admin = await Admin.findOne({ email, status: STATUS.ACTIVE });
-//   if (!admin) {
-//     throwError({
-//       status: STATUS_CODES.BAD_REQUEST,
-//       message: "Admin not found.",
-//     });
-//   }
-//   const fullName = `${admin.firstName} ${admin.lastName}`;
-
-//   if (email) {
-//     const resetLink = `${process.env.HOST_URL}/api/admins/reset-password`;
-//     const mailData = {
-//       to: email,
-//       subject: "COUNTR: Reset Password Request",
-//       text: `Hello ${fullName},
-
-// We have received a request to reset your password for your Countr admin account. Please click the link below to reset your password:
-
-// Reset Password: ${resetLink}
-
-// If you did not request this change, please ignore this email.
-
-// Thank you,
-// The Countr Team`,
-//     };
-//     createMail(mailData);
-
-//     message = "Email has been sent";
-//   }
-
-//   if (newPassword) {
-//     const hashedPassword = await bcrypt.hash(newPassword, 10);
-//     admin.password = hashedPassword;
-//     await admin.save();
-//   }
-//   message = "Password updated successfully.";
-// };
-
 const resetPassword = async (req) => {
   const { email, password, authToken } = req.body;
 
