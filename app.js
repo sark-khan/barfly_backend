@@ -229,6 +229,7 @@ app.post(
   "/webhooks",
   express.raw({ type: "application/json" }),
   async (req, res) => {
+    console.log("Received webhook call"); // ADD THIS
     let event;
 
     try {
