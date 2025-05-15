@@ -1506,7 +1506,10 @@ module.exports.updateCounterSettings = async (req) => {
     if (counterName !== undefined) counter.counterName = counterName;
     if (status !== undefined) counter.status = status;
 
-    if (counter.tableSectionName === tableSectionName) {
+    if (
+      counter.isTableService &&
+      counter.tableSectionName === tableSectionName
+    ) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "Table with this name already exists.",
@@ -1522,9 +1525,9 @@ module.exports.updateCounterSettings = async (req) => {
     );
 
     const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
-    const newTo = tableTo !== undefined ? Number(tableTo) : currentTo;
+    const newTo = tableTo !== undefined ? Number() : currentTo;
 
-    if (newFrom >= newTo) {
+    if (counter.isTableService && newFrom >= newTo) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: "Invalid table range.",
