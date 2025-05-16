@@ -9,10 +9,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post("/login", async (req, res) => {
   try {
     const response = await login(req);
+    console.log({response});
     return res.status(STATUS_CODES.OK).json({
       message: "User logged in succesfully",
       token: response.token,
-      // userDetails: response.user,
+      userDetails: response.entityDetails,
     });
   } catch (error) {
     console.error("Error while login", error);

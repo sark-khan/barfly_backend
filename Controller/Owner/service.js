@@ -103,7 +103,18 @@ module.exports.createCounter = async (req) => {
   });
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
-
+  
+  sendFirebaseNotification({
+      topic: `entity_${newCounter.entityId}`,
+      showNotification: false,
+      title: "New Counter Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+            action:"counter_update",
+            screen: "landing_home",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
   const lastTable = await Tables.findOne(
     { entityId: req.entityId },
     { tableSetionNo: 1 }
@@ -282,7 +293,6 @@ module.exports.getCounters = async (req) => {
   // Map of counterId -> []
   const counterIds = fetchCounters.map((counter) => counter._id);
 
-  // Fetch items where counterId directly matches active counter ids
   const items = await ItemDetails.find(
     {
       entityId,
