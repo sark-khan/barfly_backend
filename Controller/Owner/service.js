@@ -203,17 +203,17 @@ module.exports.createCounterMenuCategory = async (req) => {
   for (const category of categories) {
     const { categoryName, nutritionType, counterIds } = category;
 
-    if (
-      !categoryName ||
-      !Array.isArray(counterIds) ||
-      counterIds.length === 0
-    ) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "Each category must have a categoryName and a non-empty counterIds array.",
-      });
-    }
+    // if (
+    //   !categoryName ||
+    //   !Array.isArray(counterIds) ||
+    //   counterIds.length === 0
+    // ) {
+    //   throwError({
+    //     status: STATUS_CODES.BAD_REQUEST,
+    //     message:
+    //       "Each category must have a categoryName and a non-empty counterIds array.",
+    //   });
+    // }
 
     const existingCategory = await MenuCategory.findOne({
       entityId,
