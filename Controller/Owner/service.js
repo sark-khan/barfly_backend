@@ -263,6 +263,7 @@ module.exports.getCounters = async (req) => {
   } else {
     query.status = STATUS.ACTIVE;
   }
+
   const fetchCounters = await Counter.find(query, {
     counterName: 1,
     isSelfPickUp: 1,
@@ -295,7 +296,6 @@ module.exports.getCounters = async (req) => {
 
   const activeCounterIds = counters.map((counter) => counter._id.toString());
 
-  // Fetch items that have at least one active counter
   const items = await ItemDetails.find(
     { entityId },
     { itemName: 1, inStock: 1, counterIds: 1 }
@@ -314,18 +314,30 @@ module.exports.getCounters = async (req) => {
           itemMapping[counterId] = [];
         }
         itemMapping[counterId].push({
+          _id: item._id,
           itemName: item.itemName,
           inStock: item.inStock,
-          _id: item._id,
         });
       });
     }
   });
 
-  const counterDetails = counters.map((counter) => ({
-    ...counter,
-    items: itemMapping[counter._id] || [],
-  }));
+  const counterDetails = counters.map((counter) => {
+    const itemsForCounter = itemMapping[counter._id.toString()] || [];
+
+    const uniqueItemsMap = new Map();
+
+    itemsForCounter.forEach((item) => {
+      if (!uniqueItemsMap.has(item.itemName)) {
+        uniqueItemsMap.set(item.itemName, item);
+      }
+    });
+
+    return {
+      ...counter,
+      items: Array.from(uniqueItemsMap.values()),
+    };
+  });
 
   return counterDetails;
 };
