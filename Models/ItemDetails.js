@@ -40,6 +40,7 @@ const itemSchema = new Schema(
         required: true,
       },
     ],
+    counterId: { type: ObjectId },
     inStock: { type: Boolean, default: true },
     quantity: { type: Number },
   },
