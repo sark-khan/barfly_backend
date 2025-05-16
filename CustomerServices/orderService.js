@@ -1308,9 +1308,7 @@ const getEventOrderSummary = async (req) => {
   const { eventId, counterId } = req.query;
 
   const query = { eventId };
-  if (counterId) {
-    query.counterId = counterId;
-  }
+  if (counterId) query.counterId = counterId;
 
   const orders = await Order.find(query)
     .populate({
@@ -1335,7 +1333,6 @@ const getEventOrderSummary = async (req) => {
       const {
         counterId,
         totalAmount: orderTotalAmount,
-        finalAmount,
         tokenNumber,
         items,
         tableNo,
@@ -1359,7 +1356,7 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      if (status !== ORDER_STATUS.CANCELLED) {
+      if (![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(status)) {
         counterSummary[counterKey].totalOrders += 1;
         counterSummary[counterKey].totalAmount += orderTotalAmount;
 
@@ -1391,72 +1388,71 @@ const getEventOrderSummary = async (req) => {
     })
     .filter(Boolean);
 
-  // Helpers
+  // ✅ UTC based date formatters
   const getDateHourKey = (date) => {
     const d = new Date(date);
-    return `${d.getFullYear()}-${(d.getMonth() + 1)
+    return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1)
       .toString()
-      .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")} ${d
-      .getHours()
+      .padStart(2, "0")}-${d.getUTCDate().toString().padStart(2, "0")} ${d
+      .getUTCHours()
       .toString()
       .padStart(2, "0")}:00`;
   };
 
   const getDateKey = (date) => {
     const d = new Date(date);
-    return `${d.getFullYear()}-${(d.getMonth() + 1)
+    return `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1)
       .toString()
-      .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+      .padStart(2, "0")}-${d.getUTCDate().toString().padStart(2, "0")}`;
   };
 
-  // Graph Data and Summary
   const overallHourly = {};
   const overallDaily = {};
-  const overallDailySummary = {}; // 👈 Added
+  const overallDailySummary = {};
 
   const perCounterHourly = {};
   const perCounterDaily = {};
-  const perCounterDailySummary = {}; // 👈 Added
+  const perCounterDailySummary = {};
 
-  orderDetails.forEach((order) => {
-    if (order.status === ORDER_STATUS.CANCELLED) return;
+  orderDetails
+    .filter(
+      (order) =>
+        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status)
+    )
+    .forEach((order) => {
+      const orderHour = getDateHourKey(order.createdAt);
+      const orderDay = getDateKey(order.createdAt);
 
-    const orderHour = getDateHourKey(order.createdAt);
-    const orderDay = getDateKey(order.createdAt);
+      overallHourly[orderHour] = (overallHourly[orderHour] || 0) + 1;
+      overallDaily[orderDay] = (overallDaily[orderDay] || 0) + 1;
 
-    // Overall Graph Data
-    overallHourly[orderHour] = (overallHourly[orderHour] || 0) + 1;
-    overallDaily[orderDay] = (overallDaily[orderDay] || 0) + 1;
+      if (!overallDailySummary[orderDay]) {
+        overallDailySummary[orderDay] = { totalOrders: 0, totalAmount: 0 };
+      }
+      overallDailySummary[orderDay].totalOrders += 1;
+      overallDailySummary[orderDay].totalAmount += order.totalAmount;
 
-    // Overall Daily Summary 👇
-    if (!overallDailySummary[orderDay]) {
-      overallDailySummary[orderDay] = { totalOrders: 0, totalAmount: 0 };
-    }
-    overallDailySummary[orderDay].totalOrders += 1;
-    overallDailySummary[orderDay].totalAmount += order.totalAmount;
+      perCounterHourly[order.counterId] =
+        perCounterHourly[order.counterId] || {};
+      perCounterDaily[order.counterId] = perCounterDaily[order.counterId] || {};
+      perCounterDailySummary[order.counterId] =
+        perCounterDailySummary[order.counterId] || {};
 
-    // Per counter
-    perCounterHourly[order.counterId] = perCounterHourly[order.counterId] || {};
-    perCounterDaily[order.counterId] = perCounterDaily[order.counterId] || {};
-    perCounterDailySummary[order.counterId] =
-      perCounterDailySummary[order.counterId] || {};
+      perCounterHourly[order.counterId][orderHour] =
+        (perCounterHourly[order.counterId][orderHour] || 0) + 1;
+      perCounterDaily[order.counterId][orderDay] =
+        (perCounterDaily[order.counterId][orderDay] || 0) + 1;
 
-    perCounterHourly[order.counterId][orderHour] =
-      (perCounterHourly[order.counterId][orderHour] || 0) + 1;
-    perCounterDaily[order.counterId][orderDay] =
-      (perCounterDaily[order.counterId][orderDay] || 0) + 1;
-
-    // Per Counter Daily Summary 👇
-    if (!perCounterDailySummary[order.counterId][orderDay]) {
-      perCounterDailySummary[order.counterId][orderDay] = {
-        totalOrders: 0,
-        totalAmount: 0,
-      };
-    }
-    perCounterDailySummary[order.counterId][orderDay].totalOrders += 1;
-    perCounterDailySummary[order.counterId][orderDay].totalAmount +=
-      order.totalAmount;
-  });
+      if (!perCounterDailySummary[order.counterId][orderDay]) {
+        perCounterDailySummary[order.counterId][orderDay] = {
+          totalOrders: 0,
+          totalAmount: 0,
+        };
+      }
+      perCounterDailySummary[order.counterId][orderDay].totalOrders += 1;
+      perCounterDailySummary[order.counterId][orderDay].totalAmount +=
+        order.totalAmount;
+    });
 
   const counters = Object.entries(counterSummary).map(([counterId, data]) => ({
     counterId,
@@ -1467,7 +1463,7 @@ const getEventOrderSummary = async (req) => {
       hourly: perCounterHourly[counterId] || {},
       daily: perCounterDaily[counterId] || {},
     },
-    dailySummary: perCounterDailySummary[counterId] || {}, // 👈 Added
+    dailySummary: perCounterDailySummary[counterId] || {},
   }));
 
   const result = {
@@ -1478,17 +1474,16 @@ const getEventOrderSummary = async (req) => {
       hourly: overallHourly,
       daily: overallDaily,
     },
-    dailySummary: overallDailySummary, // 👈 Added
+    dailySummary: overallDailySummary,
     counters,
     orders: orderDetails,
   };
 
-  // If counterId is passed, filter everything to that counter only
   if (counterId) {
     result.orders = orderDetails.filter((o) => o.counterId === counterId);
     result.graphData.hourly = perCounterHourly[counterId] || {};
     result.graphData.daily = perCounterDaily[counterId] || {};
-    result.dailySummary = perCounterDailySummary[counterId] || {}; // 👈 Added
+    result.dailySummary = perCounterDailySummary[counterId] || {};
     result.counters = counters.filter((c) => c.counterId === counterId);
   }
 
