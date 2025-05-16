@@ -3,7 +3,9 @@ const mongoose = require("mongoose");
 mongoose
   .connect(process.env.DB_URI, {
     authSource: "admin",
-    dbName: process.env.DB_NAME,
+    dbName: "Countr_Testing",
+    // dbName: "barfly",
+
     keepAlive: true,
     poolSize: 10,
     // replicaSet: process.env.DB_RS || "Cluster0-shard-0",
