@@ -3157,7 +3157,7 @@ module.exports.addFeedbackQuestions = async (req) => {
   });
   io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
   sendFirebaseNotification({
-    topic: `entity_${tableData.entityId}`,
+    topic: `entity_${entityId}`,
     showNotification: true,
     title: "New Profile Updated",
     body: "You have a new feedback added. Tap to view.",
