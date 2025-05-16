@@ -259,6 +259,18 @@ module.exports.createCounterMenuCategory = async (req) => {
     createdCategories
   );
 
+  sendFirebaseNotification({
+    topic: `entity_${createdCategories[0].entityId}`,
+    showNotification: true,
+    title: "New Category Added",
+    body: "You have a new category added. Tap to view.",
+    data: {
+          action:"category_update",
+          screen: "category_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+  });
+
   return createdCategories;
 };
 
@@ -553,17 +565,29 @@ module.exports.createMenuItem = async (req) => {
   // Emit socket event to entity room
   io.to(req.entityId.toString()).emit("newItem", createdItems);
 
-  // Send Firebase notification
   sendFirebaseNotification({
-    titleText: "New item added",
-    body: "New Item Added in the menu list",
+    topic: `entity_${req.entityId}`,
+    showNotification: true,
+    title: "New Item Added",
+    body: "You have a new item added. Tap to view.",
     data: {
-      action: "item created",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-    token: "",
-    showNotification: false,
+          action:"item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
   });
+
+  // Send Firebase notification
+  // sendFirebaseNotification({
+  //   titleText: "New item added",
+  //   body: "New Item Added in the menu list",
+  //   data: {
+  //     action: "item created",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  //   token: "",
+  //   showNotification: false,
+  // });
 
   return createdItems;
 };
@@ -662,9 +686,32 @@ module.exports.updateMenuItem = async (req) => {
 
     await item.save();
     io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+    sendFirebaseNotification({
+      topic: `entity_${item.entityId}`,
+      showNotification: true,
+      title: "New Item Added",
+      body: "You have a new item added. Tap to view.",
+      data: {
+            action:"item_update",
+            screen: "item_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
   } else if (action === EDIT_ACTION.DELETE) {
     await ItemDetails.deleteOne({ _id: itemId });
     io.to(item.entityId.toString()).emit("menuItemUpdated", { itemId });
+    sendFirebaseNotification({
+      topic: `entity_${item.entityId}`,
+      showNotification: true,
+      title: "New Item Added",
+      body: "You have a new item added. Tap to view.",
+      data: {
+            action:"item_update",
+            screen: "item_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
+    
   }
 };
 
@@ -1655,6 +1702,17 @@ module.exports.updateCounterSettings = async (req) => {
 
     await counter.save();
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    sendFirebaseNotification({
+      topic: `entity_${counter.entityId}`,
+      showNotification: true,
+      title: "New Counter Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+            action:"counter_update",
+            screen: "counter_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
 
     if (
       tableSectionName !== undefined ||
@@ -1725,6 +1783,17 @@ module.exports.updateCounterSettings = async (req) => {
       { $set: { status: STATUS.DELETED } }
     );
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    sendFirebaseNotification({
+      topic: `entity_${counter.entityId}`,
+      showNotification: true,
+      title: "New Counter Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+            action:"counter_update",
+            screen: "counter_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
   }
 };
 
@@ -2057,6 +2126,17 @@ module.exports.editBusinessDetails = async (req) => {
 
     message = "Password updated successfully.";
     io.to(entityId.toString()).emit("passwordUpdated", { message });
+    sendFirebaseNotification({
+      topic: `entity_${entityId}`,
+      showNotification: true,
+      title: "New Profile Details Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+            action:"profile_update",
+            screen: "counter_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
     return { message };
   }
 
@@ -2102,6 +2182,17 @@ module.exports.editBusinessDetails = async (req) => {
   if (Object.keys(updateEntityFields).length) {
     await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
     io.to(entityId.toString()).emit("entityDetailsUpdated", updateEntityFields);
+    sendFirebaseNotification({
+      topic: `entity_${entityId}`,
+      showNotification: true,
+      title: "New Profile Updated",
+      body: "You have a new entity_details added. Tap to view.",
+      data: {
+            action:"entity_details_update",
+            screen: "entity_details_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
   }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
@@ -2158,6 +2249,19 @@ module.exports.editBusinessDetails = async (req) => {
       io.to(entityId.toString()).emit("contactNumberUpdated", {
         contactNumber: unifiedContactNumber,
       });
+
+      sendFirebaseNotification({
+        topic: `entity_${entityId}`,
+        showNotification: true,
+        title: "New Profile Updated",
+        body: "You have a new entity_details added. Tap to view.",
+        data: {
+              action:"entity_details_update",
+              screen: "entity_details_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            },
+      });
+      
       return { message, otpVerified: true };
     }
   }
@@ -2210,6 +2314,17 @@ module.exports.editBusinessDetails = async (req) => {
 
       message = "Email updated successfully.";
       io.to(entityId.toString()).emit("emailUpdated", { email });
+      sendFirebaseNotification({
+        topic: `entity_${entityId}`,
+        showNotification: true,
+        title: "New Profile Updated",
+        body: "You have a new entity_details added. Tap to view.",
+        data: {
+              action:"entity_details_update",
+              screen: "entity_details_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            },
+      });
       return { message, otpVerified: true };
     }
   }
@@ -2319,6 +2434,17 @@ module.exports.addingTables = async (req) => {
 
   const newTable = await Tables.create(tableObj);
   io.to(newTable.entityId.toString()).emit("newTable", newTable);
+  sendFirebaseNotification({
+    topic: `entity_${newTable.entityId}`,
+    showNotification: true,
+    title: "New Profile Updated",
+    body: "You have a new table added. Tap to view.",
+    data: {
+          action:"table_update",
+          screen: "table_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+  });
 
   await Counter.updateMany(
     { _id: { $in: counterIds } },
@@ -2481,6 +2607,17 @@ module.exports.editTable = async (req) => {
     }
     message = "Table edited successfully.";
     io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
+    sendFirebaseNotification({
+      topic: `entity_${tableData.entityId}`,
+      showNotification: true,
+      title: "New Profile Updated",
+      body: "You have a new table added. Tap to view.",
+      data: {
+            action:"table_update",
+            screen: "table_screen",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+    });
     await tableData.save();
   } else if (action === EDIT_ACTION.DELETE) {
     if (!Array.isArray(counterIds) || counterIds.length === 0) {
@@ -3019,6 +3156,17 @@ module.exports.addFeedbackQuestions = async (req) => {
     comment,
   });
   io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
+  sendFirebaseNotification({
+    topic: `entity_${tableData.entityId}`,
+    showNotification: true,
+    title: "New Profile Updated",
+    body: "You have a new feedback added. Tap to view.",
+    data: {
+          action:"feedback_update",
+          screen: "feedback_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+  });
   return feedback;
 };
 
@@ -3278,6 +3426,17 @@ module.exports.restaurantCancelOrder = async (req) => {
   io.to(order.entityId.toString()).emit("cancelOrder", {
     orderId: order._id,
     status: globalConstants.ORDER_STATUS.CANCELLED,
+  });
+  sendFirebaseNotification({
+    topic: `entity_${order.entityId}`,
+    showNotification: true,
+    title: "New Cancel Order",
+    body: "You have a new cancel added. Tap to view.",
+    data: {
+          action:"cancel_update",
+          screen: "cancel_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
   });
 };
 
