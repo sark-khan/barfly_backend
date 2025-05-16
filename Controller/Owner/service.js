@@ -496,12 +496,12 @@ module.exports.createMenuItem = async (req) => {
     _id: { $in: menuCategoryIds },
   });
 
-  if (menuCategories.length !== menuCategoryIds.length) {
-    throwError({
-      status: STATUS_CODES.NOT_FOUND,
-      message: "One or more menu categories not found",
-    });
-  }
+  // if (menuCategories.length !== menuCategoryIds.length) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_FOUND,
+  //     message: "One or more menu categories not found",
+  //   });
+  // }
 
   // Check duplicate item per category
   const existingItem = await ItemDetails.findOne({
