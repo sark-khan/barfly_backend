@@ -524,6 +524,7 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
+  // Check if the same item name exists in any of the selected categories
   const existingItem = await ItemDetails.findOne({
     itemName,
     menuCategoryId: { $in: menuCategoryIds },
@@ -536,18 +537,17 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  const createdItems = [];
-
-  for (const category of menuCategories) {
-    for (const counterId of counterIds) {
-      const createdItem = await ItemDetails.create({
+  // Now create one item per menu category with ALL counterIds
+  const createdItems = await Promise.all(
+    menuCategories.map((category) =>
+      ItemDetails.create({
         itemName,
         price,
         currency: currency || "CHF",
         menuCategoryId: category._id,
         entityId: req.entityId,
-        counterId,
-        counterIds,
+        counterId: null, // If your schema requires single counterId, set null or remove
+        counterIds, // full array of counterIds here
         image: fileName,
         isVegan,
         unit,
@@ -555,10 +555,9 @@ module.exports.createMenuItem = async (req) => {
         nutritionType,
         inStock: true,
         quantity,
-      });
-      createdItems.push(createdItem);
-    }
-  }
+      })
+    )
+  );
 
   io.to(req.entityId.toString()).emit("newItem", createdItems);
 
