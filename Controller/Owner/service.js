@@ -499,17 +499,10 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  if (!Array.isArray(menuCategoryIds) || menuCategoryIds.length === 0) {
+  if (!menuCategoryIds || menuCategoryIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "At least one menu category is required",
-    });
-  }
-
-  if (!Array.isArray(counterIds) || counterIds.length === 0) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "At least one counterId is required",
     });
   }
 
@@ -517,6 +510,7 @@ module.exports.createMenuItem = async (req) => {
     _id: { $in: menuCategoryIds },
   });
 
+  // You can optionally check if all categories exist:
   if (menuCategories.length !== menuCategoryIds.length) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
@@ -524,7 +518,7 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  // Check if the same item name exists in any of the selected categories
+  // Check if an item with the same name already exists in ANY of the selected menu categories
   const existingItem = await ItemDetails.findOne({
     itemName,
     menuCategoryId: { $in: menuCategoryIds },
@@ -537,17 +531,16 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  // Now create one item per menu category with ALL counterIds
+  // Create one document per menu category, but assign the full counterIds array to each
   const createdItems = await Promise.all(
-    menuCategories.map((category) =>
-      ItemDetails.create({
+    menuCategories.map(async (category) => {
+      return ItemDetails.create({
         itemName,
         price,
         currency: currency || "CHF",
         menuCategoryId: category._id,
         entityId: req.entityId,
-        counterId: null, // If your schema requires single counterId, set null or remove
-        counterIds, // full array of counterIds here
+        counterIds, // full array here
         image: fileName,
         isVegan,
         unit,
@@ -555,12 +548,14 @@ module.exports.createMenuItem = async (req) => {
         nutritionType,
         inStock: true,
         quantity,
-      })
-    )
+      });
+    })
   );
 
-  io.to(req.entityId.toString()).emit("newItem", createdItems);
+  // Emit socket event for new items
+  io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
 
+  // Send Firebase notification
   sendFirebaseNotification({
     titleText: "New item added",
     body: "New Item Added in the menu list",
