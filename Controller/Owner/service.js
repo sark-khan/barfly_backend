@@ -263,7 +263,6 @@ module.exports.getCounters = async (req) => {
   } else {
     query.status = STATUS.ACTIVE;
   }
-
   const fetchCounters = await Counter.find(query, {
     counterName: 1,
     isSelfPickUp: 1,
@@ -296,6 +295,7 @@ module.exports.getCounters = async (req) => {
 
   const activeCounterIds = counters.map((counter) => counter._id.toString());
 
+  // Fetch items that have at least one active counter
   const items = await ItemDetails.find(
     { entityId },
     { itemName: 1, inStock: 1, counterIds: 1 }
@@ -314,30 +314,18 @@ module.exports.getCounters = async (req) => {
           itemMapping[counterId] = [];
         }
         itemMapping[counterId].push({
-          _id: item._id,
           itemName: item.itemName,
           inStock: item.inStock,
+          _id: item._id,
         });
       });
     }
   });
 
-  const counterDetails = counters.map((counter) => {
-    const itemsForCounter = itemMapping[counter._id.toString()] || [];
-
-    const uniqueItemsMap = new Map();
-
-    itemsForCounter.forEach((item) => {
-      if (!uniqueItemsMap.has(item.itemName)) {
-        uniqueItemsMap.set(item.itemName, item);
-      }
-    });
-
-    return {
-      ...counter,
-      items: Array.from(uniqueItemsMap.values()),
-    };
-  });
+  const counterDetails = counters.map((counter) => ({
+    ...counter,
+    items: itemMapping[counter._id] || [],
+  }));
 
   return counterDetails;
 };
@@ -359,6 +347,115 @@ module.exports.getInsiderElements = async (insiderId) => {
     };
   }
 };
+
+// module.exports.createMenuItem = async (req) => {
+//   const {
+//     file,
+//     body: {
+//       itemName,
+//       price,
+//       description,
+//       currency,
+//       menuCategoryIds,
+//       quantity,
+//       isVegan,
+//       unit,
+//       nutritionType,
+//       counterIds,
+//     },
+//   } = req;
+
+//   let fileName = "";
+
+//   if (file) {
+//     const fileBuffer = file.buffer;
+//     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+
+//     try {
+//       const data = await uploadBufferToS3(fileBuffer, fileName);
+//       if (!data.Location) {
+//         throwError({
+//           status: STATUS_CODES.BAD_REQUEST,
+//           message: "Error occurred while uploading the file",
+//         });
+//       }
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   }
+
+//   if (menuCategoryIds.length === 0) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "At least one menu category is required",
+//     });
+//   }
+
+//   const menuCategories = await MenuCategory.find({
+//     _id: { $in: menuCategoryIds },
+//   });
+
+//   // if (menuCategories.length != menuCategoryIds.length) {
+//   //   throwError({
+//   //     status: STATUS_CODES.NOT_FOUND,
+//   //     message: "One or more menu categories not found",
+//   //   });
+//   // }
+
+//   const existingItem = await ItemDetails.findOne({
+//     itemName,
+//     menuCategoryId: { $in: menuCategoryIds },
+//   });
+
+//   if (existingItem) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Same item exists in one of the selected menu categories",
+//     });
+//   }
+
+//   const createdItems = await Promise.all(
+//     menuCategories.map(async (category) => {
+//       return ItemDetails.create({
+//         itemName,
+//         price,
+//         currency: "CHF",
+//         menuCategoryId: category._id,
+//         entityId: req.entityId,
+//         counterId: category.counterId,
+//         counterIds,
+//         image: fileName,
+//         isVegan,
+//         unit,
+//         description,
+//         nutritionType,
+//         inStock: true,
+//         quantity,
+//       });
+//     })
+//   );
+
+//   io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
+
+//   sendFirebaseNotification({
+//     titleText: "New item added",
+//     body: "New Item Added in the menu list",
+//     data: {
+//       action: "item created",
+//       click_action: "FLUTTER_NOTIFICATION_CLICK",
+//     },
+//     token: "",
+//     showNotification: false,
+//   });
+
+//   return createdItems;
+// };
 
 module.exports.createMenuItem = async (req) => {
   const {
@@ -402,10 +499,17 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  if (menuCategoryIds.length === 0) {
+  if (!Array.isArray(menuCategoryIds) || menuCategoryIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: "At least one menu category is required",
+    });
+  }
+
+  if (!Array.isArray(counterIds) || counterIds.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "At least one counterId is required",
     });
   }
 
@@ -413,12 +517,12 @@ module.exports.createMenuItem = async (req) => {
     _id: { $in: menuCategoryIds },
   });
 
-  // if (menuCategories.length != menuCategoryIds.length) {
-  //   throwError({
-  //     status: STATUS_CODES.NOT_FOUND,
-  //     message: "One or more menu categories not found",
-  //   });
-  // }
+  if (menuCategories.length !== menuCategoryIds.length) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: "One or more menu categories not found",
+    });
+  }
 
   const existingItem = await ItemDetails.findOne({
     itemName,
@@ -432,15 +536,17 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  const createdItems = await Promise.all(
-    menuCategories.map(async (category) => {
-      return ItemDetails.create({
+  const createdItems = [];
+
+  for (const category of menuCategories) {
+    for (const counterId of counterIds) {
+      const createdItem = await ItemDetails.create({
         itemName,
         price,
-        currency: "CHF",
+        currency: currency || "CHF",
         menuCategoryId: category._id,
         entityId: req.entityId,
-        counterId: category.counterId,
+        counterId,
         counterIds,
         image: fileName,
         isVegan,
@@ -450,10 +556,11 @@ module.exports.createMenuItem = async (req) => {
         inStock: true,
         quantity,
       });
-    })
-  );
+      createdItems.push(createdItem);
+    }
+  }
 
-  io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
+  io.to(req.entityId.toString()).emit("newItem", createdItems);
 
   sendFirebaseNotification({
     titleText: "New item added",
