@@ -2012,6 +2012,7 @@ module.exports.editBusinessDetails = async (req) => {
       buildingName,
       landmark,
       plotNo,
+      country,
     },
   } = req;
 
@@ -2083,6 +2084,7 @@ module.exports.editBusinessDetails = async (req) => {
   if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
   if (plotNo) updateEntityFields.plotNo = plotNo;
+  if (country) updateEntityFields.country = country;
 
   // await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
   if (Object.keys(updateEntityFields).length) {
