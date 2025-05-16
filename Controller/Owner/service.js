@@ -263,6 +263,7 @@ module.exports.getCounters = async (req) => {
   } else {
     query.status = STATUS.ACTIVE;
   }
+
   const fetchCounters = await Counter.find(query, {
     counterName: 1,
     isSelfPickUp: 1,
@@ -274,57 +275,40 @@ module.exports.getCounters = async (req) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const counters = fetchCounters.map((counter) => {
-    const ids = counter.counterIds || [];
-    const newCounterIds =
-      ids.length === 0
-        ? []
-        : ids.length === 1
-        ? [ids[0]]
-        : [ids[0], ids[ids.length - 1]];
-
-    return {
-      ...counter,
-      counterIds: newCounterIds,
-    };
-  });
-
   if (isItemRequired !== "true") {
-    return counters;
+    return fetchCounters;
   }
 
-  const activeCounterIds = counters.map((counter) => counter._id.toString());
+  // Map of counterId -> []
+  const counterIds = fetchCounters.map((counter) => counter._id);
 
-  // Fetch items that have at least one active counter
+  // Fetch items where counterId directly matches active counter ids
   const items = await ItemDetails.find(
-    { entityId },
-    { itemName: 1, inStock: 1, counterIds: 1 }
+    {
+      entityId,
+      counterId: { $in: counterIds },
+    },
+    { itemName: 1, inStock: 1, counterId: 1 }
   ).lean();
 
+  // Build mapping of counterId to its items
   const itemMapping = {};
-
   items.forEach((item) => {
-    const validCounterIds = item.counterIds.filter((id) =>
-      activeCounterIds.includes(id.toString())
-    );
-
-    if (validCounterIds.length === item.counterIds.length) {
-      validCounterIds.forEach((counterId) => {
-        if (!itemMapping[counterId]) {
-          itemMapping[counterId] = [];
-        }
-        itemMapping[counterId].push({
-          itemName: item.itemName,
-          inStock: item.inStock,
-          _id: item._id,
-        });
-      });
+    const counterIdStr = item.counterId.toString();
+    if (!itemMapping[counterIdStr]) {
+      itemMapping[counterIdStr] = [];
     }
+    itemMapping[counterIdStr].push({
+      itemName: item.itemName,
+      inStock: item.inStock,
+      _id: item._id,
+    });
   });
 
-  const counterDetails = counters.map((counter) => ({
+  // Attach items to counters
+  const counterDetails = fetchCounters.map((counter) => ({
     ...counter,
-    items: itemMapping[counter._id] || [],
+    items: itemMapping[counter._id.toString()] || [],
   }));
 
   return counterDetails;
