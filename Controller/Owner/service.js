@@ -133,7 +133,7 @@ module.exports.createCounter = async (req) => {
 
   sendFirebaseNotification({
     topic: `entity_${newCounter.entityId}`,
-    showNotification: false,
+    showNotification: true,
     title: "New Counter Added",
     body: "You have a new counter added. Tap to view.",
     data: {
