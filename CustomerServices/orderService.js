@@ -1199,6 +1199,111 @@ const cancelOrder = async (req) => {
   }
 };
 
+// const getEventOrderSummary = async (req) => {
+//   const { eventId, counterId } = req.query;
+
+//   const query = { eventId };
+//   if (counterId) {
+//     query.counterId = counterId;
+//   }
+
+//   const orders = await Order.find(query)
+//     .populate({
+//       path: "counterId",
+//       select: "counterName status isTableService isSelfPickUp",
+//       model: "Counter",
+//     })
+//     .populate({
+//       path: "items.itemId",
+//       select: "itemName price",
+//       model: "ItemDetails",
+//     })
+//     .lean();
+
+//   const counterSummary = {};
+//   let totalOrders = 0;
+//   let totalAmount = 0;
+
+//   const orderDetails = orders
+//     .filter((order) => order.counterId?.status === STATUS.ACTIVE)
+//     .map((order) => {
+//       const {
+//         counterId,
+//         totalAmount: orderTotalAmount,
+//         finalAmount,
+//         tokenNumber,
+//         items,
+//         tableNo,
+//         status,
+//         isSelfPickup,
+//         createdAt,
+//       } = order;
+
+//       if (!counterId) return null;
+
+//       const counterKey = counterId._id.toString();
+//       const counterName = counterId.counterName;
+//       const counterTableService = counterId.isTableService;
+//       const counterSelfPickup = counterId.isSelfPickUp;
+
+//       if (!counterSummary[counterKey]) {
+//         counterSummary[counterKey] = {
+//           counterName,
+//           totalOrders: 0,
+//           totalAmount: 0,
+//         };
+//       }
+
+//       if (orders.status !== ORDER_STATUS.CANCELLED) {
+//         counterSummary[counterKey].totalOrders += 1;
+//         counterSummary[counterKey].totalAmount += orderTotalAmount;
+
+//         totalOrders += 1;
+//         totalAmount += orderTotalAmount;
+//       }
+
+//       return {
+//         orderId: order._id,
+//         tokenNumber,
+//         totalAmount: orderTotalAmount,
+//         counterId: counterKey,
+//         counterName,
+//         tableNo,
+//         status,
+//         isSelfPickUp: counterSelfPickup,
+//         isTableService: counterTableService,
+//         isSelfPickup,
+//         currency: "CHF",
+//         createdAt,
+//         items: items.map((item) => ({
+//           itemId: item.itemId?._id,
+//           itemName: item.itemId?.itemName,
+//           price: item.itemId?.price,
+//           quantity: item.quantity,
+//           totalPrice: item.quantity * item.itemId?.price,
+//         })),
+//       };
+//     })
+//     .filter(Boolean);
+
+//   const counters = Object.entries(counterSummary).map(([counterId, data]) => ({
+//     counterId,
+//     counterName: data.counterName,
+//     totalOrders: data.totalOrders,
+//     totalAmount: data.totalAmount,
+//   }));
+
+//   const result = {
+//     eventId,
+//     totalOrders,
+//     totalAmount,
+//     counters,
+//     orders: counterId ? orderDetails : [],
+//   };
+
+//   return result;
+// };
+
 const getEventOrderSummary = async (req) => {
   const { eventId, counterId } = req.query;
 
@@ -1254,7 +1359,7 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      if (orders.status !== ORDER_STATUS.CANCELLED) {
+      if (status !== ORDER_STATUS.CANCELLED) {
         counterSummary[counterKey].totalOrders += 1;
         counterSummary[counterKey].totalAmount += orderTotalAmount;
 
@@ -1286,20 +1391,106 @@ const getEventOrderSummary = async (req) => {
     })
     .filter(Boolean);
 
+  // Helpers
+  const getDateHourKey = (date) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${(d.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")} ${d
+      .getHours()
+      .toString()
+      .padStart(2, "0")}:00`;
+  };
+
+  const getDateKey = (date) => {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${(d.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+  };
+
+  // Graph Data and Summary
+  const overallHourly = {};
+  const overallDaily = {};
+  const overallDailySummary = {}; // 👈 Added
+
+  const perCounterHourly = {};
+  const perCounterDaily = {};
+  const perCounterDailySummary = {}; // 👈 Added
+
+  orderDetails.forEach((order) => {
+    if (order.status === ORDER_STATUS.CANCELLED) return;
+
+    const orderHour = getDateHourKey(order.createdAt);
+    const orderDay = getDateKey(order.createdAt);
+
+    // Overall Graph Data
+    overallHourly[orderHour] = (overallHourly[orderHour] || 0) + 1;
+    overallDaily[orderDay] = (overallDaily[orderDay] || 0) + 1;
+
+    // Overall Daily Summary 👇
+    if (!overallDailySummary[orderDay]) {
+      overallDailySummary[orderDay] = { totalOrders: 0, totalAmount: 0 };
+    }
+    overallDailySummary[orderDay].totalOrders += 1;
+    overallDailySummary[orderDay].totalAmount += order.totalAmount;
+
+    // Per counter
+    perCounterHourly[order.counterId] = perCounterHourly[order.counterId] || {};
+    perCounterDaily[order.counterId] = perCounterDaily[order.counterId] || {};
+    perCounterDailySummary[order.counterId] =
+      perCounterDailySummary[order.counterId] || {};
+
+    perCounterHourly[order.counterId][orderHour] =
+      (perCounterHourly[order.counterId][orderHour] || 0) + 1;
+    perCounterDaily[order.counterId][orderDay] =
+      (perCounterDaily[order.counterId][orderDay] || 0) + 1;
+
+    // Per Counter Daily Summary 👇
+    if (!perCounterDailySummary[order.counterId][orderDay]) {
+      perCounterDailySummary[order.counterId][orderDay] = {
+        totalOrders: 0,
+        totalAmount: 0,
+      };
+    }
+    perCounterDailySummary[order.counterId][orderDay].totalOrders += 1;
+    perCounterDailySummary[order.counterId][orderDay].totalAmount +=
+      order.totalAmount;
+  });
+
   const counters = Object.entries(counterSummary).map(([counterId, data]) => ({
     counterId,
     counterName: data.counterName,
     totalOrders: data.totalOrders,
     totalAmount: data.totalAmount,
+    graphData: {
+      hourly: perCounterHourly[counterId] || {},
+      daily: perCounterDaily[counterId] || {},
+    },
+    dailySummary: perCounterDailySummary[counterId] || {}, // 👈 Added
   }));
 
   const result = {
     eventId,
     totalOrders,
     totalAmount,
+    graphData: {
+      hourly: overallHourly,
+      daily: overallDaily,
+    },
+    dailySummary: overallDailySummary, // 👈 Added
     counters,
-    orders: counterId ? orderDetails : [],
+    orders: orderDetails,
   };
+
+  // If counterId is passed, filter everything to that counter only
+  if (counterId) {
+    result.orders = orderDetails.filter((o) => o.counterId === counterId);
+    result.graphData.hourly = perCounterHourly[counterId] || {};
+    result.graphData.daily = perCounterDaily[counterId] || {};
+    result.dailySummary = perCounterDailySummary[counterId] || {}; // 👈 Added
+    result.counters = counters.filter((c) => c.counterId === counterId);
+  }
 
   return result;
 };
