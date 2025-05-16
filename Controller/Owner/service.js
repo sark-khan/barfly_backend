@@ -476,6 +476,7 @@ module.exports.createMenuItem = async (req) => {
 
   let fileName = "";
 
+  // Upload image to S3 if provided
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -506,11 +507,11 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
+  // Get menu categories by IDs
   const menuCategories = await MenuCategory.find({
     _id: { $in: menuCategoryIds },
   });
 
-  // You can optionally check if all categories exist:
   if (menuCategories.length !== menuCategoryIds.length) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
@@ -518,7 +519,7 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  // Check if an item with the same name already exists in ANY of the selected menu categories
+  // Check duplicate item per category
   const existingItem = await ItemDetails.findOne({
     itemName,
     menuCategoryId: { $in: menuCategoryIds },
@@ -531,7 +532,7 @@ module.exports.createMenuItem = async (req) => {
     });
   }
 
-  // Create one document per menu category, but assign the full counterIds array to each
+  // Create item once per category, assign all counterIds, and category's own counterId if available
   const createdItems = await Promise.all(
     menuCategories.map(async (category) => {
       return ItemDetails.create({
@@ -540,7 +541,8 @@ module.exports.createMenuItem = async (req) => {
         currency: currency || "CHF",
         menuCategoryId: category._id,
         entityId: req.entityId,
-        counterIds, // full array here
+        counterIds, // Full array as requested
+        counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
         image: fileName,
         isVegan,
         unit,
@@ -552,8 +554,8 @@ module.exports.createMenuItem = async (req) => {
     })
   );
 
-  // Emit socket event for new items
-  io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
+  // Emit socket event to entity room
+  io.to(req.entityId.toString()).emit("newItem", createdItems);
 
   // Send Firebase notification
   sendFirebaseNotification({
