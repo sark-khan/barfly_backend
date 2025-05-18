@@ -1,6 +1,7 @@
 const Queue = require("bull");
 const { getIo } = require("./socket");
 const client = require("../redis");
+const { sendFirebaseNotification } = require("./commonFunction");
 
 const emitEventQueue = new Queue("emit-event", {
   redis: {
@@ -47,6 +48,17 @@ emitEventQueue.process(async (job, done) => {
     ) {
       const room = cachedEvent.entityId.toString();
       io.to(room).emit("ongoingEvent", cachedEvent);
+      sendFirebaseNotification({
+        topic: `entity_${tableData.entityId}`,
+        showNotification: true,
+        title: "New Event Updated",
+        body: "You have a new event added. Tap to view.",
+        data: {
+              action:"event_update",
+              screen: "event_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            },
+      });
       console.log(`Emitted "ongoingEvent" to room: ${room}`);
     } else {
       console.log("Event is not yet due for emission.");

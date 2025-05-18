@@ -213,7 +213,7 @@ module.exports.login = async (req) => {
   const entityDetails = await EntityDetails.findOne({
     userId: user._id,
     status: STATUS.ACTIVE,
-  });
+  },{_id:1});
 
   if (!entityDetails)
     throwError({

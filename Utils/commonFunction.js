@@ -213,93 +213,156 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// const sendFirebaseNotification = async ({
+//   isOwner = false,
+//   titleText = "",
+//   body = "",
+//   data = {},
+//   ownerToken = "",
+//   customerToken = "",
+//   isCustomer = false,
+//   showNotification = false,
+//   topic = "",
+// }) => {
+//   try {
+//     if (token == "") {
+//       console.error("No fcm token found");
+//       return;
+//     }
+//     const payload = {
+//       token: ownerToken,
+//       data: data,
+//     };
+
+//     if (showNotification) {
+//       payload.notification = {
+//         title: titleText,
+//         body: body,
+//       };
+
+//       payload.android = {
+//         priority: "high",
+//         notification: {
+//           click_action: "FLUTTER_NOTIFICATION_CLICK",
+//         },
+//       };
+
+//       payload.apns = {
+//         payload: {
+//           aps: {
+//             alert: {
+//               title: titleText,
+//               body: body,
+//             },
+//             category: "FLUTTER_NOTIFICATION_CLICK",
+//             mutableContent: 1,
+//             content_available: true,
+//           },
+//         },
+//       };
+//     } else {
+//       payload.android = {
+//         priority: "high",
+//       };
+
+//       payload.apns = {
+//         headers: {
+//           "apns-priority": "5",
+//         },
+//         payload: {
+//           aps: {
+//             contentAvailable: true,
+//           },
+//         },
+//       };
+//     }
+//     if (isOwner) {
+//       await messagingPlus.send(payload);
+//       console.info("Notification Pushed for admin");
+//     } else if (isCustomer) {
+//       payload.token = customerToken;
+//       await messaging.send(payload);
+//       console.info("Notifiaction pushed for customer");
+//     }
+//   } catch (err) {
+//     console.error("Push Notification Error:", err.message);
+
+//     if (
+//       err.code === "messaging/invalid-argument" ||
+//       err.code === "messaging/registration-token-not-registered" ||
+//       err.code === "messaging/invalid-recipient"
+//     ) {
+//       // Remove invalid token from user
+//       await User.updateOne(
+//         { _id: entityDetails.userId },
+//         { $unset: { fcmToken: "" } }
+//       );
+//     }
+//   }
+// };
+
 const sendFirebaseNotification = async ({
-  isOwner = false,
-  titleText = "",
+  title = "",
   body = "",
   data = {},
-  ownerToken = "",
-  customerToken = "",
-  isCustomer = false,
-  showNotification = false,
   topic = "",
+  showNotification = true,
 }) => {
   try {
-    if (token == "") {
-      console.error("No fcm token found");
+    if (!topic) {
+      console.warn("⚠️ No topic provided for notification.");
       return;
     }
+
+    const topicName = topic.startsWith("entity_") ? topic : `entity_${topic}`;
+
     const payload = {
-      token: ownerToken,
-      data: data,
-    };
+      notification: showNotification
+        ? {
+            title,
+            body,
+          }
+        : undefined,
 
-    if (showNotification) {
-      payload.notification = {
-        title: titleText,
-        body: body,
-      };
+      data: {
+        ...data,
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
 
-      payload.android = {
+      android: {
         priority: "high",
-        notification: {
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
-      };
+        notification: showNotification
+          ? {
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            }
+          : undefined,
+      },
 
-      payload.apns = {
+      apns: {
         payload: {
           aps: {
-            alert: {
-              title: titleText,
-              body: body,
-            },
+            content_available: true,
             category: "FLUTTER_NOTIFICATION_CLICK",
             mutableContent: 1,
-            content_available: true,
+            alert: showNotification
+              ? {
+                  title,
+                  body,
+                }
+              : undefined,
           },
         },
-      };
-    } else {
-      payload.android = {
-        priority: "high",
-      };
+      },
+      topic: topicName,
+    };
 
-      payload.apns = {
-        headers: {
-          "apns-priority": "5",
-        },
-        payload: {
-          aps: {
-            contentAvailable: true,
-          },
-        },
-      };
-    }
-    if (isOwner) {
-      await messagingPlus.send(payload);
-      console.info("Notification Pushed for admin");
-    } else if (isCustomer) {
-      payload.token = customerToken;
-      await messaging.send(payload);
-      console.info("Notifiaction pushed for customer");
-    }
+    await messagingPlus.send(payload);
+    console.info(`✅ Notification sent to topic: ${topicName}`);
   } catch (err) {
-    console.error("Push Notification Error:", err.message);
-
-    if (
-      err.code === "messaging/invalid-argument" ||
-      err.code === "messaging/registration-token-not-registered" ||
-      err.code === "messaging/invalid-recipient"
-    ) {
-      // Remove invalid token from user
-      await User.updateOne(
-        { _id: entityDetails.userId },
-        { $unset: { fcmToken: "" } }
-      );
-    }
+    console.error("❌ Push Notification Error:", err.message);
   }
 };
+
 
 module.exports = {
   hashPassword,
