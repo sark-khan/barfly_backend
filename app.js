@@ -11,6 +11,41 @@ const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
+app.post(
+  "/webhooks",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body, // Raw body buffer
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      // Handle event
+      const intent = event.data.object;
+      switch (event.type) {
+        case "payment_intent.succeeded":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            { $set: { paymentStatus: "successful" } }
+          );
+          break;
+        // Add other cases...
+        default:
+          console.log(`Unhandled event: ${event.type}`);
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error(`⚠️ Webhook error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  }
+);
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
@@ -278,41 +313,6 @@ app.post("/api/register-token", async (req, res) => {
 //     res.sendStatus(STATUS_CODES.OK);
 //   }
 // );
-
-app.post(
-  "/webhooks",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body, // Raw body buffer
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-
-      // Handle event
-      const intent = event.data.object;
-      switch (event.type) {
-        case "payment_intent.succeeded":
-          await StripeModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: "successful" } }
-          );
-          break;
-        // Add other cases...
-        default:
-          console.log(`Unhandled event: ${event.type}`);
-      }
-
-      res.sendStatus(200);
-    } catch (err) {
-      console.error(`⚠️ Webhook error: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  }
-);
 
 const port = process.env.PORT;
 
