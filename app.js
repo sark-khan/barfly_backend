@@ -19,7 +19,7 @@ app.post(
 
     try {
       const event = stripe.webhooks.constructEvent(
-        req.body, // Raw body buffer
+        req.body,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET
       );
@@ -27,13 +27,32 @@ app.post(
       // Handle event
       const intent = event.data.object;
       switch (event.type) {
+        case "payment_intent.created":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CREATED } }
+          );
+          break;
         case "payment_intent.succeeded":
           await StripeModel.updateOne(
             { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: "successful" } }
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
           );
           break;
-        // Add other cases...
+        case "payment_intent.payment_failed":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: paymentIntentId },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+          );
+          break;
+
+        case "payment_intent.canceled":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: paymentIntentId },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
+          );
+          break;
+
         default:
           console.log(`Unhandled event: ${event.type}`);
       }

@@ -17,7 +17,7 @@ const createPaymentIntent = async (req) => {
       amount,
       currency,
       paymentMethodType = "card",
-      restaurantStripeAccountId = "acct_1RCKsm2ag6dAhPwK",
+      restaurantStripeAccountId,
       orderId,
     },
   } = req;

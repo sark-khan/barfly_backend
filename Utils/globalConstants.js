@@ -289,11 +289,13 @@ const COUNTRY_ARRAY = [
 ];
 
 const STRIPE_PAYMENT_STATUS = {
+  CREATED: "Created",
   SUCCESSFUL: "Successful",
   PENDING: "Pending",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
   INCOMPLETE: "Incomplete",
+  DISPUTED: "Disputed",
 };
 
 const ANSWER_TYPES = {
