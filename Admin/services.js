@@ -270,6 +270,7 @@ const getTransactionLogs = async (req) => {
     .populate({
       path: "userId",
       select: "fullName",
+      model: "User",
     })
     .sort({ _id: -1 })
     .skip(skip)

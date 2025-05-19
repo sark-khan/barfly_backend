@@ -11,6 +11,60 @@ const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
+app.post(
+  "/webhooks",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      // Handle event
+      const intent = event.data.object;
+      switch (event.type) {
+        case "payment_intent.created":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CREATED } }
+          );
+          break;
+        case "payment_intent.succeeded":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
+          );
+          break;
+        case "payment_intent.payment_failed":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: paymentIntentId },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+          );
+          break;
+
+        case "payment_intent.canceled":
+          await StripeModel.updateOne(
+            { stripePaymentIntentId: paymentIntentId },
+            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
+          );
+          break;
+
+        default:
+          console.log(`Unhandled event: ${event.type}`);
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error(`⚠️ Webhook error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  }
+);
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
@@ -226,58 +280,58 @@ app.post("/api/register-token", async (req, res) => {
   return { message: "FCM token registered successfully" };
 });
 
-app.post(
-  "/webhooks",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    let event;
+// app.post(
+//   "/webhooks",
+//   express.raw({ type: "application/json" }),
+//   async (req, res) => {
+//     let event;
 
-    try {
-      const sig = req.headers["stripe-signature"];
-      event = stripe.webhooks.constructEvent(
-        // req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error("Webhook signature verification failed.", err.message);
-      return res
-        .status(STATUS_CODES.BAD_REQUEST)
-        .send(`Webhook Error: ${err.message}`);
-    }
+//     try {
+//       const sig = req.headers["stripe-signature"];
+//       event = stripe.webhooks.constructEvent(
+//         req.body, // ← This was missing in your code (needs to be the first parameter)
+//         sig,
+//         process.env.STRIPE_WEBHOOK_SECRET
+//       );
+//     } catch (err) {
+//       console.error("Webhook signature verification failed.", err.message);
+//       return res
+//         .status(STATUS_CODES.BAD_REQUEST)
+//         .send(`Webhook Error: ${err.message}`);
+//     }
 
-    const intent = event.data.object;
-    const paymentIntentId = intent.id;
+//     const intent = event.data.object;
+//     const paymentIntentId = intent.id;
 
-    switch (event.type) {
-      case "payment_intent.succeeded":
-        await StripeModel.updateOne(
-          { stripePaymentIntentId: paymentIntentId },
-          { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
-        );
-        break;
+//     switch (event.type) {
+//       case "payment_intent.succeeded":
+//         await StripeModel.updateOne(
+//           { stripePaymentIntentId: paymentIntentId },
+//           { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
+//         );
+//         break;
 
-      case "payment_intent.payment_failed":
-        await StripeModel.updateOne(
-          { stripePaymentIntentId: paymentIntentId },
-          { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
-        );
-        break;
+//       case "payment_intent.payment_failed":
+//         await StripeModel.updateOne(
+//           { stripePaymentIntentId: paymentIntentId },
+//           { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+//         );
+//         break;
 
-      case "payment_intent.canceled":
-        await StripeModel.updateOne(
-          { stripePaymentIntentId: paymentIntentId },
-          { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
-        );
-        break;
+//       case "payment_intent.canceled":
+//         await StripeModel.updateOne(
+//           { stripePaymentIntentId: paymentIntentId },
+//           { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
+//         );
+//         break;
 
-      default:
-        console.log(`Unhandled event type ${event.type}`);
-    }
+//       default:
+//         console.log(`Unhandled event type ${event.type}`);
+//     }
 
-    res.sendStatus(STATUS_CODES.OK);
-  }
-);
+//     res.sendStatus(STATUS_CODES.OK);
+//   }
+// );
 
 const port = process.env.PORT;
 
