@@ -97,7 +97,7 @@ module.exports.getEntities = async (req) => {
     image: 1,
     views: 1,
   })
-    .sort(sort)
+    .sort({ _id: -1 })
     .lean();
   const query2 = {
     _id: { $nin: entityIds },
@@ -145,8 +145,10 @@ module.exports.getEntities = async (req) => {
       image: 1,
       views: 1,
     },
-    { limit: limit, skip: skip, sort: sort }
-  ).lean();
+    { limit: limit, skip: skip }
+  )
+    .sort({ _id: -1 })
+    .lean();
   remainingEntities.map((items) => {
     if (!items.image) {
       return items;
