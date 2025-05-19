@@ -20,7 +20,6 @@ router.get("/total-revenue-of-entity", async (req, res) => {
     }
 })
 
-
 router.get("/get-owners", async (req, res) => {
     try {
         const totalAmount = await totalRevenueOfEntity(req);

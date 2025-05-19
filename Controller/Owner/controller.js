@@ -518,17 +518,25 @@ router.get("/get-counters-by-name", async (req, res) => {
       existingItems.map((item) => item.menuCategoryId.toString())
     );
 
-    const filteredCounters = menuCategories
-      .filter(
-        (cat) =>
-          cat.counterId &&
-          cat.counterId.status === STATUS.ACTIVE &&
-          !menuCategoryIdsWithItem.has(cat._id.toString())
-      )
-      .map((cat) => ({
-        counterId: cat.counterId._id.toString(),
-        counterName: cat.counterId.counterName,
-      }));
+    // Filter and deduplicate counters
+    const seenCounterIds = new Set();
+    const filteredCounters = [];
+
+    for (const cat of menuCategories) {
+      const counter = cat.counterId;
+      if (
+        counter &&
+        counter.status === STATUS.ACTIVE &&
+        !menuCategoryIdsWithItem.has(cat._id.toString()) &&
+        !seenCounterIds.has(counter._id.toString())
+      ) {
+        seenCounterIds.add(counter._id.toString());
+        filteredCounters.push({
+          counterId: counter._id.toString(),
+          counterName: counter.counterName,
+        });
+      }
+    }
 
     return res.status(STATUS_CODES.OK).json({ counters: filteredCounters });
   } catch (error) {

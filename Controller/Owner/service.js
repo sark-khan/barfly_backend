@@ -102,9 +102,22 @@ module.exports.createCounter = async (req) => {
     tableSectionName,
   });
 
+  const categoryList = await MenuCategory.find({ entityId: req.entityId });
+
+  const categoryNames = categoryList.map((item) => {
+    return item.categoryName;
+  });
+
+  categoryNames.forEach(async (categoryName) => {
+    await MenuCategory.create({
+      counterId: newCounter._id,
+      entityId: req.entityId,
+      categoryName: categoryName,
+    });
+  });
+
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
-  
-  
+
   const lastTable = await Tables.findOne(
     { entityId: req.entityId },
     { tableSetionNo: 1 }
@@ -130,17 +143,16 @@ module.exports.createCounter = async (req) => {
   //   { fcmToken: 1 }
   // );
 
-
   sendFirebaseNotification({
     topic: `entity_${newCounter.entityId}`,
     showNotification: true,
     title: "New Counter Added",
     body: "You have a new counter added. Tap to view.",
     data: {
-          action:"counter_update",
-          screen: "landing_home",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "counter_update",
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
   // if (!owner?.fcmToken?.length) return newCounter.toObject();
 
@@ -213,8 +225,10 @@ module.exports.createCounterMenuCategory = async (req) => {
     });
   }
 
+  const counterIds = await Counter.find({ entityId: req.entityId });
+
   for (const category of categories) {
-    const { categoryName, nutritionType, counterIds } = category;
+    const { categoryName, nutritionType } = category;
 
     // if (
     //   !categoryName ||
@@ -265,10 +279,10 @@ module.exports.createCounterMenuCategory = async (req) => {
     title: "New Category Added",
     body: "You have a new category added. Tap to view.",
     data: {
-          action:"category_update",
-          screen: "category_screen",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "category_update",
+      screen: "category_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
 
   return createdCategories;
@@ -571,10 +585,10 @@ module.exports.createMenuItem = async (req) => {
     title: "New Item Added",
     body: "You have a new item added. Tap to view.",
     data: {
-          action:"item_update",
-          screen: "item_screen",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "item_update",
+      screen: "item_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
 
   // Send Firebase notification
@@ -638,11 +652,11 @@ module.exports.updateMenuItem = async (req) => {
       inStock,
       counterIds,
       unit,
+      isAllItem,
     },
   } = req;
 
   const item = await ItemDetails.findOne({ _id: itemId });
-
   if (!item) {
     return throwError({
       status: STATUS_CODES.NOT_FOUND,
@@ -650,68 +664,73 @@ module.exports.updateMenuItem = async (req) => {
     });
   }
 
-  if (action === EDIT_ACTION.EDIT) {
-    if (itemName !== undefined) item.itemName = itemName;
-    if (price !== undefined) item.price = price;
-    if (description !== undefined) item.description = description;
-    if (nutritionType !== undefined) item.nutritionType = nutritionType;
-    if (currency !== undefined) item.currency = currency;
-    if (quantity !== undefined) item.quantity = quantity;
-    if (counterIds !== undefined) item.counterIds = counterIds;
-    if (inStock !== undefined) item.inStock = inStock;
-    if (unit !== undefined) item.unit = unit;
+  const referenceItemName = item.itemName;
+  const items = await ItemDetails.find({ itemName: referenceItemName });
 
-    if (file) {
-      const fileBuffer = file.buffer;
-      const fileName = `${
-        req.entityId
-      }_${Date.now()}_${file.originalname.replace(/ /g, "_")}`;
+  const fileName = file
+    ? `${req.entityId}_${Date.now()}_${file.originalname.replace(/ /g, "_")}`
+    : null;
 
-      try {
-        const data = await uploadBufferToS3(fileBuffer, fileName);
-        if (!data.Location) {
-          return throwError({
-            status: STATUS_CODES.BAD_REQUEST,
-            message: "Error occurred while uploading the file",
-          });
-        }
-        item.image = fileName;
-      } catch (error) {
+  if (file) {
+    try {
+      const data = await uploadBufferToS3(file.buffer, fileName);
+      if (!data.Location) {
         return throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "File upload failed",
+          message: "Error occurred while uploading the file",
         });
       }
+    } catch (error) {
+      return throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "File upload failed",
+      });
     }
+  }
 
-    await item.save();
-    io.to(item.entityId.toString()).emit("menuItemUpdated", item);
-    sendFirebaseNotification({
-      topic: `entity_${item.entityId}`,
-      showNotification: true,
-      title: "New Item Added",
-      body: "You have a new item added. Tap to view.",
-      data: {
-            action:"item_update",
-            screen: "item_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
-    });
-  } else if (action === EDIT_ACTION.DELETE) {
-    await ItemDetails.deleteOne({ _id: itemId });
-    io.to(item.entityId.toString()).emit("menuItemUpdated", { itemId });
-    sendFirebaseNotification({
-      topic: `entity_${item.entityId}`,
-      showNotification: true,
-      title: "New Item Added",
-      body: "You have a new item added. Tap to view.",
-      data: {
-            action:"item_update",
-            screen: "item_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
-    });
-    
+  for (const item of items) {
+    if (action === EDIT_ACTION.EDIT) {
+      if (itemName !== undefined) item.itemName = itemName;
+      if (price !== undefined) item.price = price;
+      if (description !== undefined) item.description = description;
+      if (nutritionType !== undefined) item.nutritionType = nutritionType;
+      if (currency !== undefined) item.currency = currency;
+      if (quantity !== undefined) item.quantity = quantity;
+      if (counterIds !== undefined) item.counterIds = counterIds;
+      if (inStock !== undefined) item.inStock = inStock;
+      if (unit !== undefined) item.unit = unit;
+      if (fileName) item.image = fileName;
+
+      await item.save();
+      io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      });
+    } else if (action === EDIT_ACTION.DELETE) {
+      await ItemDetails.deleteOne({ _id: item._id });
+      io.to(item.entityId.toString()).emit("menuItemUpdated", {
+        itemId: item._id,
+      });
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      });
+    }
   }
 };
 
@@ -726,6 +745,7 @@ module.exports.getCreatedItems = async (req) => {
       inStock,
       searchTerm,
       searchedId,
+      menuCategoryName,
     },
   } = req;
 
@@ -754,24 +774,39 @@ module.exports.getCreatedItems = async (req) => {
 
     return { itemsList: [itemWithImage], totalCount: 1 };
   }
+  let menuCategoryIds;
+  if (menuCategoryName) {
+    const categories = await MenuCategory.find(
+      { categoryName: menuCategoryName },
+      { _id: 1 }
+    );
+    menuCategoryIds = categories.map((cat) => cat._id);
+  }
+
+  console.log({menuCategoryIds});
 
   const query = { entityId };
 
   if (searchedId && !menuCategoryId) {
-    query._id = { $ne: searchedId }; // Exclude the searchedId from the main query results
+    query._id = { $ne: searchedId };
   }
 
   if (menuCategoryId) {
     query.menuCategoryId = menuCategoryId;
   }
 
-  if (inStock) {
+  if (menuCategoryName && menuCategoryIds?.length) {
+    query.menuCategoryId = { $in: menuCategoryIds };
+  }
+
+  if (inStock !== undefined) {
     query.inStock = inStock;
   }
 
   if (searchTerm) {
     query.itemName = { $regex: searchTerm, $options: "i" };
   }
+  console.log(query);
 
   const createdItems = await ItemDetails.find(query)
     .sort({ _id: -1 })
@@ -786,6 +821,8 @@ module.exports.getCreatedItems = async (req) => {
       },
     })
     .lean();
+
+    console.log({createdItems});
 
   if (searchedId && pageNo == 1 && !menuCategoryId) {
     const searchedIdItem = await ItemDetails.findById(searchedId)
@@ -806,9 +843,19 @@ module.exports.getCreatedItems = async (req) => {
     }
   }
 
-  const filteredItems = createdItems.filter(
-    (item) => item.menuCategoryId?.counterId?.status === STATUS.ACTIVE
-  );
+  const alreadyAddedItems = {};
+
+  const filteredItems = createdItems.filter((item) => {
+    const isActive = item.menuCategoryId?.counterId?.status === STATUS.ACTIVE;
+    const isNewItem = !alreadyAddedItems[item.itemName];
+
+    if (isActive && isNewItem) {
+      alreadyAddedItems[item.itemName] = true;
+      return true;
+    }
+
+    return false;
+  });
 
   const totalCount = filteredItems.length;
 
@@ -1490,17 +1537,28 @@ module.exports.getCounterAndCategory = async (req) => {
 module.exports.getMenuCategory = async (req) => {
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
-    { entityId: 0, createdAt: 0, updatedAt: 0 },
-    { sort: { _id: -1 }, lean: true }
-  ).populate({
-    path: "counterId",
-    select: "counterName status",
-    model: "Counter",
-  });
+    { entityId: 0, createdAt: 0, updatedAt: 0 }
+  )
+    .sort({ _id: -1 })
+    .lean()
+    .populate({
+      path: "counterId",
+      select: "counterName status",
+      model: "Counter",
+    });
 
-  const filteredCategories = menuCategories.filter(
-    (category) => category.counterId?.status === STATUS.ACTIVE
-  );
+  const categoryNames = {};
+
+  const filteredCategories = menuCategories.filter((category) => {
+    if (
+      category.counterId?.status === STATUS.ACTIVE &&
+      !categoryNames[category.categoryName]
+    ) {
+      categoryNames[category.categoryName] = true;
+      return true;
+    }
+    return false;
+  });
 
   return filteredCategories;
 };
@@ -1708,10 +1766,10 @@ module.exports.updateCounterSettings = async (req) => {
       title: "New Counter Added",
       body: "You have a new counter added. Tap to view.",
       data: {
-            action:"counter_update",
-            screen: "counter_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
     });
 
     if (
@@ -1789,10 +1847,10 @@ module.exports.updateCounterSettings = async (req) => {
       title: "New Counter Added",
       body: "You have a new counter added. Tap to view.",
       data: {
-            action:"counter_update",
-            screen: "counter_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
     });
   }
 };
@@ -2132,10 +2190,10 @@ module.exports.editBusinessDetails = async (req) => {
       title: "New Profile Details Added",
       body: "You have a new counter added. Tap to view.",
       data: {
-            action:"profile_update",
-            screen: "counter_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
+        action: "profile_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
     });
     return { message };
   }
@@ -2188,10 +2246,10 @@ module.exports.editBusinessDetails = async (req) => {
       title: "New Profile Updated",
       body: "You have a new entity_details added. Tap to view.",
       data: {
-            action:"entity_details_update",
-            screen: "entity_details_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
+        action: "entity_details_update",
+        screen: "entity_details_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
     });
   }
 
@@ -2256,12 +2314,12 @@ module.exports.editBusinessDetails = async (req) => {
         title: "New Profile Updated",
         body: "You have a new entity_details added. Tap to view.",
         data: {
-              action:"entity_details_update",
-              screen: "entity_details_screen",
-              click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
+          action: "entity_details_update",
+          screen: "entity_details_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
       });
-      
+
       return { message, otpVerified: true };
     }
   }
@@ -2320,10 +2378,10 @@ module.exports.editBusinessDetails = async (req) => {
         title: "New Profile Updated",
         body: "You have a new entity_details added. Tap to view.",
         data: {
-              action:"entity_details_update",
-              screen: "entity_details_screen",
-              click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
+          action: "entity_details_update",
+          screen: "entity_details_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
       });
       return { message, otpVerified: true };
     }
@@ -2440,10 +2498,10 @@ module.exports.addingTables = async (req) => {
     title: "New Profile Updated",
     body: "You have a new table added. Tap to view.",
     data: {
-          action:"table_update",
-          screen: "table_screen",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "table_update",
+      screen: "table_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
 
   await Counter.updateMany(
@@ -2613,10 +2671,10 @@ module.exports.editTable = async (req) => {
       title: "New Profile Updated",
       body: "You have a new table added. Tap to view.",
       data: {
-            action:"table_update",
-            screen: "table_screen",
-            click_action: "FLUTTER_NOTIFICATION_CLICK",
-          },
+        action: "table_update",
+        screen: "table_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
     });
     await tableData.save();
   } else if (action === EDIT_ACTION.DELETE) {
@@ -3162,10 +3220,10 @@ module.exports.addFeedbackQuestions = async (req) => {
     title: "New Profile Updated",
     body: "You have a new feedback added. Tap to view.",
     data: {
-          action:"feedback_update",
-          screen: "feedback_screen",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "feedback_update",
+      screen: "feedback_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
   return feedback;
 };
@@ -3433,10 +3491,10 @@ module.exports.restaurantCancelOrder = async (req) => {
     title: "New Cancel Order",
     body: "You have a new cancel added. Tap to view.",
     data: {
-          action:"cancel_update",
-          screen: "cancel_screen",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+      action: "cancel_update",
+      screen: "cancel_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
   });
 };
 
