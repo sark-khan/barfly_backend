@@ -127,22 +127,24 @@ module.exports.createCounter = async (req) => {
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
 
-  const lastTable = await Tables.findOne(
-    { entityId: req.entityId },
-    { tableSetionNo: 1 }
-  ).sort({ createdAt: -1 });
+  if (isTableService) {
+    const lastTable = await Tables.findOne(
+      { entityId: req.entityId },
+      { tableSetionNo: 1 }
+    ).sort({ createdAt: -1 });
 
-  const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+    const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
 
-  await Tables.create({
-    tableCount: tableNumbers,
-    tableSectionName,
-    userId: req.userId,
-    entityId: req.entityId,
-    counterIds: newCounter._id,
-    tableSetionNo: newTableSectionNo,
-    status: STATUS.ACTIVE,
-  });
+    await Tables.create({
+      tableCount: tableNumbers,
+      tableSectionName,
+      userId: req.userId,
+      entityId: req.entityId,
+      counterIds: newCounter._id,
+      tableSetionNo: newTableSectionNo,
+      status: STATUS.ACTIVE,
+    });
+  }
 
   // const owner = await User.findOne(
   //   {
