@@ -9,25 +9,24 @@ const {
 const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
+const Event = require("../Models/Event");
 
 const createPaymentIntent = async (req) => {
   const {
     userId,
-    body: {
-      amount,
-      currency,
-      paymentMethodType = "card",
-      restaurantStripeAccountId,
-      orderId,
-    },
+    body: { amount, currency, paymentMethodType = "card", eventId },
   } = req;
 
-  if (paymentMethodType === "twint" && currency.toLowerCase() !== "chf") {
-    throw new Error("TWINT is only supported for CHF currency.");
-  }
+  // if (paymentMethodType === "twint" && currency.toLowerCase() !== "chf") {
+  //   throw new Error("TWINT is only supported for CHF currency.");
+  // }
 
-  const order = await Order.findById(orderId);
-  const platformFees = order?.platformFees || global.PLATFORM_FEES;
+  const restaurantAccountId = await Event.findById(eventId).populate({
+    path: "entityId",
+    select: "stripeAccountId",
+  });
+  console.log({ restaurantAccountId });
+  const platformFees = global.PLATFORM_FEES;
   console.log({ platformFees });
 
   const paymentIntent = await stripe.paymentIntents.create({
@@ -36,7 +35,7 @@ const createPaymentIntent = async (req) => {
     payment_method_types: [paymentMethodType],
     application_fee_amount: Math.round(platformFees * 100),
     transfer_data: {
-      destination: restaurantStripeAccountId,
+      destination: restaurantAccountId.entityId.stripeAccountId,
     },
     metadata: {
       integration_check: paymentMethodType,
