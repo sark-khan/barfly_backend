@@ -1623,9 +1623,9 @@ module.exports.getMenuCategory = async (req) => {
 };
 
 module.exports.editCategory = async (req) => {
-  const { action, categoryId, categoryName, nutritionType } = req.body;
+  const { action, categoryName, nutritionType } = req.body;
   let message = "";
-  const category = await MenuCategory.findOne({ _id: categoryId });
+  const category = await MenuCategory.find({ categoryName });
   if (!category) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -1638,7 +1638,7 @@ module.exports.editCategory = async (req) => {
     await category.save();
     message = "Category updated successfully.";
   } else if (action === EDIT_ACTION.DELETE) {
-    await MenuCategory.deleteOne({ _id: categoryId });
+    await MenuCategory.deleteOne({ categoryName });
     message = "Category deleted successfully.";
   }
   return message;
