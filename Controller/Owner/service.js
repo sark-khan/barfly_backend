@@ -241,7 +241,6 @@ module.exports.createCounterMenuCategory = async (req) => {
 
   for (const category of categories) {
     const { categoryName, nutritionType } = category;
-
     if (
       !categoryName ||
       !Array.isArray(counterIds) ||
@@ -546,6 +545,8 @@ module.exports.createMenuItem = async (req) => {
   // Get menu categories by IDs
   const menuCategories = await MenuCategory.find({
     categoryName: categoryName,
+    entityId: req.entityId,
+    counterId: { $in: counterIds }, // ✅ Use $in to match array of ObjectIds
   });
 
   // if (menuCategories.length !== menuCategoryIds.length) {
@@ -571,8 +572,11 @@ module.exports.createMenuItem = async (req) => {
   }
 
   // Create item once per category, assign all counterIds, and category's own counterId if available
+
+  // console.log({menuCategoryIds});
   const createdItems = await Promise.all(
     menuCategories.map(async (category) => {
+      console.log({category});
       return ItemDetails.create({
         itemName,
         price,

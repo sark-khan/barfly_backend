@@ -549,43 +549,36 @@ module.exports.getCounterMenuCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  let { menuCategoryId, searchTerm } = req.query;
+  let { menuCategoryId, searchTerm,  counterId, entityId } = req.query;
 
-  let filter = { menuCategoryId, inStock: true };
 
-  if (searchTerm && searchTerm.trim()) {
-    filter.itemName = { $regex: searchTerm, $options: "i" };
-  }
+let filter = { inStock: true, counterId: counterId, entityId };
 
-  const menuItems = await ItemDetails.find(filter)
-    .populate("menuCategoryId")
-    .lean();
-  if (!menuItems.length) {
-    return [];
-  }
+if (searchTerm && searchTerm.trim()) {
+  filter.itemName = { $regex: searchTerm, $options: "i" };
+}
+const menuCategory= await MenuCategory.find({_id:menuCategoryId});
+const categoryName= menuCategory[0].categoryName;
+const menuItems1 = await ItemDetails.find(filter)
+  .populate("menuCategoryId")
+  .lean();
 
-  const favouriteItemList = await FavouriteItem.find(
-    {
-      userId: req.userId,
-      counterId: menuItems[0].counterId,
-      isFavourite: true,
-    },
-    { favouriteItemId: 1 }
-  );
-  let favouriteItemIds = new Set();
-  favouriteItemList.forEach((item) => {
-    favouriteItemIds.add(item.favouriteItemId.toString());
-  });
+
+
+// Now filter by categoryName manually (because it's in a populated field)
+const menuItems = categoryName
+  ? menuItems1.filter(
+      (item) => item.menuCategoryId?.categoryName === categoryName
+    )
+  : menuItems1;
+
+
+
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
     menuItem.image = generatePresignedUrl(menuItem.image);
     delete menuItem.item;
-    if (favouriteItemIds.has(menuItem._id.toString())) {
-      menuItem.isFavourite = true;
-    } else {
-      menuItem.isFavourite = false;
-    }
     delete menuItem.itemId;
     acc.push({
       ...menuItem,
@@ -612,7 +605,8 @@ module.exports.getRecommendedItems = async (req) => {
   const counterItemMap = {};
 
   allItems.forEach((item) => {
-    if (item.menuCategoryId.counterId == counterId) {
+
+    if ( item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
       item.image = generatePresignedUrl(item.image);
       const counterKey = `${item.counterId}_${item.itemName}`;
 
