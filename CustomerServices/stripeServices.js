@@ -39,7 +39,7 @@ const createPaymentIntent = async (req) => {
     },
     metadata: {
       integration_check: paymentMethodType,
-      userId,
+      userId: req.userId,
     },
   });
   console.log({ paymentIntent: paymentIntent });
@@ -48,7 +48,7 @@ const createPaymentIntent = async (req) => {
     amount,
     currency,
     paymentMethodType,
-    userId,
+    userId: req.userId,
     stripePaymentIntentId: paymentIntent.id,
     lastPaymentDate: new Date(),
   };
