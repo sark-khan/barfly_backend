@@ -1614,6 +1614,30 @@ module.exports.getMenuCategory = async (req) => {
   return filteredCategories;
 };
 
+module.exports.editCategory = async (req) => {
+  const {
+    entityId,
+    body: { action, categoryId, categoryName, nutritionType },
+  } = req;
+  let message = "";
+  const category = await MenuCategory.findOne({ entityId, categoryId });
+  if (!category) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Category not found.",
+    });
+  }
+  if (action === EDIT_ACTION.EDIT) {
+    if (categoryName) category.categoryName = categoryName;
+    if (nutritionType) category.nutritionType = nutritionType;
+    await category.save();
+    message = "Category updated successfully.";
+  } else if (action === EDIT_ACTION.DELETE) {
+    await MenuCategory.deleteOne({ _id: categoryId });
+    message = "Category deleted successfully.";
+  }
+};
+
 module.exports.getMenuCategoryItems = async (req) => {
   const { menuCategoryId } = req.query;
   const menuItems = await ItemDetails.find(
@@ -3515,7 +3539,7 @@ module.exports.getItemsSearchLogs = async (req) => {
     });
 
   logs.map((items) => {
-    if (!items.itemId || !items.itemId.image  ) {
+    if (!items.itemId || !items.itemId.image) {
       return items;
     }
     items.itemId.image = generatePresignedUrl(items.itemId.image);
