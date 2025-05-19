@@ -1623,7 +1623,7 @@ module.exports.getMenuCategory = async (req) => {
 };
 
 module.exports.editCategory = async (req) => {
-  const { action, categoryName, nutritionType } = req.body;
+  const { action, categoryName, newCategoryName, nutritionType } = req.body;
   let message = "";
 
   if (!action || !categoryName) {
@@ -1644,6 +1644,7 @@ module.exports.editCategory = async (req) => {
 
   if (action === EDIT_ACTION.EDIT) {
     for (const category of categories) {
+      if (newCategoryName) category.categoryName = newCategoryName;
       if (nutritionType) category.nutritionType = nutritionType;
       await category.save();
     }
