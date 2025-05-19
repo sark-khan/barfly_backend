@@ -40,7 +40,6 @@ const createPaymentIntent = async (req) => {
     metadata: {
       integration_check: paymentMethodType,
       userId,
-      orderId,
     },
   });
   console.log({ paymentIntent: paymentIntent });
