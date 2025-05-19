@@ -102,26 +102,28 @@ module.exports.createCounter = async (req) => {
     tableSectionName,
   });
 
-  const categoryList = await MenuCategory.find({ entityId: req.entityId }).select('categoryName nutritionType');
-
-const uniqueCategoriesMap = new Map();
-
-// Use a Map to ensure uniqueness based on categoryName
-for (const item of categoryList) {
-  if (!uniqueCategoriesMap.has(item.categoryName)) {
-    uniqueCategoriesMap.set(item.categoryName, item.nutritionType);
-  }
-}
-
-// Now iterate and create new categories
-for (const [categoryName, nutritionType] of uniqueCategoriesMap.entries()) {
-  await MenuCategory.create({
-    counterId: newCounter._id,
+  const categoryList = await MenuCategory.find({
     entityId: req.entityId,
-    categoryName,
-    nutritionType,
-  });
-}
+  }).select("categoryName nutritionType");
+
+  const uniqueCategoriesMap = new Map();
+
+  // Use a Map to ensure uniqueness based on categoryName
+  for (const item of categoryList) {
+    if (!uniqueCategoriesMap.has(item.categoryName)) {
+      uniqueCategoriesMap.set(item.categoryName, item.nutritionType);
+    }
+  }
+
+  // Now iterate and create new categories
+  for (const [categoryName, nutritionType] of uniqueCategoriesMap.entries()) {
+    await MenuCategory.create({
+      counterId: newCounter._id,
+      entityId: req.entityId,
+      categoryName,
+      nutritionType,
+    });
+  }
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
 
@@ -245,8 +247,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     ) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "Each category must have a categoryName and a non-empty counterIds array.",
+        message: "Please add the counters first.",
       });
     }
 
@@ -503,7 +504,7 @@ module.exports.createMenuItem = async (req) => {
       unit,
       nutritionType,
       counterIds,
-      categoryName
+      categoryName,
     },
   } = req;
 
@@ -553,8 +554,8 @@ module.exports.createMenuItem = async (req) => {
   // }
 
   // Check duplicate item per category
-  const menuCategoryIds = menuCategories.map(cat => cat._id);
-  
+  const menuCategoryIds = menuCategories.map((cat) => cat._id);
+
   const existingItem = await ItemDetails.findOne({
     itemName,
     menuCategoryId: { $in: menuCategoryIds },
@@ -873,7 +874,7 @@ module.exports.getCreatedItems = async (req) => {
       select: "categoryName counterId",
       model: "CounterMenuCategory",
       populate: {
-        path: "counterId", 
+        path: "counterId",
         select: "status counterName",
         model: "Counter",
       },
