@@ -103,7 +103,7 @@ router.post("/create-counter-menu-category", async (req, res) => {
   try {
     const response = await createCounterMenuCategory(req);
     return res.status(STATUS_CODES.OK).json({
-      message: `Counter menu category created successfully`,
+      message: "Category created successfully.",
       data: response,
     });
   } catch (error) {

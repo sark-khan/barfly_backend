@@ -102,45 +102,49 @@ module.exports.createCounter = async (req) => {
     tableSectionName,
   });
 
-  const categoryList = await MenuCategory.find({ entityId: req.entityId }).select('categoryName nutritionType');
-
-const uniqueCategoriesMap = new Map();
-
-// Use a Map to ensure uniqueness based on categoryName
-for (const item of categoryList) {
-  if (!uniqueCategoriesMap.has(item.categoryName)) {
-    uniqueCategoriesMap.set(item.categoryName, item.nutritionType);
-  }
-}
-
-// Now iterate and create new categories
-for (const [categoryName, nutritionType] of uniqueCategoriesMap.entries()) {
-  await MenuCategory.create({
-    counterId: newCounter._id,
+  const categoryList = await MenuCategory.find({
     entityId: req.entityId,
-    categoryName,
-    nutritionType,
-  });
-}
+  }).select("categoryName nutritionType");
+
+  const uniqueCategoriesMap = new Map();
+
+  // Use a Map to ensure uniqueness based on categoryName
+  for (const item of categoryList) {
+    if (!uniqueCategoriesMap.has(item.categoryName)) {
+      uniqueCategoriesMap.set(item.categoryName, item.nutritionType);
+    }
+  }
+
+  // Now iterate and create new categories
+  for (const [categoryName, nutritionType] of uniqueCategoriesMap.entries()) {
+    await MenuCategory.create({
+      counterId: newCounter._id,
+      entityId: req.entityId,
+      categoryName,
+      nutritionType,
+    });
+  }
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
 
-  const lastTable = await Tables.findOne(
-    { entityId: req.entityId },
-    { tableSetionNo: 1 }
-  ).sort({ createdAt: -1 });
+  if (isTableService) {
+    const lastTable = await Tables.findOne(
+      { entityId: req.entityId },
+      { tableSetionNo: 1 }
+    ).sort({ createdAt: -1 });
 
-  const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+    const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
 
-  await Tables.create({
-    tableCount: tableNumbers,
-    tableSectionName,
-    userId: req.userId,
-    entityId: req.entityId,
-    counterIds: newCounter._id,
-    tableSetionNo: newTableSectionNo,
-    status: STATUS.ACTIVE,
-  });
+    await Tables.create({
+      tableCount: tableNumbers,
+      tableSectionName,
+      userId: req.userId,
+      entityId: req.entityId,
+      counterIds: newCounter._id,
+      tableSetionNo: newTableSectionNo,
+      status: STATUS.ACTIVE,
+    });
+  }
 
   // const owner = await User.findOne(
   //   {
@@ -244,8 +248,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     ) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "Each category must have a categoryName and a non-empty counterIds array.",
+        message: "Please add the counters first.",
       });
     }
 
@@ -502,7 +505,7 @@ module.exports.createMenuItem = async (req) => {
       unit,
       nutritionType,
       counterIds,
-      categoryName
+      categoryName,
     },
   } = req;
 
@@ -554,8 +557,8 @@ module.exports.createMenuItem = async (req) => {
   // }
 
   // Check duplicate item per category
-  const menuCategoryIds = menuCategories.map(cat => cat._id);
-  
+  const menuCategoryIds = menuCategories.map((cat) => cat._id);
+
   const existingItem = await ItemDetails.findOne({
     itemName,
     menuCategoryId: { $in: menuCategoryIds },
@@ -877,7 +880,7 @@ module.exports.getCreatedItems = async (req) => {
       select: "categoryName counterId",
       model: "CounterMenuCategory",
       populate: {
-        path: "counterId", 
+        path: "counterId",
         select: "status counterName",
         model: "Counter",
       },
@@ -1626,24 +1629,42 @@ module.exports.getMenuCategory = async (req) => {
 };
 
 module.exports.editCategory = async (req) => {
-  const { action, categoryId, categoryName, nutritionType } = req.body;
+  const { action, categoryName, newCategoryName, nutritionType } = req.body;
   let message = "";
-  const category = await MenuCategory.findOne({ _id: categoryId });
-  if (!category) {
+
+  if (!action || !categoryName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Category not found.",
+      message: "Missing required fields: action or categoryName.",
     });
   }
-  if (action === EDIT_ACTION.EDIT) {
-    if (categoryName) category.categoryName = categoryName;
-    if (nutritionType) category.nutritionType = nutritionType;
-    await category.save();
-    message = "Category updated successfully.";
-  } else if (action === EDIT_ACTION.DELETE) {
-    await MenuCategory.deleteOne({ _id: categoryId });
-    message = "Category deleted successfully.";
+
+  const categories = await MenuCategory.find({ categoryName });
+
+  if (!categories.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "No categories found with the given name.",
+    });
   }
+
+  if (action === EDIT_ACTION.EDIT) {
+    for (const category of categories) {
+      if (newCategoryName) category.categoryName = newCategoryName;
+      if (nutritionType) category.nutritionType = nutritionType;
+      await category.save();
+    }
+    message = "Categories updated successfully.";
+  } else if (action === EDIT_ACTION.DELETE) {
+    await MenuCategory.deleteMany({ categoryName });
+    message = "Categories deleted successfully.";
+  } else {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid action provided.",
+    });
+  }
+
   return message;
 };
 
