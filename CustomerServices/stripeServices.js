@@ -28,6 +28,7 @@ const createPaymentIntent = async (req) => {
 
   const order = await Order.findById(orderId);
   const platformFees = order?.platformFees || global.PLATFORM_FEES;
+  console.log({ platformFees });
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: Math.round(amount * 100),
@@ -43,6 +44,7 @@ const createPaymentIntent = async (req) => {
       orderId,
     },
   });
+  console.log({ paymentIntent: paymentIntent });
 
   const obj = {
     amount,
