@@ -1625,22 +1625,39 @@ module.exports.getMenuCategory = async (req) => {
 module.exports.editCategory = async (req) => {
   const { action, categoryName, nutritionType } = req.body;
   let message = "";
-  const category = await MenuCategory.find({ categoryName });
-  if (!category) {
+
+  if (!action || !categoryName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Category not found.",
+      message: "Missing required fields: action or categoryName.",
     });
   }
-  if (action === EDIT_ACTION.EDIT) {
-    if (categoryName) category.categoryName = categoryName;
-    if (nutritionType) category.nutritionType = nutritionType;
-    await category.save();
-    message = "Category updated successfully.";
-  } else if (action === EDIT_ACTION.DELETE) {
-    await MenuCategory.deleteOne({ categoryName });
-    message = "Category deleted successfully.";
+
+  const categories = await MenuCategory.find({ categoryName });
+
+  if (!categories.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "No categories found with the given name.",
+    });
   }
+
+  if (action === EDIT_ACTION.EDIT) {
+    for (const category of categories) {
+      if (nutritionType) category.nutritionType = nutritionType;
+      await category.save();
+    }
+    message = "Categories updated successfully.";
+  } else if (action === EDIT_ACTION.DELETE) {
+    await MenuCategory.deleteMany({ categoryName });
+    message = "Categories deleted successfully.";
+  } else {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Invalid action provided.",
+    });
+  }
+
   return message;
 };
 
