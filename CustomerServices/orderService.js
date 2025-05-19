@@ -349,6 +349,18 @@ const updateStatusOfOrder = async (req) => {
     status,
   });
 
+  // sendFirebaseNotification({
+  //   topic: `entity_${tableData.entityId}`,
+  //   showNotification: true,
+  //   title: "New Profile Updated",
+  //   body: "You have a new feedback added. Tap to view.",
+  //   data: {
+  //         action:"feedback_update",
+  //         screen: "feedback_screen",
+  //         click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //       },
+  // });
+
   const userTokens = updatedOrder?.userId?.fcmToken;
 
   if (!Array.isArray(userTokens) || userTokens.length === 0) {
