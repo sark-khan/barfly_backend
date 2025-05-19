@@ -3464,7 +3464,7 @@ module.exports.getItemsSearchLogs = async (req) => {
     });
 
   logs.map((items) => {
-    if (!items.itemId.image) {
+    if (!items.itemId || !items.itemId.image  ) {
       return items;
     }
     items.itemId.image = generatePresignedUrl(items.itemId.image);
