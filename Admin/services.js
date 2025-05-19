@@ -306,7 +306,7 @@ const getDashboardAnalytics = async (req) => {
         },
       },
     },
-    { $group: { _id: null, totalRevenue: { $sum: "$finalAmount" } } },
+    { $group: { _id: null, totalRevenue: { $sum: "$platformFees" } } },
   ]);
   const totalRevenue = revenue?.totalRevenue || 0;
   return { users, entities, totalRevenue };

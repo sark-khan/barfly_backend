@@ -41,14 +41,14 @@ app.post(
           break;
         case "payment_intent.payment_failed":
           await StripeModel.updateOne(
-            { stripePaymentIntentId: paymentIntentId },
+            { stripePaymentIntentId: intent.id },
             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
           );
           break;
 
         case "payment_intent.canceled":
           await StripeModel.updateOne(
-            { stripePaymentIntentId: paymentIntentId },
+            { stripePaymentIntentId: intent.id },
             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
           );
           break;

@@ -46,6 +46,7 @@ const {
   restaurantCancelOrder,
   downloadSalesReport,
   getSalesReportHistory,
+  editCategory,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -136,6 +137,18 @@ router.get("/get-menu-category", async (req, res) => {
     });
   } catch (error) {
     console.error("Error while fetching menu category", error);
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/edit-category", async (req, res) => {
+  try {
+    const message = await editCategory(req);
+    return res.status(STATUS_CODES.OK).json({ message });
+  } catch (error) {
+    console.error("Error while updating category", error);
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });

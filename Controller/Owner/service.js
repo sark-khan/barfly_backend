@@ -233,7 +233,7 @@ module.exports.createCounterMenuCategory = async (req) => {
   }
 
   const counters = await Counter.find({ entityId: req.entityId }).select("_id");
-  const counterIds = counters.map(counter => counter._id.toString());
+  const counterIds = counters.map((counter) => counter._id.toString());
 
   for (const category of categories) {
     const { categoryName, nutritionType } = category;
@@ -274,7 +274,7 @@ module.exports.createCounterMenuCategory = async (req) => {
       }))
   );
 
-  // const 
+  // const
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
@@ -677,8 +677,6 @@ module.exports.updateMenuItem = async (req) => {
     });
   }
 
-
-  
   const referenceItemName = item.itemName;
   const items = await ItemDetails.find({ itemName: referenceItemName });
 
@@ -703,7 +701,7 @@ module.exports.updateMenuItem = async (req) => {
     }
   }
 
-  if(isCounterRemove){
+  if (isCounterRemove) {
     if (action === EDIT_ACTION.EDIT) {
       if (itemName !== undefined) item.itemName = itemName;
       if (price !== undefined) item.price = price;
@@ -747,7 +745,6 @@ module.exports.updateMenuItem = async (req) => {
       });
     }
   }
-
 
   for (const item of items) {
     if (action === EDIT_ACTION.EDIT) {
@@ -1622,6 +1619,28 @@ module.exports.getMenuCategory = async (req) => {
   });
 
   return filteredCategories;
+};
+
+module.exports.editCategory = async (req) => {
+  const { action, categoryId, categoryName, nutritionType } = req.body;
+  let message = "";
+  const category = await MenuCategory.findOne({ _id: categoryId });
+  if (!category) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "Category not found.",
+    });
+  }
+  if (action === EDIT_ACTION.EDIT) {
+    if (categoryName) category.categoryName = categoryName;
+    if (nutritionType) category.nutritionType = nutritionType;
+    await category.save();
+    message = "Category updated successfully.";
+  } else if (action === EDIT_ACTION.DELETE) {
+    await MenuCategory.deleteOne({ _id: categoryId });
+    message = "Category deleted successfully.";
+  }
+  return message;
 };
 
 module.exports.getMenuCategoryItems = async (req) => {
@@ -3525,7 +3544,7 @@ module.exports.getItemsSearchLogs = async (req) => {
     });
 
   logs.map((items) => {
-    if (!items.itemId || !items.itemId.image  ) {
+    if (!items.itemId || !items.itemId.image) {
       return items;
     }
     items.itemId.image = generatePresignedUrl(items.itemId.image);
