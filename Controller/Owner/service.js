@@ -225,22 +225,23 @@ module.exports.createCounterMenuCategory = async (req) => {
     });
   }
 
-  const counterIds = await Counter.find({ entityId: req.entityId });
+  const counters = await Counter.find({ entityId: req.entityId }).select("_id");
+  const counterIds = counters.map(counter => counter._id.toString());
 
   for (const category of categories) {
     const { categoryName, nutritionType } = category;
 
-    // if (
-    //   !categoryName ||
-    //   !Array.isArray(counterIds) ||
-    //   counterIds.length === 0
-    // ) {
-    //   throwError({
-    //     status: STATUS_CODES.BAD_REQUEST,
-    //     message:
-    //       "Each category must have a categoryName and a non-empty counterIds array.",
-    //   });
-    // }
+    if (
+      !categoryName ||
+      !Array.isArray(counterIds) ||
+      counterIds.length === 0
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message:
+          "Each category must have a categoryName and a non-empty counterIds array.",
+      });
+    }
 
     const existingCategory = await MenuCategory.findOne({
       entityId,
@@ -257,7 +258,7 @@ module.exports.createCounterMenuCategory = async (req) => {
   }
 
   const categoryObjects = categories.flatMap(
-    ({ categoryName, nutritionType, counterIds }) =>
+    ({ categoryName, nutritionType }) =>
       counterIds.map((counterId) => ({
         categoryName,
         nutritionType,
@@ -265,6 +266,8 @@ module.exports.createCounterMenuCategory = async (req) => {
         entityId,
       }))
   );
+
+  // const 
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
 
@@ -652,7 +655,7 @@ module.exports.updateMenuItem = async (req) => {
       inStock,
       counterIds,
       unit,
-      isAllItem,
+      isCounterRemove,
     },
   } = req;
 
@@ -664,6 +667,8 @@ module.exports.updateMenuItem = async (req) => {
     });
   }
 
+
+  
   const referenceItemName = item.itemName;
   const items = await ItemDetails.find({ itemName: referenceItemName });
 
@@ -687,6 +692,52 @@ module.exports.updateMenuItem = async (req) => {
       });
     }
   }
+
+  if(isCounterRemove){
+    if (action === EDIT_ACTION.EDIT) {
+      if (itemName !== undefined) item.itemName = itemName;
+      if (price !== undefined) item.price = price;
+      if (description !== undefined) item.description = description;
+      if (nutritionType !== undefined) item.nutritionType = nutritionType;
+      if (currency !== undefined) item.currency = currency;
+      if (quantity !== undefined) item.quantity = quantity;
+      if (counterIds !== undefined) item.counterIds = counterIds;
+      if (inStock !== undefined) item.inStock = inStock;
+      if (unit !== undefined) item.unit = unit;
+      if (fileName) item.image = fileName;
+
+      await item.save();
+      io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      });
+    } else if (action === EDIT_ACTION.DELETE) {
+      await ItemDetails.deleteOne({ _id: item._id });
+      io.to(item.entityId.toString()).emit("menuItemUpdated", {
+        itemId: item._id,
+      });
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      });
+    }
+  }
+
 
   for (const item of items) {
     if (action === EDIT_ACTION.EDIT) {
