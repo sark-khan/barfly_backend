@@ -783,7 +783,7 @@ module.exports.getCreatedItems = async (req) => {
     menuCategoryIds = categories.map((cat) => cat._id);
   }
 
-  console.log({menuCategoryIds});
+  console.log({ menuCategoryIds });
 
   const query = { entityId };
 
@@ -822,7 +822,7 @@ module.exports.getCreatedItems = async (req) => {
     })
     .lean();
 
-    console.log({createdItems});
+  console.log({ createdItems });
 
   if (searchedId && pageNo == 1 && !menuCategoryId) {
     const searchedIdItem = await ItemDetails.findById(searchedId)
@@ -1697,10 +1697,10 @@ module.exports.updateCounterSettings = async (req) => {
       status: STATUS_CODES.BAD_REQUEST,
       message: "Counter doesn't exist.",
     });
-    return;
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    // Counter name validation
     if (counterName) {
       const duplicate = await Counter.findOne({
         _id: { $ne: counterId },
@@ -1713,15 +1713,16 @@ module.exports.updateCounterSettings = async (req) => {
           status: STATUS_CODES.BAD_REQUEST,
           message: "Counter name already exists. Please try new one.",
         });
-        return;
       }
     }
 
+    // Update basic fields
     if (isTableService !== undefined) counter.isTableService = isTableService;
     if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
     if (counterName !== undefined) counter.counterName = counterName;
     if (status !== undefined) counter.status = status;
 
+    // Table section validation
     if (
       counter.isTableService &&
       counter.tableSectionName === tableSectionName
@@ -1732,29 +1733,70 @@ module.exports.updateCounterSettings = async (req) => {
       });
     }
 
-    if (tableSectionName !== undefined)
+    if (tableSectionName !== undefined) {
       counter.tableSectionName = tableSectionName;
-
-    const currentFrom = Number(counter.tableCount?.[0] || 0);
-    const currentTo = Number(
-      counter.tableCount?.[counter.tableCount.length - 1] || 0
-    );
-
-    const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
-    const newTo = tableTo !== undefined ? Number() : currentTo;
-
-    if (counter.isTableService && newFrom >= newTo) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid table range.",
-      });
-      return;
     }
 
+    // Numeric conversion and validation
+    let newFrom, newTo;
+    try {
+      const currentFrom =
+        counter.tableCount?.length > 0
+          ? parseInt(counter.tableCount[0], 10)
+          : 0;
+
+      const currentTo =
+        counter.tableCount?.length > 0
+          ? parseInt(counter.tableCount[counter.tableCount.length - 1], 10)
+          : 0;
+
+      newFrom =
+        tableFrom !== undefined ? parseInt(String(tableFrom), 10) : currentFrom;
+
+      newTo = tableTo !== undefined ? parseInt(String(tableTo), 10) : currentTo;
+
+      if (isNaN(newFrom) || isNaN(newTo)) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Table numbers must be valid integers",
+        });
+      }
+
+      if (newFrom < 0 || newTo < 0) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: "Table numbers cannot be negative",
+        });
+      }
+
+      if (counter.isTableService) {
+        if (newFrom >= newTo) {
+          throwError({
+            status: STATUS_CODES.BAD_REQUEST,
+            message: `Invalid table range (${newFrom} >= ${newTo})`,
+          });
+        }
+
+        if (newTo - newFrom < 0) {
+          throwError({
+            status: STATUS_CODES.BAD_REQUEST,
+            message: "Table range must include at least 1 table",
+          });
+        }
+      }
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: "Invalid table number format",
+      });
+    }
+
+    // Update table numbers
     if (tableFrom !== undefined || tableTo !== undefined) {
-      const tableNumbers = Array.from({ length: newTo - newFrom + 1 }, (_, i) =>
-        String(newFrom + i)
-      );
+      const tableNumbers = [];
+      for (let i = newFrom; i <= newTo; i++) {
+        tableNumbers.push(i.toString());
+      }
       counter.tableCount = tableNumbers;
     }
 
@@ -1773,12 +1815,10 @@ module.exports.updateCounterSettings = async (req) => {
     });
 
     if (
-      tableSectionName !== undefined ||
       tableFrom !== undefined ||
-      tableTo !== undefined
+      tableTo !== undefined ||
+      tableSectionName !== undefined
     ) {
-      const tableNumbers = counter.tableCount;
-
       const conflictingTables = await Tables.find({
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
@@ -1791,10 +1831,8 @@ module.exports.updateCounterSettings = async (req) => {
       if (isConflict) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message:
-            "There are multiple counters involved, available for one counter attached.",
+          message: "Multiple counters attached to these tables",
         });
-        return;
       }
 
       const existingTable = await Tables.findOne({
@@ -1805,19 +1843,25 @@ module.exports.updateCounterSettings = async (req) => {
       if (!existingTable) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "No table found for this counter to update.",
+          message: "No table found for this counter",
         });
-        return;
       }
 
-      existingTable.tableCount = tableNumbers;
+      existingTable.tableCount = counter.tableCount;
       if (tableSectionName !== undefined) {
         existingTable.tableSectionName = tableSectionName;
       }
 
       await existingTable.save();
     }
+
+    // return {
+    //   success: true,
+    //   message: "Counter settings updated successfully",
+    //   tableRange: counter.tableCount,
+    // };
   } else if (action === EDIT_ACTION.DELETE) {
+    // Delete handling remains same
     const activeOrders = await Order.findOne({
       counterId,
       status: {
@@ -1831,27 +1875,32 @@ module.exports.updateCounterSettings = async (req) => {
     if (activeOrders) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Counter cannot be deleted as it has active orders.",
+        message: "Counter has active orders",
       });
-      return;
     }
 
     await Counter.updateOne(
       { _id: counterId },
       { $set: { status: STATUS.DELETED } }
     );
+
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
-      title: "New Counter Added",
-      body: "You have a new counter added. Tap to view.",
+      title: "Counter Deleted",
+      body: "A counter has been removed",
       data: {
         action: "counter_update",
         screen: "counter_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
     });
+
+    return {
+      success: true,
+      message: "Counter deleted successfully",
+    };
   }
 };
 
