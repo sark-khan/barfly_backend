@@ -1630,6 +1630,7 @@ module.exports.editCategory = async (req) => {
     await MenuCategory.deleteOne({ _id: categoryId });
     message = "Category deleted successfully.";
   }
+  return message;
 };
 
 module.exports.getMenuCategoryItems = async (req) => {
