@@ -319,6 +319,7 @@ const editRestaurantsOrUsers = async (req) => {
   const updateOperations = [];
   let message = "";
   let blockedAt = new Date();
+  let statusCode = STATUS_CODES.OK;
 
   if (entityId) {
     const entity = await EntityDetails.findOne({
@@ -349,8 +350,13 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     message = "Restaurant updated successfully.";
+    statusCode =
+      status === STATUS.BLOCKED
+        ? STATUS_CODES.NOT_AUTHENTICATED
+        : STATUS_CODES.OK;
     io.to(entityId.toString()).emit("restaurantUpdate", {
       status: status,
+      statusCode,
     });
   }
 
@@ -372,8 +378,14 @@ const editRestaurantsOrUsers = async (req) => {
       User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
     );
     message = "User updated successfully.";
+    message = "Restaurant updated successfully.";
+    statusCode =
+      status === STATUS.BLOCKED
+        ? STATUS_CODES.NOT_AUTHENTICATED
+        : STATUS_CODES.OK;
     io.to(userId.toString()).emit("restaurantUpdate", {
       status: status,
+      statusCode,
     });
   }
 
