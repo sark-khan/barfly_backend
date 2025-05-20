@@ -24,6 +24,7 @@ const {
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
+const { io } = require("../app");
 
 const addAdmin = async (req) => {
   const { firstName, lastName, password, email, phoneNumber } = req.body;
