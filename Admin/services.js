@@ -331,14 +331,26 @@ const editRestaurantsOrUsers = async (req) => {
         message: "Entity doesn't exist.",
       });
     }
-
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
         { $set: { status, blockedAt } }
       )
     );
+
+    if (entity.userId) {
+      updateOperations.push(
+        User.updateOne(
+          { _id: entity.userId },
+          { $set: { status } } // Set to either ACTIVE or BLOCKED
+        )
+      );
+    }
+
     message = "Restaurant updated successfully.";
+    io.to(entityId.toString()).emit("restaurantUpdate", {
+      status: status,
+    });
   }
 
   if (userId) {
@@ -359,6 +371,9 @@ const editRestaurantsOrUsers = async (req) => {
       User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
     );
     message = "User updated successfully.";
+    io.to(userId.toString()).emit("restaurantUpdate", {
+      status: status,
+    });
   }
 
   await Promise.all(updateOperations);
@@ -446,7 +461,13 @@ const resetPassword = async (req) => {
 
 const logoutAdmin = async (req) => {
   const { userId } = req;
-  const admin = await Admin.findById(userId, { _id: 1 });
+  const admin = await Admin.findById(userId, { _id: 1, status: 1 });
+  if (admin.status === STATUS.DELETED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHENTICATED,
+      message: "Admin is blocked.",
+    });
+  }
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
   await redisClient.del(`${prefix}:${admin._id}`);
 };
