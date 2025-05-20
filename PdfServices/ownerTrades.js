@@ -112,11 +112,11 @@ module.exports.ownerTrades = async (req) => {
     .text("Order Documentation", leftMargin + 12, doc.y + 30)
     .fontSize(12)
     .text(`${fromDate} - ${toDate}`, leftMargin + 15)
-    .text("report exported:", leftMargin + 310, doc.y - 19.5)
+    .text("Report Exported:", leftMargin + 310, doc.y - 19.5)
     .text(
       new Date().toLocaleDateString(),
       pageWidth - leftMargin - rightMargin - 130,
-      doc.y - 10.5
+      doc.y - 10.3
     );
 
   doc
