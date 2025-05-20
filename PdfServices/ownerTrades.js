@@ -116,7 +116,7 @@ module.exports.ownerTrades = async (req) => {
     .text(
       new Date().toLocaleDateString(),
       pageWidth - leftMargin - rightMargin - 130,
-      doc.y - 10.5
+      doc.y - 10
     );
 
   doc
