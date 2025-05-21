@@ -24,6 +24,7 @@ const {
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
+const { io } = require("../app");
 
 const addAdmin = async (req) => {
   const { firstName, lastName, password, email, phoneNumber } = req.body;
@@ -318,6 +319,7 @@ const editRestaurantsOrUsers = async (req) => {
   const updateOperations = [];
   let message = "";
   let blockedAt = new Date();
+  let statusCode = STATUS_CODES.OK;
 
   if (entityId) {
     const entity = await EntityDetails.findOne({
@@ -331,14 +333,31 @@ const editRestaurantsOrUsers = async (req) => {
         message: "Entity doesn't exist.",
       });
     }
-
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
         { $set: { status, blockedAt } }
       )
     );
+
+    if (entity.userId) {
+      updateOperations.push(
+        User.updateOne(
+          { _id: entity.userId },
+          { $set: { status } } // Set to either ACTIVE or BLOCKED
+        )
+      );
+    }
+
     message = "Restaurant updated successfully.";
+    statusCode =
+      status === STATUS.BLOCKED
+        ? STATUS_CODES.NOT_AUTHENTICATED
+        : STATUS_CODES.OK;
+    io.to(entityId.toString()).emit("restaurantUpdate", {
+      status: status,
+      statusCode,
+    });
   }
 
   if (userId) {
@@ -359,6 +378,15 @@ const editRestaurantsOrUsers = async (req) => {
       User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
     );
     message = "User updated successfully.";
+    message = "Restaurant updated successfully.";
+    statusCode =
+      status === STATUS.BLOCKED
+        ? STATUS_CODES.NOT_AUTHENTICATED
+        : STATUS_CODES.OK;
+    io.to(userId.toString()).emit("restaurantUpdate", {
+      status: status,
+      statusCode,
+    });
   }
 
   await Promise.all(updateOperations);
@@ -446,7 +474,13 @@ const resetPassword = async (req) => {
 
 const logoutAdmin = async (req) => {
   const { userId } = req;
-  const admin = await Admin.findById(userId, { _id: 1 });
+  const admin = await Admin.findById(userId, { _id: 1, status: 1 });
+  if (admin.status === STATUS.DELETED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHENTICATED,
+      message: "Admin is blocked.",
+    });
+  }
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
   await redisClient.del(`${prefix}:${admin._id}`);
 };
