@@ -49,7 +49,7 @@ module.exports.getEntities = async (req) => {
 
   const favouritesList = await FavouriteEntity.find(
     { userId: req.id, isFavourite: true },
-    { _id: 1, entityId: 1, },
+    { _id: 1, entityId: 1 },
     { lean: true }
   );
 
@@ -66,13 +66,20 @@ module.exports.getEntities = async (req) => {
         { entityId: { $exists: true } },
       ],
     },
-    { entityId: 1, counterIds: 1, from :1 , to:1, isRepetitive:1, repetitiveDays:1 }
+    {
+      entityId: 1,
+      counterIds: 1,
+      from: 1,
+      to: 1,
+      isRepetitive: 1,
+      repetitiveDays: 1,
+    }
   );
   const currentDay = (now.getDay() + 6) % 7;
   const nowUTC = new Date();
-  let entityIds=[];
+  let entityIds = [];
 
-  currentRunningEvents.forEach((event)=>{
+  currentRunningEvents.forEach((event) => {
     if (event.isRepetitive) {
       if (
         Array.isArray(event.repetitiveDays) &&
@@ -105,18 +112,15 @@ module.exports.getEntities = async (req) => {
         if (eventEndToday <= eventStartToday) {
           eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
         }
-        console.log({nowUTC,eventStartToday, eventEndToday });
+        console.log({ nowUTC, eventStartToday, eventEndToday });
         if (nowUTC >= eventStartToday && nowUTC <= eventEndToday) {
-            entityIds.push(event.entityId);
+          entityIds.push(event.entityId);
         }
       }
-    }
-    else{
+    } else {
       entityIds.push(event.entityId);
     }
-  })
-
-  // const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+  });
 
   const query = {
     _id: { $in: entityIds },
@@ -596,31 +600,25 @@ module.exports.getCounterMenuCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  let { menuCategoryId, searchTerm,  counterId, entityId } = req.query;
+  let { menuCategoryId, searchTerm, counterId, entityId } = req.query;
 
+  let filter = { inStock: true, counterId: counterId, entityId };
 
-let filter = { inStock: true, counterId: counterId, entityId };
+  if (searchTerm && searchTerm.trim()) {
+    filter.itemName = { $regex: searchTerm, $options: "i" };
+  }
+  const menuCategory = await MenuCategory.find({ _id: menuCategoryId });
+  const categoryName = menuCategory[0].categoryName;
+  const menuItems1 = await ItemDetails.find(filter)
+    .populate("menuCategoryId")
+    .lean();
 
-if (searchTerm && searchTerm.trim()) {
-  filter.itemName = { $regex: searchTerm, $options: "i" };
-}
-const menuCategory= await MenuCategory.find({_id:menuCategoryId});
-const categoryName= menuCategory[0].categoryName;
-const menuItems1 = await ItemDetails.find(filter)
-  .populate("menuCategoryId")
-  .lean();
-
-
-
-// Now filter by categoryName manually (because it's in a populated field)
-const menuItems = categoryName
-  ? menuItems1.filter(
-      (item) => item.menuCategoryId?.categoryName === categoryName
-    )
-  : menuItems1;
-
-
-
+  // Now filter by categoryName manually (because it's in a populated field)
+  const menuItems = categoryName
+    ? menuItems1.filter(
+        (item) => item.menuCategoryId?.categoryName === categoryName
+      )
+    : menuItems1;
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
@@ -652,8 +650,7 @@ module.exports.getRecommendedItems = async (req) => {
   const counterItemMap = {};
 
   allItems.forEach((item) => {
-
-    if ( item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
+    if (item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
       item.image = generatePresignedUrl(item.image);
       const counterKey = `${item.counterId}_${item.itemName}`;
 
