@@ -210,10 +210,13 @@ module.exports.login = async (req) => {
       message: "Invalid email or mobile number.",
     });
 
-  const entityDetails = await EntityDetails.findOne({
-    userId: user._id,
-    status: STATUS.ACTIVE,
-  },{_id:1});
+  const entityDetails = await EntityDetails.findOne(
+    {
+      userId: user._id,
+      status: STATUS.ACTIVE,
+    },
+    { _id: 1 }
+  );
 
   if (!entityDetails)
     throwError({
