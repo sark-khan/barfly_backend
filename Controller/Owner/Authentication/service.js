@@ -47,11 +47,6 @@ module.exports.register = async (req) => {
     },
   } = req;
 
-
-  if(contactNumber.includes(",")){
-    throwError({status: STATUS_CODES.BAD_REQUEST, message: "Sushant Atkore sir please don't use ,"})
-  }
-
   const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
@@ -215,10 +210,13 @@ module.exports.login = async (req) => {
       message: "Invalid email or mobile number.",
     });
 
-  const entityDetails = await EntityDetails.findOne({
-    userId: user._id,
-    status: STATUS.ACTIVE,
-  },{_id:1});
+  const entityDetails = await EntityDetails.findOne(
+    {
+      userId: user._id,
+      status: STATUS.ACTIVE,
+    },
+    { _id: 1 }
+  );
 
   if (!entityDetails)
     throwError({
