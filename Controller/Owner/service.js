@@ -576,7 +576,6 @@ module.exports.createMenuItem = async (req) => {
   // console.log({menuCategoryIds});
   const createdItems = await Promise.all(
     menuCategories.map(async (category) => {
-      console.log({category});
       return ItemDetails.create({
         itemName,
         price,
@@ -2342,7 +2341,7 @@ module.exports.editBusinessDetails = async (req) => {
       topic: `entity_${entityId}`,
       showNotification: true,
       title: "New Profile Details Added",
-      body: "You have a new counter added. Tap to view.",
+      body: "You have a new entity details added. Tap to view.",
       data: {
         action: "profile_update",
         screen: "counter_screen",
@@ -2398,7 +2397,7 @@ module.exports.editBusinessDetails = async (req) => {
       topic: `entity_${entityId}`,
       showNotification: true,
       title: "New Profile Updated",
-      body: "You have a new entity_details added. Tap to view.",
+      body: "You have a new entity details added. Tap to view.",
       data: {
         action: "entity_details_update",
         screen: "entity_details_screen",
@@ -2466,7 +2465,7 @@ module.exports.editBusinessDetails = async (req) => {
         topic: `entity_${entityId}`,
         showNotification: true,
         title: "New Profile Updated",
-        body: "You have a new entity_details added. Tap to view.",
+        body: "You have a new entity details added. Tap to view.",
         data: {
           action: "entity_details_update",
           screen: "entity_details_screen",
@@ -2530,7 +2529,7 @@ module.exports.editBusinessDetails = async (req) => {
         topic: `entity_${entityId}`,
         showNotification: true,
         title: "New Profile Updated",
-        body: "You have a new entity_details added. Tap to view.",
+        body: "You have a new entity details added. Tap to view.",
         data: {
           action: "entity_details_update",
           screen: "entity_details_screen",
