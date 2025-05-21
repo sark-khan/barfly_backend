@@ -47,6 +47,11 @@ module.exports.register = async (req) => {
     },
   } = req;
 
+
+  if(contactNumber.includes(",")){
+    throwError({status: STATUS_CODES.BAD_REQUEST, message: "Sushant Atkore sir please don't use ,"})
+  }
+
   const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
