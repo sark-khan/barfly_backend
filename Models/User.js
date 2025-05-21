@@ -11,6 +11,7 @@ const userSchema = new Schema(
     email: { type: String },
     password: { type: String },
     language: { type: String },
+    contactNumber: { type: String, default: "" },
     // dob: { type: String },
     emailOtpVerified: { type: Boolean, default: false },
     phoneOtpVerified: { type: Boolean, default: false },
