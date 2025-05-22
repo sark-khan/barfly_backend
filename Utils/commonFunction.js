@@ -357,6 +357,7 @@ const sendFirebaseNotification = async ({
     };
 
     await messagingPlus.send(payload);
+    await messaging.send(payload);
     console.info(`✅ Notification sent to topic: ${topicName}`);
   } catch (err) {
     console.error("❌ Push Notification Error:", err.message);
