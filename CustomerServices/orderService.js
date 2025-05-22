@@ -367,8 +367,8 @@ const updateStatusOfOrder = async (req) => {
   sendFirebaseNotification({
       topic: `user_${userId}`,
       showNotification: true,
-      title: "New Counter Added",
-      body: "You have a new counter added. Tap to view.",
+      title: "Order Status Updated",
+      body: "Order Status is Updated",
       data: {
         orderId: orderId,
         status: status,

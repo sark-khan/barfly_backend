@@ -610,8 +610,9 @@ module.exports.createMenuItem = async (req) => {
       screen: "item_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `entity_${req.entityId}`,
-      counter: category.counterId,
-      category: category._id,
+      // categoryName: categoryName,
+      // counter: category.counterId,
+      // category: category._id,
       entityId: req.entityId
     },
   });
