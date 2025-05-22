@@ -193,6 +193,7 @@ const createOrder = async (req, session) => {
           data: JSON.stringify(createdOrder[0]),
           screen: "landing_home",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: topic,
         },
   });
 
@@ -361,67 +362,84 @@ const updateStatusOfOrder = async (req) => {
   //       },
   // });
 
-  const userTokens = updatedOrder?.userId?.fcmToken;
+  const userId = updatedOrder?.userId?._id;
 
-  if (!Array.isArray(userTokens) || userTokens.length === 0) {
-    console.warn("No valid FCM tokens found. Skipping push.");
-    return;
-  }
-
-  const payloadTemplate = (token) => ({
-    notification: {
-      title: "Order Status Updated",
-      body: `Your order is now ${status}. Tap to view details.`,
-    },
-    data: {
-      orderId: orderId,
-      status: status,
-      screen: "status",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-    token,
-    android: {
-      priority: "high",
-      notification: {
+  sendFirebaseNotification({
+      topic: `user_${userId}`,
+      showNotification: true,
+      title: "New Counter Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+        orderId: orderId,
+        status: status,
+        action: "status_update",
+        screen: "status",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `user_${userId}`,
       },
-    },
-    apns: {
-      payload: {
-        aps: {
-          content_available: true,
-          category: "FLUTTER_NOTIFICATION_CLICK",
-          mutableContent: 1,
-          alert: {
-            title: "Order Status Updated",
-            body: `Your order is now ${status}. Tap to view details.`,
-          },
-        },
-      },
-    },
-  });
+    });
 
-  for (const token of userTokens) {
-    try {
-      await messaging.send(payloadTemplate(token));
-    } catch (error) {
-      console.error("Push failed for token:", token, error.message);
 
-      if (
-        error.code === "messaging/invalid-argument" ||
-        error.code === "messaging/registration-token-not-registered"
-      ) {
-        await User.updateOne(
-          { _id: updatedOrder.userId._id },
-          { $pull: { fcmToken: token } }
-        );
-        console.warn(
-          "Removed invalid fcmToken for user",
-          updatedOrder.userId._id
-        );
-      }
-    }
-  }
+
+  // if (!Array.isArray(userTokens) || userTokens.length === 0) {
+  //   console.warn("No valid FCM tokens found. Skipping push.");
+  //   return;
+  // }
+
+  // const payloadTemplate = (token) => ({
+  //   notification: {
+  //     title: "Order Status Updated",
+  //     body: `Your order is now ${status}. Tap to view details.`,
+  //   },
+  //   data: {
+  //     orderId: orderId,
+  //     status: status,
+  //     screen: "status",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  //   token,
+  //   android: {
+  //     priority: "high",
+  //     notification: {
+  //       click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //     },
+  //   },
+  //   apns: {
+  //     payload: {
+  //       aps: {
+  //         content_available: true,
+  //         category: "FLUTTER_NOTIFICATION_CLICK",
+  //         mutableContent: 1,
+  //         alert: {
+  //           title: "Order Status Updated",
+  //           body: `Your order is now ${status}. Tap to view details.`,
+  //         },
+  //       },
+  //     },
+  //   },
+  // });
+
+  // for (const token of userTokens) {
+  //   try {
+  //     await messaging.send(payloadTemplate(token));
+  //   } catch (error) {
+  //     console.error("Push failed for token:", token, error.message);
+
+  //     if (
+  //       error.code === "messaging/invalid-argument" ||
+  //       error.code === "messaging/registration-token-not-registered"
+  //     ) {
+  //       await User.updateOne(
+  //         { _id: updatedOrder.userId._id },
+  //         { $pull: { fcmToken: token } }
+  //       );
+  //       console.warn(
+  //         "Removed invalid fcmToken for user",
+  //         updatedOrder.userId._id
+  //       );
+  //     }
+  //   }
+  // }
 };
 
 // const getEntityOrders = async (req) => {

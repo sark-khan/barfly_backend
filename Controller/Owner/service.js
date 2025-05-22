@@ -163,6 +163,7 @@ module.exports.createCounter = async (req) => {
       action: "counter_update",
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${newCounter.entityId}`,
     },
   });
   // if (!owner?.fcmToken?.length) return newCounter.toObject();
@@ -294,6 +295,7 @@ module.exports.createCounterMenuCategory = async (req) => {
       action: "category_update",
       screen: "category_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${createdCategories[0].entityId}`,
     },
   });
 
@@ -607,6 +609,10 @@ module.exports.createMenuItem = async (req) => {
       action: "item_update",
       screen: "item_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${req.entityId}`,
+      counter: category.counterId,
+      category: category._id,
+      entityId: req.entityId
     },
   });
 
@@ -731,6 +737,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
@@ -747,6 +754,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
         },
       });
     }
@@ -776,6 +784,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
@@ -792,6 +801,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
         },
       });
     }
@@ -1915,6 +1925,7 @@ module.exports.updateCounterSettings = async (req) => {
         action: "counter_update",
         screen: "counter_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${counter.entityId}`,
       },
     });
 
@@ -1998,6 +2009,7 @@ module.exports.updateCounterSettings = async (req) => {
         action: "counter_update",
         screen: "counter_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${counter.entityId}`,
       },
     });
 
@@ -2346,6 +2358,7 @@ module.exports.editBusinessDetails = async (req) => {
         action: "profile_update",
         screen: "counter_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${entityId}`,
       },
     });
     return { message };
@@ -2402,6 +2415,7 @@ module.exports.editBusinessDetails = async (req) => {
         action: "entity_details_update",
         screen: "entity_details_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${entityId}`,
       },
     });
   }
@@ -2470,6 +2484,7 @@ module.exports.editBusinessDetails = async (req) => {
           action: "entity_details_update",
           screen: "entity_details_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${entityId}`,
         },
       });
 
@@ -2534,6 +2549,7 @@ module.exports.editBusinessDetails = async (req) => {
           action: "entity_details_update",
           screen: "entity_details_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${entityId}`,
         },
       });
       return { message, otpVerified: true };
@@ -2654,6 +2670,7 @@ module.exports.addingTables = async (req) => {
       action: "table_update",
       screen: "table_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${newTable.entityId}`,
     },
   });
 
@@ -2827,6 +2844,7 @@ module.exports.editTable = async (req) => {
         action: "table_update",
         screen: "table_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${tableData.entityId}`,
       },
     });
     await tableData.save();
@@ -3376,6 +3394,7 @@ module.exports.addFeedbackQuestions = async (req) => {
       action: "feedback_update",
       screen: "feedback_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${entityId}`
     },
   });
   return feedback;
@@ -3647,6 +3666,7 @@ module.exports.restaurantCancelOrder = async (req) => {
       action: "cancel_update",
       screen: "cancel_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${order.entityId}`,
     },
   });
 };

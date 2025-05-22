@@ -57,6 +57,7 @@ emitEventQueue.process(async (job, done) => {
               action:"event_update",
               screen: "event_screen",
               click_action: "FLUTTER_NOTIFICATION_CLICK",
+              topic: `entity_${tableData.entityId}`,
             },
       });
       console.log(`Emitted "ongoingEvent" to room: ${room}`);
