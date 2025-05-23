@@ -36,6 +36,7 @@ const Discount = require("../../Models/Discount");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const Tables = require("../../Models/Tables");
 const notificationSettings = require("../../Models/notificationSettings");
+const { io } = require("../../app");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -549,31 +550,25 @@ module.exports.getCounterMenuCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  let { menuCategoryId, searchTerm,  counterId, entityId } = req.query;
+  let { menuCategoryId, searchTerm, counterId, entityId } = req.query;
 
+  let filter = { inStock: true, counterId: counterId, entityId };
 
-let filter = { inStock: true, counterId: counterId, entityId };
+  if (searchTerm && searchTerm.trim()) {
+    filter.itemName = { $regex: searchTerm, $options: "i" };
+  }
+  const menuCategory = await MenuCategory.find({ _id: menuCategoryId });
+  const categoryName = menuCategory[0].categoryName;
+  const menuItems1 = await ItemDetails.find(filter)
+    .populate("menuCategoryId")
+    .lean();
 
-if (searchTerm && searchTerm.trim()) {
-  filter.itemName = { $regex: searchTerm, $options: "i" };
-}
-const menuCategory= await MenuCategory.find({_id:menuCategoryId});
-const categoryName= menuCategory[0].categoryName;
-const menuItems1 = await ItemDetails.find(filter)
-  .populate("menuCategoryId")
-  .lean();
-
-
-
-// Now filter by categoryName manually (because it's in a populated field)
-const menuItems = categoryName
-  ? menuItems1.filter(
-      (item) => item.menuCategoryId?.categoryName === categoryName
-    )
-  : menuItems1;
-
-
-
+  // Now filter by categoryName manually (because it's in a populated field)
+  const menuItems = categoryName
+    ? menuItems1.filter(
+        (item) => item.menuCategoryId?.categoryName === categoryName
+      )
+    : menuItems1;
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
@@ -605,8 +600,7 @@ module.exports.getRecommendedItems = async (req) => {
   const counterItemMap = {};
 
   allItems.forEach((item) => {
-
-    if ( item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
+    if (item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
       item.image = generatePresignedUrl(item.image);
       const counterKey = `${item.counterId}_${item.itemName}`;
 
@@ -1084,7 +1078,8 @@ module.exports.userFeedback = async (req) => {
     answers,
   };
 
-  return Userfeedback.create(feedbackObj);
+  const feebackFromUser = await Userfeedback.create(feedbackObj);
+  io.to(entityId.toString()).emit("feedback", feebackFromUser);
 };
 
 exports.getAllcountries = () => {
