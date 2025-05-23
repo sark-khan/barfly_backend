@@ -67,10 +67,61 @@ module.exports.getEntities = async (req) => {
         { entityId: { $exists: true } },
       ],
     },
-    { entityId: 1, counterIds: 1 }
+    {
+      entityId: 1,
+      counterIds: 1,
+      from: 1,
+      to: 1,
+      isRepetitive: 1,
+      repetitiveDays: 1,
+    }
   );
+  const currentDay = (now.getDay() + 6) % 7;
+  const nowUTC = new Date();
+  let entityIds = [];
 
-  const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+  currentRunningEvents.forEach((event) => {
+    if (event.isRepetitive) {
+      if (
+        Array.isArray(event.repetitiveDays) &&
+        event.repetitiveDays[currentDay]
+      ) {
+        const fromHours = new Date(event.from).getUTCHours();
+        const fromMinutes = new Date(event.from).getUTCMinutes();
+        const toHours = new Date(event.to).getUTCHours();
+        const toMinutes = new Date(event.to).getUTCMinutes();
+        const eventStartToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            fromHours,
+            fromMinutes
+          )
+        );
+
+        let eventEndToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            toHours,
+            toMinutes
+          )
+        );
+
+        if (eventEndToday <= eventStartToday) {
+          eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
+        }
+        console.log({ nowUTC, eventStartToday, eventEndToday });
+        if (nowUTC >= eventStartToday && nowUTC <= eventEndToday) {
+          entityIds.push(event.entityId);
+        }
+      }
+    } else {
+      entityIds.push(event.entityId);
+    }
+  });
 
   const query = {
     _id: { $in: entityIds },
