@@ -613,7 +613,7 @@ module.exports.createMenuItem = async (req) => {
       // categoryName: categoryName,
       // counter: category.counterId,
       // category: category._id,
-      entityId: req.entityId
+      entityId: req.entityId,
     },
   });
 
@@ -785,7 +785,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${item.entityId}`
+          topic: `entity_${item.entityId}`,
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
@@ -998,12 +998,19 @@ module.exports.createEvent = async (req) => {
     eventName,
     ownerId,
     entityId: req.entityId,
+    $or: [
+      {
+        from: { $lte: dateTimeTo },
+        to: { $gte: dateTimeFrom },
+      },
+    ],
   });
 
   if (existingEvent) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "An event with the same details already exists",
+      message:
+        "An event with the same name and overlapping time already exists",
     });
   }
   let repetitiveDaysArr = [];
@@ -1069,6 +1076,18 @@ module.exports.createEvent = async (req) => {
   );
 
   return savedEvent;
+};
+
+module.exports.deleteEvent = async (req) => {
+  const { eventId } = req.body;
+  const event = await Event.findById(eventId);
+  if (!event) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: "EVent not found.",
+    });
+  }
+  await Event.deleteOne({ _id: eventId });
 };
 
 // module.exports.getUpcomingEvents = async (req) => {
@@ -3395,7 +3414,7 @@ module.exports.addFeedbackQuestions = async (req) => {
       action: "feedback_update",
       screen: "feedback_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `entity_${entityId}`
+      topic: `entity_${entityId}`,
     },
   });
   return feedback;

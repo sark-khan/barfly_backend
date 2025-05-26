@@ -47,6 +47,7 @@ const {
   downloadSalesReport,
   getSalesReportHistory,
   editCategory,
+  deleteEvent,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -310,6 +311,20 @@ router.post("/create-event", upload.single("file"), async (req, res) => {
       .json({ message: "Event succesfully created", data: response });
   } catch (error) {
     console.error({ error, message: "Error occured in create event" });
+    return res
+      .status(error.status || STATUS_CODES.SERVER_ERROR)
+      .json({ message: error.message });
+  }
+});
+
+router.post("/delete-event", async (req, res) => {
+  try {
+    await deleteEvent(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: "Event deleted successfully." });
+  } catch (error) {
+    console.error({ error, message: "Error occured in deleting event" });
     return res
       .status(error.status || STATUS_CODES.SERVER_ERROR)
       .json({ message: error.message });
