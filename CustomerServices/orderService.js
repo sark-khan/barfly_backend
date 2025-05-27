@@ -11,7 +11,10 @@ const ItemDetails = require("../Models/ItemDetails");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { ObjectId } = mongoose.Types;
 
-const { validateCoupon, sendFirebaseNotification } = require("../Utils/commonFunction");
+const {
+  validateCoupon,
+  sendFirebaseNotification,
+} = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
@@ -189,12 +192,12 @@ const createOrder = async (req, session) => {
     title: "Order received",
     body: "You have a new order. Tap to view.",
     data: {
-          orderId: `${createdOrder[0]._id}`,
-          data: JSON.stringify(createdOrder[0]),
-          screen: "landing_home",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: topic,
-        },
+      orderId: `${createdOrder[0]._id}`,
+      data: JSON.stringify(createdOrder[0]),
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: topic,
+    },
   });
 
   // const fcmTokens = Array.isArray(entityDetails.owner.fcmToken)
@@ -365,21 +368,19 @@ const updateStatusOfOrder = async (req) => {
   const userId = updatedOrder?.userId?._id;
 
   sendFirebaseNotification({
+    topic: `user_${userId}`,
+    showNotification: true,
+    title: "Order Status Updated",
+    body: "Order Status is Updated",
+    data: {
+      orderId: orderId,
+      status: status,
+      action: "status_update",
+      screen: "status",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `user_${userId}`,
-      showNotification: true,
-      title: "Order Status Updated",
-      body: "Order Status is Updated",
-      data: {
-        orderId: orderId,
-        status: status,
-        action: "status_update",
-        screen: "status",
-        click_action: "FLUTTER_NOTIFICATION_CLICK",
-        topic: `user_${userId}`,
-      },
-    });
-
-
+    },
+  });
 
   // if (!Array.isArray(userTokens) || userTokens.length === 0) {
   //   console.warn("No valid FCM tokens found. Skipping push.");
@@ -737,11 +738,28 @@ const updateOfflineOrders = async (req) => {
     });
   }
 
-  await OfflineOrders.findOneAndUpdate(
+  const updatedOrder = await OfflineOrders.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
     { new: true }
   ).populate("userId");
+
+  const userId = updatedOrder?.userId?._id;
+
+  sendFirebaseNotification({
+    topic: `user_${userId}`,
+    showNotification: true,
+    title: "Order Status Updated",
+    body: "Order Status is Updated",
+    data: {
+      orderId: orderId,
+      status: status,
+      action: "status_update",
+      screen: "status",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `user_${userId}`,
+    },
+  });
 };
 
 const getLiveOrdersUsers = async (req) => {
