@@ -1834,10 +1834,10 @@ module.exports.updateCounterSettings = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    // Counter name validation
     if (counterName) {
       const duplicate = await Counter.findOne({
         _id: { $ne: counterId },
+        entityId: req.entityId,
         counterName: { $regex: `^${counterName}$`, $options: "i" },
         status: { $ne: STATUS.DELETED },
       });
