@@ -48,7 +48,7 @@ const UNIT_TYPE = {
   ML: "ML",
   Litre: "L",
   GRAM: "G",
-  EACH: "",
+  EMPTY: "",
 };
 
 const DRINKS_SIZE = {
