@@ -524,6 +524,7 @@ const getEntityOrders = async (req) => {
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
+  let sorting = -1;
 
   if (counterId) {
     query.counterId = counterId;
@@ -535,6 +536,9 @@ const getEntityOrders = async (req) => {
     query.status = {
       $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
     };
+  }
+  if(status && status !== ORDER_STATUS.COMPLETED) {
+    sorting = 1;
   }
 
   if (selectedOrderId) {
@@ -575,7 +579,7 @@ const getEntityOrders = async (req) => {
       select: "counterName",
       model: "Counter",
     })
-    .sort({ tokenNumber: -1 })
+    .sort({ tokenNumber: sorting })
     .skip(skip)
     .limit(limit);
 
@@ -639,13 +643,16 @@ const getOfflineOrders = async (req) => {
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
-
+  let sorting=-1;
   if (counterId) {
     query.counterId = counterId;
   }
 
   if (status) {
     query.status = status;
+    if(status !== ORDER_STATUS.COMPLETED) {
+      sorting = 1;
+    }
   }
   if (searchTerm) {
     const searchRegex = new RegExp(searchTerm, "i");
@@ -681,7 +688,7 @@ const getOfflineOrders = async (req) => {
       select: "counterName",
       model: "Counter",
     })
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: sorting })
     .skip(skip)
     .limit(limit);
 
@@ -804,7 +811,7 @@ const getLiveOrdersUsers = async (req) => {
       select: "entityName city image state country",
       model: "EntityDetails",
     })
-    .sort({ _id: -1 });
+    .sort({ _id: 1 });
 
   const updatedLiveOrders = liveOrders.map((order) => {
     if (order.entityId && order.entityId.image) {
