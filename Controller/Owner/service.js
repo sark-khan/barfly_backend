@@ -742,7 +742,7 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
-      await ItemDetails.deleteOne({ _id: item._id });
+      await ItemDetails.deleteOne({ _id: itemId });
       io.to(item.entityId.toString()).emit("menuItemUpdated", {
         itemId: item._id,
       });
