@@ -536,6 +536,7 @@ const getEntityOrders = async (req) => {
     query.status = {
       $in: [ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.WAITING],
     };
+    sorting = 1;
   }
   if(status && status !== ORDER_STATUS.COMPLETED) {
     sorting = 1;
