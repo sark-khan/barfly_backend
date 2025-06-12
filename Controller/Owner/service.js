@@ -1419,6 +1419,7 @@ module.exports.getOngoingEventDetails = async (req) => {
 
   const orders = await Order.find({
     eventId: { $in: Array.from(eventDetailsMap.keys()) },
+    status: { $nin: [globalConstants.ORDER_STATUS.WAITING] },
   });
 
   orders.forEach((order) => {
