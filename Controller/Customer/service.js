@@ -1012,7 +1012,8 @@ module.exports.updateUserDetails = async (req) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      const msg = `Your verification code is: ${otp}`;
+      const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
+
       await sendSMS({ toPhoneNumber: contactNumber, message: msg });
 
       await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
