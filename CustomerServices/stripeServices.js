@@ -457,6 +457,8 @@ const getStripeAccount = async (req) => {
       object: "bank_account",
     });
 
+    console.log({bankAccounts});
+
     return {
       account: account || [],
       bankAccounts: bankAccounts?.data || [],
