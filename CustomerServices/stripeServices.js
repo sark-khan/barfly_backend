@@ -471,6 +471,7 @@ const getStripeAccount = async (req) => {
     // Log and return the account details and bank accounts
     console.log("Account details:", account);
     console.log("Bank accounts:", bankAccounts.data);
+    console.log("Bank accounts:", bankAccounts);
 
     return {
       account: account,
