@@ -451,7 +451,7 @@ const retrieveAccountBalance = async (req) => {
 const getStripeAccount = async (req) => {
   try {
     // Retrieve the account ID from the query parameter
-    const { accountId = "acct_1RiqRr2XkGZVALnJ" } = req.query;
+    const { accountId } = req.query;
 
     // Retrieve the Stripe account details
     const account = await stripe.accounts.retrieve(accountId);
