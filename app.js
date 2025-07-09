@@ -119,7 +119,7 @@ const unProtectedApis = {
   "/api/customer/auth/register": true,
   "/api/customer/auth/countR-tag": true,
   "/api/get-entities": true,
-  "/api/customer/entities/get-entities": true ,
+  "/api/customer/entities/get-entities": true,
   "/api/customer/entities/get-entity": true,
   "/api/customer/entities/visitor-count": true,
   "/api/customer/entities/get-counter-list": true,
@@ -130,8 +130,7 @@ const unProtectedApis = {
   "/api/customer/entities/popular-entities": true,
   "/api/customer/entities/entity-offers": true,
   "/api/customer/entities/get-tables-user-side": true,
-  "/api/customer/entities/get-search-logs": true,
-  
+
   // "/api/customer/entities/get-entities": true,
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
