@@ -450,35 +450,25 @@ const retrieveAccountBalance = async (req) => {
 
 const getStripeAccount = async (req) => {
   try {
-    // Retrieve the account ID from the query parameter
     const { accountId } = req.query;
 
-    // Retrieve the Stripe account details
     const account = await stripe.accounts.retrieve(accountId);
 
-    // Check if the account is valid and exists
     if (!account) {
       return {
         error: "Account not found",
       };
     }
 
-    // List external accounts (bank accounts) associated with the connected account
     const bankAccounts = await stripe.accounts.listExternalAccounts(accountId, {
       object: "bank_account",
     });
 
-    // Log and return the account details and bank accounts
-    console.log("Account details:", account);
-    console.log("Bank accounts:", bankAccounts.data);
-    console.log("Bank accounts:", bankAccounts);
-
     return {
       account: account,
-      bankAccounts: bankAccounts.data || [], // Provide an empty array if no bank accounts
+      bankAccounts: bankAccounts.data || [],
     };
   } catch (err) {
-    // Handle any errors that occur during the process
     console.error("Error fetching Stripe account:", err);
     return {
       error: err.message || "An error occurred while fetching account details",
