@@ -14,6 +14,7 @@ const { ObjectId } = mongoose.Types;
 const {
   validateCoupon,
   sendFirebaseNotification,
+  genrateCustomerOrderReport,
 } = require("../Utils/commonFunction");
 const Discount = require("../Models/Discount");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
@@ -125,67 +126,13 @@ const createOrder = async (req, session) => {
     platformFees: global.PLATFORM_FEES,
   };
 
-  // if (tableNo) {
-  //   await Counter.findOneAndUpdate(
-  //     { _id: counterId, tableNo },
-  //     { $set: { tableStatus: TABLE_STATUS.OCCUPIED } }
-  //   );
-  // }
-
   const createdOrder = await Order.create([orderData], { session });
-  // await OrderLogs(createdOrder[0]);
   if (couponCode) {
     await Discount.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } });
   }
 
   const topic = `entity_${entityDetails._id}`; // always prefix with a letter to avoid numeric-only topic names
   console.log({ topic });
-
-  // const payload = {
-  //   notification: {
-  //     title: "Order Received",
-  //     body: `New order received. Tap to view details.`,
-  //   },
-
-  //   data: {
-  //     orderId: `${createdOrder[0]._id}`,
-  //     data: JSON.stringify(createdOrder[0]),
-  //     screen: "landing_home",
-  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //   },
-
-  //   android: {
-  //     priority: "high",
-  //     notification: {
-  //       click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //     },
-  //   },
-
-  //   apns: {
-  //     payload: {
-  //       aps: {
-  //         content_available: true,
-  //         category: "FLUTTER_NOTIFICATION_CLICK",
-  //         mutableContent: 1,
-  //         alert: {
-  //           title: "Order Received",
-  //           body: `New order received. Tap to view details.`,
-  //         },
-  //       },
-  //     },
-  //   },
-  // };
-
-  // // Correct call to send to topic:
-  // try {
-  //   await messagingPlus.send({
-  //     topic,
-  //     ...payload,
-  //   });
-  //   console.info(`✅ Notification sent to topic: ${topic}`);
-  // } catch (err) {
-  //   console.error("❌ Push Notification Error:", err.message);
-  // }
 
   sendFirebaseNotification({
     topic: topic,
@@ -199,69 +146,13 @@ const createOrder = async (req, session) => {
       topic: topic,
     },
   });
-
-  // const fcmTokens = Array.isArray(entityDetails.owner.fcmToken)
-  //   ? entityDetails.owner.fcmToken
-  //   : [];
-
-  // for (const token of fcmTokens) {
-  //   const payload = {
-  //     notification: {
-  //       title: "Order Received",
-  //       body: `New Order Received. Tap to view details.`,
-  //     },
-
-  //     data: {
-  //       orderId: `${createdOrder[0]._id}`,
-  //       data: JSON.stringify(createdOrder[0]),
-  //       screen: "landing_home",
-  //       click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //     },
-
-  //     token,
-
-  //     android: {
-  //       priority: "high",
-  //       notification: {
-  //         click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //       },
-  //     },
-
-  //     apns: {
-  //       payload: {
-  //         aps: {
-  //           content_available: true,
-  //           category: "FLUTTER_NOTIFICATION_CLICK",
-  //           mutableContent: 1,
-  //           alert: {
-  //             title: "Order Received ",
-  //             body: `New order received. Tap to view details.`,
-  //           },
-  //         },
-  //       },
-  //     },
-  //   };
-
-  //   try {
-  //     await messagingPlus.send(payload);
-  //     console.info("Notification sent to", token);
-  //   } catch (err) {
-  //     console.error("Push Notification Error:", err.message);
-
-  //     if (
-  //       err.code === "messaging/invalid-argument" ||
-  //       err.code === "messaging/registration-token-not-registered" ||
-  //       err.code === "messaging/invalid-recipient"
-  //     ) {
-  //       await User.updateOne(
-  //         { _id: entityDetails.userId },
-  //         { $pull: { fcmToken: token } }
-  //       );
-  //       console.warn("Removed invalid token:", token);
-  //     }
-  //   }
-  // }
-
+  genrateCustomerOrderReport({
+    userId: req.userId,
+    entityId: entityId,
+    orders: createdOrder[0],
+    mode: "Online",
+  });
+  
   return createdOrder;
 };
 
@@ -313,6 +204,12 @@ const createOfflineOrder = async (req) => {
     status: ORDER_STATUS.IN_PROGRESS,
   });
 
+  genrateCustomerOrderReport({
+    userId: userId,
+    entityId: entityId,
+    orders: offlineOrderObj,
+    mode: "Offline",
+  });
   return offlineOrderObj;
 };
 

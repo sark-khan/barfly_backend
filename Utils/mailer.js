@@ -1,14 +1,32 @@
 const nodemailer = require("nodemailer");
 const twilio = require("twilio");
 
+// Alternative OAuth2 configuration (more secure)
+// const transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   auth: {
+//     type: 'OAuth2',
+//     user: process.env.MAIL_USER,
+//     clientId: process.env.GMAIL_CLIENT_ID,
+//     clientSecret: process.env.GMAIL_CLIENT_SECRET,
+//     refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+//     accessToken: process.env.GMAIL_ACCESS_TOKEN,
+//   },
+// });
+
+// Simple Gmail configuration with app-specific password
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: 465,
-  secure: true,
+  service: 'gmail', // Use Gmail service
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: 587, // Use port 587 for TLS
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    pass: process.env.MAIL_PASS, // This should be an app-specific password
   },
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 module.exports.createMail = async (mail_data) => {
   try {
@@ -29,16 +47,44 @@ module.exports.createMail = async (mail_data) => {
       mailOptions.bcc = mail_data.bcc;
     }
 
-    await transporter.verify();
-    await transporter.sendMail(mailOptions);
-    console.info(`Email sent to: ${mail_data.to}`);
-    if (mail_data.cc) {
-      console.info(`Sending mail to CC: ${mail_data.cc}`);
+    // Add attachments if provided
+    if (mail_data.attachments && Array.isArray(mail_data.attachments)) {
+      mailOptions.attachments = mail_data.attachments;
     }
+
+    console.log("🔄 Attempting to verify SMTP connection...");
+    await transporter.verify();
+    console.log("✅ SMTP connection verified successfully");
+    
+    console.log("📧 Sending email...");
+    const result = await transporter.sendMail(mailOptions);
+    console.info(`✅ Email sent successfully to: ${mail_data.to}`);
+    console.log("📧 Message ID:", result.messageId);
+    
+    if (mail_data.cc) {
+      console.info(`📧 CC sent to: ${mail_data.cc}`);
+    }
+    
     transporter.close();
     return true;
   } catch (error) {
-    console.error("ERROR!!! While sending email", error);
+    console.error("❌ ERROR!!! While sending email", error.message);
+    console.error("📋 Full error details:", {
+      code: error.code,
+      response: error.response,
+      responseCode: error.responseCode,
+      command: error.command
+    });
+    
+    // Provide helpful error messages
+    if (error.code === 'EAUTH') {
+      console.error("🔐 Authentication failed. Please check:");
+      console.error("   1. Enable 2FA on your Gmail account");
+      console.error("   2. Generate an app-specific password");
+      console.error("   3. Use the app-specific password in MAIL_PASS environment variable");
+      console.error("   4. Make sure MAIL_USER is set to your Gmail address");
+    }
+    
     return false;
   }
 };
