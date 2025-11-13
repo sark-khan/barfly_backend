@@ -70,6 +70,7 @@ router.post("/update-notification-settings", async (req, res) => {
 
 router.get("/get-entities", async (req, res) => {
   const lang = getLanguageFromRequest(req);
+  console.log(lang, "lang");
   try {
     const response = await getEntities(req);
     return res.status(STATUS_CODES.OK).json({

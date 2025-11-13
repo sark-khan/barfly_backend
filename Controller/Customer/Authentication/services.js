@@ -34,7 +34,10 @@ module.exports.register = async (req) => {
       message: t("CUSTOMER_ALREADY_REGISTERED_EMAIL", lang),
     });
   }
-  const countrTagExists = await User.findOne({ countrTag });
+  const countrTagExists = await User.findOne({
+    countrTag,
+    status: STATUS.ACTIVE,
+  });
   if (countrTagExists) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -127,7 +130,7 @@ module.exports.checkAndProvideCountRTag = async (req) => {
   const { firstName, lastName } = req.query;
 
   const isUsernameExists = async (username) => {
-    return User.exists({ countrTag: username });
+    return User.exists({ countrTag: username, status: STATUS.ACTIVE });
   };
 
   const generateUniqueUsername = async (baseUsername) => {
@@ -156,7 +159,9 @@ module.exports.checkAndProvideCountRTag = async (req) => {
     uniqueUsernames.push(await generateUniqueUsername(base));
   }
 
-  const existingTags = await User.distinct("countrTag");
+  const existingTags = await User.distinct("countrTag", {
+    status: STATUS.ACTIVE,
+  });
 
   const availableTags = uniqueUsernames.filter(
     (tag) => !existingTags.includes(tag)
@@ -182,5 +187,11 @@ module.exports.deleteAccount = async (req) => {
       message: t("CUSTOMER_DOES_NOT_EXIST", lang),
     });
   }
-  await User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } });
+  await Promise.all([
+    User.updateOne(
+      { _id: userId },
+      { $set: { status: STATUS.DELETED, countrTag: null } }
+    ),
+    CountRTags.deleteMany({ userId }),
+  ]);
 };

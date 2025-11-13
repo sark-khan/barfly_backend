@@ -28,6 +28,7 @@ const { createMail, sendSMS } = require("../../Utils/mailer");
 const {
   haversineDistance,
   comparePassword,
+  verifyTokenWithoutResponse,
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
 const Userfeedback = require("../../Models/UserFeedback");
@@ -38,9 +39,9 @@ const Tables = require("../../Models/Tables");
 const notificationSettings = require("../../Models/notificationSettings");
 const { io } = require("../../app");
 const { t, getLanguageFromRequest } = require("../../Utils/translator");
+const verifyToken = require("../../Utils/verifyToken");
 
 module.exports.getEntities = async (req) => {
-  console.log({ req: req.query });
   const {
     limit = 30,
     skip = 0,
@@ -50,17 +51,23 @@ module.exports.getEntities = async (req) => {
   } = req.query;
   const now = new Date();
 
+  if (req.headers["token"] != null) {
+    verifyTokenWithoutResponse(req);
+  }
+
+  const userId = req.id || req.userId;
   const favouritesList = await FavouriteEntity.find(
-    { userId: req.id, isFavourite: true },
+    { userId, isFavourite: true },
     { _id: 1, entityId: 1 },
     { lean: true }
   );
-  console.log({ favouritesList });
+
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
-    favouritesIdsSet.add(id.entityId.toString());
+    if (id.entityId) {
+      favouritesIdsSet.add(id.entityId.toString());
+    }
   });
-
   const currentRunningEvents = await Event.find(
     {
       $and: [
@@ -248,8 +255,22 @@ module.exports.getEntities = async (req) => {
 };
 
 module.exports.addFavouriteEntity = async (req) => {
-  const userId = req.id;
+  const userId = req.id || req.userId;
   const { entityId, isFavourite } = req.body;
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", getLanguageFromRequest(req)),
+    });
+  }
+
+  if (!entityId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ENTITY_ID_REQUIRED", getLanguageFromRequest(req)),
+    });
+  }
 
   await FavouriteEntity.updateOne(
     { userId, entityId },

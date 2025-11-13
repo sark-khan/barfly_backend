@@ -721,7 +721,7 @@ const getLiveOrdersUsers = async (req) => {
       select: "entityName city image state country",
       model: "EntityDetails",
     })
-    .sort({ _id: 1 });
+    .sort({ updatedAt: -1 });
 
   const updatedLiveOrders = liveOrders.map((order) => {
     if (order.entityId && order.entityId.image) {

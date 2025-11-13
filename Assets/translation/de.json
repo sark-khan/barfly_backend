@@ -188,6 +188,8 @@
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Fehler beim Löschen des Kontos.",
   "CUSTOMER_DELETE_ACCOUNT_SUCCESS": "Benutzerkonto erfolgreich gelöscht.",
   "CUSTOMER_DOES_NOT_EXIST": "Benutzer existiert nicht.",
+  "USER_NOT_AUTHENTICATED": "Benutzer nicht authentifiziert.",
+  "ENTITY_ID_REQUIRED": "Entitäts-ID ist erforderlich.",
   "CUSTOMER_INVALID_PASSWORD": "Ungültiges Passwort.",
   "CUSTOMER_LOGIN_ERROR": "Fehler beim Einloggen des Benutzers.",
   "CUSTOMER_LOGIN_SUCCESS": "Benutzer erfolgreich eingeloggt.",

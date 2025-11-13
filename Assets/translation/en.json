@@ -188,6 +188,8 @@
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Error while deleting the account.",
   "CUSTOMER_DELETE_ACCOUNT_SUCCESS": "User account deleted successfully.",
   "CUSTOMER_DOES_NOT_EXIST": "User doesn't exist.",
+  "USER_NOT_AUTHENTICATED": "User not authenticated.",
+  "ENTITY_ID_REQUIRED": "Entity ID is required.",
   "CUSTOMER_INVALID_PASSWORD": "Invalid password",
   "CUSTOMER_LOGIN_ERROR": "Error while Logging-in the user.",
   "CUSTOMER_LOGIN_SUCCESS": "User logged in successfully.",
