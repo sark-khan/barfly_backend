@@ -21,8 +21,10 @@ const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { io } = require("../app");
 const OfflineOrders = require("../Models/OfflineOrder");
 const User = require("../Models/User");
+const { t, getLanguageFromRequest } = require("../Utils/translator");
 
 const createOrder = async (req, session) => {
+  const lang = getLanguageFromRequest(req);
   const { items, eventId, tableNo, isSelfPickup, note, couponCode } = req.body;
   const itemsIds = items?.map((doc) => doc.itemId);
   if (!itemsIds) return;
@@ -34,7 +36,7 @@ const createOrder = async (req, session) => {
   if (!menuItems.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No such item exists.",
+      message: t("ORDER_ITEM_NOT_FOUND", lang),
     });
   }
 
@@ -42,8 +44,10 @@ const createOrder = async (req, session) => {
   menuItems.forEach((item) => {
     if (!item.inStock) {
       throwError({
-        message: `Item ${item.itemName} is out of Stock`,
         status: STATUS_CODES.BAD_REQUEST,
+        message: t("ORDER_ITEM_OUT_OF_STOCK", lang, {
+          itemName: item.itemName,
+        }),
       });
     }
     itemNameMapper[`${item._id}`] = item;
@@ -71,7 +75,9 @@ const createOrder = async (req, session) => {
   if (msg) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: msg + "these items do not have sufficient stock.",
+      message: msg
+        ? `${msg} ${t("ORDER_ITEMS_INSUFFICIENT_STOCK_SUFFIX", lang)}`
+        : t("ORDER_ITEMS_INSUFFICIENT_STOCK", lang),
     });
   }
 
@@ -83,7 +89,7 @@ const createOrder = async (req, session) => {
   if (entityDetails && !entityDetails.isOpen) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Restaurant is currently closed. Orders cannot be placed.",
+      message: t("ORDER_RESTAURANT_CLOSED", lang),
     });
   }
 
@@ -152,11 +158,12 @@ const createOrder = async (req, session) => {
     orders: createdOrder[0],
     mode: "Online",
   });
-  
+
   return createdOrder;
 };
 
 const createOfflineOrder = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     userId,
     entityId,
@@ -169,7 +176,7 @@ const createOfflineOrder = async (req) => {
   if (!itemDetails.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Items you are looking for doesn't exists.",
+      message: t("OFFLINE_ORDER_ITEMS_NOT_FOUND", lang),
     });
   }
 
@@ -178,7 +185,9 @@ const createOfflineOrder = async (req) => {
     if (!item.inStock) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: `${item.itemName} is out of stock.`,
+        message: t("ORDER_ITEM_OUT_OF_STOCK", lang, {
+          itemName: item.itemName,
+        }),
       });
     }
     mapper[item._id] = item;
@@ -214,6 +223,7 @@ const createOfflineOrder = async (req) => {
 };
 
 const updateStatusOfOrder = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { orderId, status } = req.body;
 
   if (
@@ -226,7 +236,7 @@ const updateStatusOfOrder = async (req) => {
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Not a valid status.",
+      message: t("ORDER_STATUS_INVALID", lang),
     });
   }
 
@@ -235,7 +245,7 @@ const updateStatusOfOrder = async (req) => {
   if (!order) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No Such order exist.",
+      message: t("ORDER_NOT_FOUND_FOR_ENTITY", lang),
     });
   }
 
@@ -405,6 +415,7 @@ const updateStatusOfOrder = async (req) => {
 // };
 
 const getEntityOrders = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
     query: {
@@ -435,7 +446,7 @@ const getEntityOrders = async (req) => {
     };
     sorting = 1;
   }
-  if(status && status !== ORDER_STATUS.COMPLETED) {
+  if (status && status !== ORDER_STATUS.COMPLETED) {
     sorting = 1;
   }
 
@@ -496,7 +507,7 @@ const getEntityOrders = async (req) => {
     if (!selected) {
       throwError({
         status: STATUS_CODES.NOT_FOUND,
-        message: "This Order does not belong to this entity",
+        message: t("ORDER_NOT_BELONG_TO_ENTITY", lang),
       });
     }
 
@@ -541,14 +552,14 @@ const getOfflineOrders = async (req) => {
   const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
 
   const query = { entityId };
-  let sorting=-1;
+  let sorting = -1;
   if (counterId) {
     query.counterId = counterId;
   }
 
   if (status) {
     query.status = status;
-    if(status !== ORDER_STATUS.COMPLETED) {
+    if (status !== ORDER_STATUS.COMPLETED) {
       sorting = 1;
     }
   }
@@ -616,6 +627,7 @@ const getOfflineOrders = async (req) => {
 };
 
 const updateOfflineOrders = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
     body: { orderId, status },
@@ -630,7 +642,7 @@ const updateOfflineOrders = async (req) => {
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Not a valid status.",
+      message: t("ORDER_STATUS_INVALID", lang),
     });
   }
 
@@ -639,7 +651,7 @@ const updateOfflineOrders = async (req) => {
   if (!order) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No Such order exist.",
+      message: t("ORDER_NOT_FOUND_FOR_ENTITY", lang),
     });
   }
 
@@ -767,6 +779,7 @@ const particularOrderDetails = async (req) => {
 };
 
 const particularOrderDetailsCustomer = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     userId,
     query: { orderId },
@@ -816,7 +829,7 @@ const particularOrderDetailsCustomer = async (req) => {
   if (!orderDetails) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such Order found",
+      message: t("ORDER_NOT_FOUND", lang),
     });
   }
   if (orderDetails.entityId && orderDetails.entityId.image) {
@@ -1107,6 +1120,7 @@ const pastTicketYears = async (req) => {
 };
 
 const cancelOrder = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { orderId } = req.body;
 
   const order = await Order.findOne({
@@ -1121,7 +1135,7 @@ const cancelOrder = async (req) => {
   if (!order) {
     throwError({
       status: STATUS_CODES.NOT_ACCEPTABLE,
-      message: "Order not found",
+      message: t("ORDER_NOT_FOUND", lang),
     });
   }
 
@@ -1134,7 +1148,7 @@ const cancelOrder = async (req) => {
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Apologies! order cannot be cancelled now.",
+      message: t("ORDER_CANNOT_CANCEL", lang),
     });
   }
 

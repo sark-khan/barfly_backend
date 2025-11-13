@@ -17,8 +17,10 @@ const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
 const notificationSettings = require("../../../Models/notificationSettings");
+const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, firstName, lastName, password, dob, countrTag } = req.body;
 
   const userExist = await User.findOne({
@@ -29,14 +31,14 @@ module.exports.register = async (req) => {
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Apologies! user already registered with this email.",
+      message: t("CUSTOMER_ALREADY_REGISTERED_EMAIL", lang),
     });
   }
   const countrTagExists = await User.findOne({ countrTag });
   if (countrTagExists) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Count Tag already exists.",
+      message: t("COUNTR_TAG_ALREADY_EXISTS", lang),
     });
   }
 
@@ -78,6 +80,7 @@ module.exports.register = async (req) => {
 };
 
 module.exports.login = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, password } = req.body;
   const userProjection = {
     role: 1,
@@ -96,14 +99,14 @@ module.exports.login = async (req) => {
   if (!user) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "User does not exist",
+      message: t("CUSTOMER_NOT_FOUND", lang),
     });
   }
 
   if (user.role !== ROLES.CUSTOMER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Only Customers can log in",
+      message: t("CUSTOMER_ONLY_LOGIN", lang),
     });
   }
 
@@ -111,7 +114,7 @@ module.exports.login = async (req) => {
   if (!isPasswordValid) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invalid password",
+      message: t("CUSTOMER_INVALID_PASSWORD", lang),
     });
   }
 
@@ -170,12 +173,13 @@ module.exports.logoutUser = async (req) => {
 };
 
 module.exports.deleteAccount = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { userId } = req;
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("CUSTOMER_DOES_NOT_EXIST", lang),
     });
   }
   await User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } });

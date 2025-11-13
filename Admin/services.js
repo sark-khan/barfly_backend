@@ -25,14 +25,16 @@ const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
 const { io } = require("../app");
+const { t, getLanguageFromRequest } = require("../Utils/translator");
 
 const addAdmin = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { firstName, lastName, password, email, phoneNumber } = req.body;
   const admin = await Admin.findOne({ email }).lean();
   if (admin) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Admin with this email already exist.",
+      message: t("ADMIN_EMAIL_EXISTS_ERROR", lang),
     });
   }
 
@@ -52,6 +54,7 @@ const addAdmin = async (req) => {
 };
 
 const loginAdmin = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, password } = req.body;
   const admin = await Admin.findOne(
     { email, status: STATUS.ACTIVE },
@@ -66,7 +69,7 @@ const loginAdmin = async (req) => {
   if (!admin) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Admin doesn't exist",
+      message: t("ADMIN_NOT_FOUND_ERROR", lang),
     });
   }
 
@@ -74,7 +77,7 @@ const loginAdmin = async (req) => {
   if (!isPasswordValid) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invalid password",
+      message: t("ADMIN_INVALID_PASSWORD_ERROR", lang),
     });
   }
 
@@ -109,6 +112,7 @@ const getAdmins = async (req) => {
 };
 
 const editAdmin = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     adminId,
     email,
@@ -125,7 +129,7 @@ const editAdmin = async (req) => {
   if (!admin) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Admin doesn't exist.",
+      message: t("ADMIN_NOT_FOUND_ERROR", lang),
     });
   }
   if (action === EDIT_ACTION.EDIT) {
@@ -138,15 +142,18 @@ const editAdmin = async (req) => {
       admin.password = hashedPassword;
     }
 
-    msg = "Admin details updated successfully.";
-    return admin.save();
+    await admin.save();
+    return { message: t("ADMIN_UPDATE_SUCCESS", lang) };
   } else if (action === EDIT_ACTION.DELETE) {
     if (status) admin.status = status;
 
-    msg = "Admin deleted successfully.";
-    return admin.save();
+    await admin.save();
+    return { message: t("ADMIN_DELETE_SUCCESS", lang) };
   }
-  return msg;
+  throwError({
+    status: STATUS_CODES.BAD_REQUEST,
+    message: t("ADMIN_INVALID_ACTION_ERROR", lang),
+  });
 };
 
 const getUsers = async (req) => {
@@ -314,6 +321,7 @@ const getDashboardAnalytics = async (req) => {
 };
 
 const editRestaurantsOrUsers = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { entityId, userId, status } = req.body;
 
   const updateOperations = [];
@@ -330,7 +338,7 @@ const editRestaurantsOrUsers = async (req) => {
     if (!entity) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Entity doesn't exist.",
+        message: t("ADMIN_ENTITY_NOT_FOUND_ERROR", lang),
       });
     }
     updateOperations.push(
@@ -349,7 +357,6 @@ const editRestaurantsOrUsers = async (req) => {
       );
     }
 
-    message = "Restaurant updated successfully.";
     statusCode =
       status === STATUS.BLOCKED
         ? STATUS_CODES.NOT_AUTHENTICATED
@@ -370,15 +377,13 @@ const editRestaurantsOrUsers = async (req) => {
     if (!user) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "User doesn't exist.",
+        message: t("ADMIN_USER_NOT_FOUND_ERROR", lang),
       });
     }
 
     updateOperations.push(
       User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
     );
-    message = "User updated successfully.";
-    message = "Restaurant updated successfully.";
     statusCode =
       status === STATUS.BLOCKED
         ? STATUS_CODES.NOT_AUTHENTICATED
@@ -390,9 +395,11 @@ const editRestaurantsOrUsers = async (req) => {
   }
 
   await Promise.all(updateOperations);
+  return { statusCode };
 };
 
 const resetPassword = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, password, authToken } = req.body;
 
   let message = "";
@@ -406,7 +413,7 @@ const resetPassword = async (req) => {
     if (!storedToken || storedToken !== authToken) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Session expired try again.",
+        message: t("ADMIN_SESSION_EXPIRED_ERROR", lang),
       });
     }
 
@@ -414,7 +421,7 @@ const resetPassword = async (req) => {
     if (!adminToUpdate) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Session expired try again.",
+        message: t("ADMIN_SESSION_EXPIRED_ERROR", lang),
       });
     }
 
@@ -425,7 +432,7 @@ const resetPassword = async (req) => {
 
     await redisClient.del(redisPrefix + decryptedUserId);
 
-    return { message: "Password updated successfully." };
+    return { message: t("ADMIN_PASSWORD_UPDATE_SUCCESS", lang) };
   } else {
     const adminUser = await Admin.findOne(
       { email, status: STATUS.ACTIVE },
@@ -435,7 +442,7 @@ const resetPassword = async (req) => {
     if (!adminUser) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Admin user doesn't exist.",
+        message: t("ADMIN_NOT_FOUND_ERROR", lang),
       });
     }
 
@@ -467,18 +474,19 @@ const resetPassword = async (req) => {
     };
     createMail(mailData);
 
-    return { message: "Email has been sent", emailSent: true };
+    return { message: t("ADMIN_RESET_EMAIL_SENT", lang), emailSent: true };
   }
   return message;
 };
 
 const logoutAdmin = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { userId } = req;
   const admin = await Admin.findById(userId, { _id: 1, status: 1 });
   if (admin.status === STATUS.DELETED) {
     throwError({
       status: STATUS_CODES.NOT_AUTHENTICATED,
-      message: "Admin is blocked.",
+      message: t("ADMIN_BLOCKED_ERROR", lang),
     });
   }
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
@@ -486,6 +494,7 @@ const logoutAdmin = async (req) => {
 };
 
 const platformmFees = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     userId,
     body: { platformFees },
@@ -494,7 +503,7 @@ const platformmFees = async (req) => {
   if (!admin) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Admin not found.",
+      message: t("ADMIN_NOT_FOUND_ERROR", lang),
     });
   }
   if (platformFees) admin.platformFees = platformFees;

@@ -7,6 +7,7 @@ const {
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
 const router = express.Router();
 const verifyToken = require("../../../Utils/verifyToken");
+const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 router.use(verifyToken);
 
@@ -24,13 +25,16 @@ router.use(verifyToken);
 // });
 
 router.put("/archive-survey-question/:id", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const response = await archiveSurveyQuestion(req.params.id);
     return res.status(STATUS_CODES.OK).json({
-      message: "Survey question archived",
+      message: t("OWNER_FEEDBACK_QUESTION_ARCHIVE_SUCCESS", lang),
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ message: error.message });
+    return res.status(error.status || 400).json({
+      message: error.message || t("OWNER_FEEDBACK_ARCHIVE_ERROR", lang),
+    });
   }
 });
 

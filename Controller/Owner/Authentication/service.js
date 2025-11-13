@@ -21,8 +21,10 @@ const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
 const { uploadBufferToS3 } = require("../../aws-service");
 const NotificationSettings = require("../../../Models/notificationSettings");
+const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     file,
     body: {
@@ -56,7 +58,7 @@ module.exports.register = async (req) => {
   if (user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registered",
+      message: t("OWNER_ALREADY_REGISTERED", lang),
     });
   }
 
@@ -76,9 +78,15 @@ module.exports.register = async (req) => {
 
     const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
 
-    await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+    const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
 
-    return { otpSent: true, message: "OTP sent successfully.", otp };
+    await sendSMS({ toPhoneNumber: contactNumber, message: smsMessage });
+
+    return {
+      otpSent: true,
+      message: t("OTP_SENT_SUCCESS", lang),
+      otp,
+    };
   }
 
   if (otpRecord) {
@@ -86,7 +94,7 @@ module.exports.register = async (req) => {
       await Otp.deleteOne({ contactNumber });
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "OTP Expired! Please resend the OTP.",
+        message: t("OTP_EXPIRED", lang),
       });
     }
 
@@ -105,7 +113,7 @@ module.exports.register = async (req) => {
 
       return {
         otpVerified: true,
-        message: "OTP verified successfully.",
+        message: t("OTP_VERIFIED_SUCCESS", lang),
         sessionId: newSessionId,
       };
     }
@@ -116,7 +124,7 @@ module.exports.register = async (req) => {
   if (!sessionData || !sessionData.contactNumber) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Session expired or invalid sessionId. Please verify OTP again.",
+      message: t("OTP_SESSION_INVALID", lang),
     });
   }
 
@@ -142,13 +150,13 @@ module.exports.register = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
@@ -183,7 +191,7 @@ module.exports.register = async (req) => {
   const token = getJwtToken(userDetails, false);
 
   return {
-    message: "Registration successful",
+    message: t("OWNER_REGISTRATION_SUCCESS", lang),
     entity: entityDetails,
     token,
     isRegistered: true,
@@ -191,6 +199,7 @@ module.exports.register = async (req) => {
 };
 
 module.exports.login = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
   const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
@@ -199,7 +208,7 @@ module.exports.login = async (req) => {
   if (!Object.keys(query)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Phone number or email is required.",
+      message: t("OWNER_LOGIN_IDENTIFIER_REQUIRED", lang),
     });
   }
 
@@ -208,7 +217,7 @@ module.exports.login = async (req) => {
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invalid email or mobile number.",
+      message: t("OWNER_INVALID_IDENTIFIER", lang),
     });
 
   const entityDetails = await EntityDetails.findOne(
@@ -222,13 +231,13 @@ module.exports.login = async (req) => {
   if (!entityDetails)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Entity not found.",
+      message: t("OWNER_ENTITY_NOT_FOUND", lang),
     });
 
   if (user.role !== ROLES.STORE_OWNER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Only owners can log in",
+      message: t("OWNER_ONLY_LOGIN", lang),
     });
   }
 
@@ -237,7 +246,7 @@ module.exports.login = async (req) => {
     if (!isPasswordValid)
       throwError({
         status: STATUS_CODES.NOT_AUTHORIZED,
-        message: "Invalid password.",
+        message: t("OWNER_INVALID_PASSWORD", lang),
       });
   }
   user.entityDetails = entityDetails;
