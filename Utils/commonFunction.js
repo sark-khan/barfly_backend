@@ -3,15 +3,20 @@ const jwt = require("jsonwebtoken");
 const { appClient } = require("../redis");
 const SECRET_KEY = "BARFLY@WEBMOB456";
 const Event = require("../Models/Event");
-const { STATUS } = require("./globalConstants");
+const { STATUS, ROLES, STATUS_CODES } = require("./globalConstants");
 const Discount = require("../Models/Discount");
 const crypto = require("crypto");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const CustomerOrderReport = require("../Models/CustomerOrderReport");
 const PDFDocument = require("pdfkit");
 const EntityDetails = require("../Models/EntityDetails");
-const { uploadBufferToS3, generatePresignedUrl } = require("../Controller/aws-service");
+const {
+  uploadBufferToS3,
+  generatePresignedUrl,
+} = require("../Controller/aws-service");
 const User = require("../Models/User");
+const { getLanguageFromRequest, t } = require("./translator");
+const throwError = require("./throwError");
 const hashPassword = (password) => {
   return bcrypt.hashSync(password, 10);
 };
@@ -369,14 +374,13 @@ const sendFirebaseNotification = async ({
 };
 
 const genrateCustomerOrderReport = async (req) => {
-  const { userId, entityId, orders, mode="Online" } = req;
+  const { userId, entityId, orders, mode = "Online" } = req;
   const doc = new PDFDocument({ size: [595, 842] });
   const buffers = [];
-  const currentUser =  await User.findById(userId).select("email fullName");
+  const currentUser = await User.findById(userId).select("email fullName");
 
   doc.on("data", (chunk) => buffers.push(chunk));
   const finished = new Promise((resolve, reject) => {
-    
     doc.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(buffers);
@@ -399,40 +403,52 @@ const genrateCustomerOrderReport = async (req) => {
         // Get user's email to send the PDF
         const User = require("../Models/User");
         const { createMail } = require("./mailer");
-        
-        
+
         console.log("User found:", user);
-        
+
         if (user && user.email) {
           // Send email with PDF attachment
           const mailData = {
             to: user.email, // Send to actual user email
             subject: "Your Order Report",
-            text: `Dear ${user.fullName || "Customer"},\n\nPlease find your order report attached.\n\nThank you for using our service!\n\nBest regards,\nCountr App Team`,
+            text: `Dear ${
+              user.fullName || "Customer"
+            },\n\nPlease find your order report attached.\n\nThank you for using our service!\n\nBest regards,\nCountr App Team`,
             attachments: [
               {
                 filename: filename,
                 content: pdfBuffer,
-                contentType: "application/pdf"
-              }
-            ]
+                contentType: "application/pdf",
+              },
+            ],
           };
 
           try {
             const emailResult = await createMail(mailData);
             if (emailResult) {
-              console.log(`✅ Order report email sent successfully to: ${user.email}`);
+              console.log(
+                `✅ Order report email sent successfully to: ${user.email}`
+              );
             } else {
-              console.warn(`⚠️ Failed to send email to: ${user.email}, but PDF was generated successfully`);
+              console.warn(
+                `⚠️ Failed to send email to: ${user.email}, but PDF was generated successfully`
+              );
             }
           } catch (emailError) {
-            console.error("❌ Error sending order report email:", emailError.message);
-            console.warn("⚠️ Email failed but PDF generation completed successfully");
+            console.error(
+              "❌ Error sending order report email:",
+              emailError.message
+            );
+            console.warn(
+              "⚠️ Email failed but PDF generation completed successfully"
+            );
             // Don't throw error - PDF generation should still succeed
           }
         } else {
           console.warn("⚠️ User email not found, skipping email notification");
-          console.log("📄 PDF generated successfully without email notification");
+          console.log(
+            "📄 PDF generated successfully without email notification"
+          );
         }
 
         resolve(signedUrl);
@@ -496,17 +512,28 @@ const genrateCustomerOrderReport = async (req) => {
     .font("Helvetica-Bold")
     .text(user?.entityName || "[Restaurant Name]", leftMargin + 12, doc.y + 50)
     .font("Helveticaneue-Light")
-    .text(currentUser?.fullName || "[Account Owner Name]", leftMargin + 12, doc.y + 4)
-    .text(`${user?.zipcode || "ZIP"} ${user?.city || "City"}`,leftMargin + 12, doc.y + 4);
+    .text(
+      currentUser?.fullName || "[Account Owner Name]",
+      leftMargin + 12,
+      doc.y + 4
+    )
+    .text(
+      `${user?.zipcode || "ZIP"} ${user?.city || "City"}`,
+      leftMargin + 12,
+      doc.y + 4
+    );
 
   doc
     .fontSize(12)
     .font("Helveticaneue-Light")
-    .text(`${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, leftMargin + 12, doc.y + 30)
+    .text(
+      `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+      leftMargin + 12,
+      doc.y + 30
+    )
     .fontSize(12)
     .text(`Zahlungsmethode: ${mode}`, leftMargin + 12, doc.y + 3)
-    .text(`${currentUser.email}`, leftMargin + 350, doc.y - 19.5)
-    
+    .text(`${currentUser.email}`, leftMargin + 350, doc.y - 19.5);
 
   doc
     .moveTo(leftMargin + 12, doc.y + 20)
@@ -531,17 +558,17 @@ const genrateCustomerOrderReport = async (req) => {
 
   // Handle both regular orders and offline orders
   const orderItems = orders.items || [];
-  
+
   for (const orderItem of orderItems) {
     // Get item details - handle both populated and non-populated cases
     const itemId = orderItem.itemId;
     const quantity = orderItem.quantity || 1;
-    
+
     // For PDF generation, we need to fetch item details if not populated
     let itemName = "[Item name]";
     let itemPrice = 0;
-    
-    if (itemId && typeof itemId === 'object' && itemId.itemName) {
+
+    if (itemId && typeof itemId === "object" && itemId.itemName) {
       // Item is populated
       itemName = itemId.itemName;
       itemPrice = itemId.price || 0;
@@ -549,7 +576,9 @@ const genrateCustomerOrderReport = async (req) => {
       // Item is not populated, need to fetch
       const ItemDetails = require("../Models/ItemDetails");
       try {
-        const item = await ItemDetails.findById(itemId).select("itemName price");
+        const item = await ItemDetails.findById(itemId).select(
+          "itemName price"
+        );
         if (item) {
           itemName = item.itemName;
           itemPrice = item.price || 0;
@@ -558,20 +587,16 @@ const genrateCustomerOrderReport = async (req) => {
         console.error("Error fetching item details:", error);
       }
     }
-    
+
     const itemTotal = (itemPrice * quantity).toFixed(2);
-    
+
     doc
       .fontSize(12)
       .font("Helveticaneue-Light")
       .text(quantity.toString(), leftMargin + 12, doc.y + 20)
       .text(itemName, leftMargin + 150, doc.y - 15)
       .text(`${itemPrice.toFixed(2)}`, leftMargin + 250, doc.y - 12)
-      .text(
-        itemTotal,
-        pageWidth - leftMargin - rightMargin - 130,
-        doc.y - 14
-      );
+      .text(itemTotal, pageWidth - leftMargin - rightMargin - 130, doc.y - 14);
   }
 
   // Add total amount at the bottom
@@ -590,7 +615,35 @@ const genrateCustomerOrderReport = async (req) => {
 
   return await finished;
 };
+const verifyTokenWithoutResponse = (req) => {
+  const token = req.headers["token"];
+  const lang = getLanguageFromRequest(req);
 
+  if (!token) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("AUTH_TOKEN_MISSING", lang),
+    });
+  }
+  jwt.verify(token, SECRET_KEY, (err, decoded) => {
+    if (err) {
+      throwError({
+        status: STATUS_CODES.NOT_AUTHORIZED,
+        message: t("AUTH_TOKEN_INVALID", lang),
+      });
+    }
+    req.id = decoded.id;
+    req.userId = decoded.userId;
+    req.role = decoded.role;
+    req.email = decoded.email;
+    // req.contactNumber = decoded.contactNumber;
+    req.entityName = decoded.entityName;
+    req.entityId = decoded.entityId;
+    req.entityType = decoded.entityType;
+    req.isAdmin = decoded.role == ROLES.ADMIN;
+    req.countrTag = decoded.countrTag;
+  });
+};
 module.exports = {
   hashPassword,
   comparePassword,
@@ -607,4 +660,5 @@ module.exports = {
   validateCoupon,
   encrypt,
   decrypt,
+  verifyTokenWithoutResponse,
 };

@@ -10,6 +10,7 @@ const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
 const Event = require("../Models/Event");
+const { t, getLanguageFromRequest } = require("../Utils/translator");
 
 const createPaymentIntent = async (req) => {
   const {
@@ -181,6 +182,7 @@ const getPaymentStatus = async (req) => {
 };
 
 const createStripeOnboardingLink = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
     body: { email, platform },
@@ -189,7 +191,7 @@ const createStripeOnboardingLink = async (req) => {
   if (!entityId || !email) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Missing entityId or email",
+      message: t("STRIPE_MISSING_ENTITY_OR_EMAIL", lang),
     });
   }
 
@@ -232,7 +234,7 @@ const createStripeOnboardingLink = async (req) => {
 
   return {
     success: true,
-    message: "Stripe onboarding link created",
+    message: t("STRIPE_ONBOARDING_LINK_SUCCESS", lang),
     url: accountLink.url,
   };
 };
@@ -301,13 +303,14 @@ const createStripeOnboardingLink = async (req) => {
 // };
 
 const checkStripeAccountMissingFields = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { entityId } = req;
 
     if (!entityId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing entityId",
+        message: t("STRIPE_MISSING_ENTITY_ID", lang),
       });
     }
 
@@ -315,7 +318,7 @@ const checkStripeAccountMissingFields = async (req) => {
     if (!entity?.stripeAccountId) {
       return {
         success: true,
-        message: "No Stripe account associated with this entity",
+        message: t("STRIPE_ACCOUNT_NOT_ASSOCIATED", lang),
         hasMissingFields: true,
         missingFields: [],
       };
@@ -328,7 +331,7 @@ const checkStripeAccountMissingFields = async (req) => {
       console.error("Stripe retrieve failed:", err);
       return {
         success: true,
-        message: "Stripe account not found or inaccessible",
+        message: t("STRIPE_ACCOUNT_INACCESSIBLE", lang),
         hasMissingFields: true,
         missingFields: [],
       };
@@ -363,7 +366,7 @@ const checkStripeAccountMissingFields = async (req) => {
 
     return {
       success: true,
-      message: "Stripe account check complete",
+      message: t("STRIPE_ACCOUNT_CHECK_COMPLETE", lang),
       hasMissingFields: !!missingFields.length,
       missingFields,
     };
@@ -371,12 +374,13 @@ const checkStripeAccountMissingFields = async (req) => {
     console.error("Stripe Account Check Error:", error);
     throwError({
       status: STATUS_CODES.INTERNAL_SERVER_ERROR,
-      message: "Failed to check Stripe account fields",
+      message: t("STRIPE_ACCOUNT_CHECK_FAILED", lang),
     });
   }
 };
 
 const continueStripeOnboarding = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const {
       entityId,
@@ -386,7 +390,7 @@ const continueStripeOnboarding = async (req) => {
     if (!entityId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing entityId",
+        message: t("STRIPE_MISSING_ENTITY_ID", lang),
       });
     }
 
@@ -394,7 +398,7 @@ const continueStripeOnboarding = async (req) => {
     if (!entity?.stripeAccountId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "No Stripe account found for this entity",
+        message: t("STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY", lang),
       });
     }
 
@@ -427,6 +431,7 @@ const continueStripeOnboarding = async (req) => {
 };
 
 const retrieveAccountBalance = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { accountId } = req.body;
     const balance = await stripe.balance.retrieve({
@@ -442,13 +447,14 @@ const retrieveAccountBalance = async (req) => {
     console.error("Error fetching balance:", error);
     return {
       success: false,
-      message: "Failed to fetch Stripe balance",
+      message: t("STRIPE_BALANCE_FETCH_FAILED", lang),
       error: error.message,
     };
   }
 };
 
 const getStripeAccount = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { accountId } = req.query;
 
@@ -456,7 +462,7 @@ const getStripeAccount = async (req) => {
 
     if (!account) {
       return {
-        error: "Account not found",
+        error: t("STRIPE_ACCOUNT_NOT_FOUND", lang),
       };
     }
 
@@ -471,7 +477,7 @@ const getStripeAccount = async (req) => {
   } catch (err) {
     console.error("Error fetching Stripe account:", err);
     return {
-      error: err.message || "An error occurred while fetching account details",
+      error: err.message || t("STRIPE_ACCOUNT_FETCH_ERROR_GENERIC", lang),
     };
   }
 };
