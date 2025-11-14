@@ -461,16 +461,7 @@ const resetPassword = async (req) => {
     const mailData = {
       to: email,
       subject: "COUNTR: Reset Password Request",
-      text: `Hello ${fullName},
-    
-    We have received a request to reset your password for your Countr admin account. Please click the link below to reset your password:
-    
-    Reset Password: ${resetLink}
-    
-    If you did not request this change, please ignore this email.
-    
-    Thank you,
-    The Countr Team`,
+      html: resetPasswordTemplate(fullName, resetLink),
     };
     createMail(mailData);
 
