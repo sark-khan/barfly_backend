@@ -11,6 +11,7 @@ const {
   EDIT_ACTION,
   COUNTRY_ARRAY,
   ANSWER_TYPES,
+  APP_FEEDBACK_QUESTIONS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -41,6 +42,7 @@ const notificationSettings = require("../../Models/notificationSettings");
 const { io } = require("../../app");
 const { t, getLanguageFromRequest } = require("../../Utils/translator");
 const verifyToken = require("../../Utils/verifyToken");
+const UserAppFeedback = require("../../Models/UserAppFeedback");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -1170,6 +1172,70 @@ module.exports.userFeedback = async (req) => {
   const feebackFromUser = await Userfeedback.create(feedbackObj);
   io.to(entityId.toString()).emit("feedback", feebackFromUser);
 };
+module.exports.userAppFeedback = async (req) => {
+  const userId = req.userId || req.id;
+  const { answers } = req.body;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("USER_DOES_NOT_EXIST", lang),
+    });
+  }
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
+    });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.answer === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
+      });
+    }
+    // Validate questionId exists in hardcoded questions
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+    if (!question) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_QUESTION_NOT_FOUND", lang),
+      });
+    }
+    // Validate answer type (must be number or string)
+    if (
+      typeof answer.answer !== "number" &&
+      typeof answer.answer !== "string"
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER_TYPE", lang),
+      });
+    }
+  }
+
+  const feedbackObj = {
+    userId,
+    answers,
+  };
+
+  const feedbackFromUser = await UserAppFeedback.create(feedbackObj);
+  return feedbackFromUser;
+};
 
 exports.getAllcountries = () => {
   const data = COUNTRY_ARRAY;
@@ -1342,6 +1408,112 @@ module.exports.getFeedbackQuestions = async (req) => {
   });
 
   return questionsWithAnswerTypeKey;
+};
+
+module.exports.getFeedbackAppQuestions = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Return translated questions based on user's language
+  const translatedQuestions = APP_FEEDBACK_QUESTIONS.map((question) => {
+    const translationKey = `app_feedback_q${question.id.replace(
+      "appFeedback",
+      ""
+    )}`;
+
+    const result = {
+      id: question.id,
+      question: t(translationKey, lang),
+      answerType: question.answerType,
+    };
+
+    // Add translated options for FRIENDLY answer type
+    if (question.answerType === "FRIENDLY" && ANSWER_TYPES.FRIENDLY) {
+      result.options = ANSWER_TYPES.FRIENDLY.map((option) => {
+        const translatedValue = t(option, lang);
+        return {
+          value: translatedValue,  // Use translated value for submission
+          label: translatedValue,  // Use translated value for display
+        };
+      });
+    }
+
+    return result;
+  });
+
+  return translatedQuestions;
+};
+
+module.exports.getUserAppFeedbackAnswers = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Find the most recent feedback submission from this user
+  const userFeedback = await UserAppFeedback.findOne({ userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!userFeedback) {
+    return null;
+  }
+
+  // Translate answers to current user language
+  const translatedAnswers = userFeedback.answers.map((answer) => {
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+
+    // For FRIENDLY type answers, check if the answer is a translatable option
+    if (question && question.answerType === "FRIENDLY") {
+      // Check if answer exists in any language's FRIENDLY options
+      const isTranslatableOption = ANSWER_TYPES.FRIENDLY.some(
+        (option) =>
+          t(option, "en") === answer.answer || t(option, "de") === answer.answer
+      );
+
+      if (isTranslatableOption) {
+        // Find the original English key
+        let originalKey = answer.answer;
+        for (const option of ANSWER_TYPES.FRIENDLY) {
+          if (
+            t(option, "en") === answer.answer ||
+            t(option, "de") === answer.answer
+          ) {
+            originalKey = option;
+            break;
+          }
+        }
+        // Translate to current language
+        return {
+          questionId: answer.questionId,
+          answer: t(originalKey, lang),
+        };
+      }
+    }
+
+    // Return as-is for other types or non-translatable strings
+    return answer;
+  });
+
+  return {
+    feedbackId: userFeedback._id,
+    submittedAt: userFeedback.createdAt,
+    answers: translatedAnswers,
+  };
 };
 
 module.exports.getTablesUserSide = async (req) => {

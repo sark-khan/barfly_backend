@@ -168,6 +168,9 @@
   "FAVOURITE_ITEMS_FETCH_SUCCESS": "Favourite item fetched successfully",
   "FEEDBACK_ANSWERS_REQUIRED": "Feedback answers are required.",
   "FEEDBACK_INVALID_ANSWER": "Each answer must have questionId and value.",
+  "FEEDBACK_INVALID_ANSWER_TYPE": "Answer must be either a number (rating) or a string (text).",
+  "FEEDBACK_QUESTION_NOT_FOUND": "Feedback question not found.",
+  "FEEDBACK_QUESTION_AND_ANSWER_TYPE_REQUIRED": "Question and answer type are required.",
   "FEEDBACK_QUESTIONS_FETCH_ERROR": "Error occured while getting feedback questions",
   "FEEDBACK_QUESTIONS_FETCH_SUCCESS": "Feedback questions fetched successfully.",
   "FILE_UPLOAD_ERROR": "Error occurred while uploading the file",
@@ -362,5 +365,16 @@
   "OWNER_FEEDBACK_QUESTION_ARCHIVE_SUCCESS": "Survey question archived.",
   "OWNER_FEEDBACK_ARCHIVE_ERROR": "Error while archiving the survey question.",
   "OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS": "Restaurant cannot be closed while orders are still active.",
-  "OWNER_ENTITY_NOT_ASSOCIATED": "Entity doesn't exist or is not associated with the user."
+  "OWNER_ENTITY_NOT_ASSOCIATED": "Entity doesn't exist or is not associated with the user.",
+  "app_feedback_q1": "How would you rate your overall experience with countr?",
+  "app_feedback_q2": "How user-friendly do you find countr?",
+  "app_feedback_q3": "How likely is it that you would recommend countr to others?",
+  "app_feedback_q4": "Is there anything else you would like to share?",
+  "USER_FEEDBACK_FETCH_SUCCESS": "User feedback fetched successfully.",
+  "USER_FEEDBACK_FETCH_ERROR": "Error while fetching user feedback.",
+  "Very user friendly": "Very user friendly",
+  "User-friendly": "User-friendly",
+  "Neutral": "Neutral",
+  "Less user friendly": "Less user friendly",
+  "Difficult to understand": "Difficult to understand"
 }
