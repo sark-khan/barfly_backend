@@ -168,6 +168,9 @@
   "FAVOURITE_ITEMS_FETCH_SUCCESS": "Favorit erfolgreich abgerufen.",
   "FEEDBACK_ANSWERS_REQUIRED": "Feedback-Antworten sind erforderlich.",
   "FEEDBACK_INVALID_ANSWER": "Jede Antwort muss questionId und value enthalten.",
+  "FEEDBACK_INVALID_ANSWER_TYPE": "Die Antwort muss entweder eine Zahl (Bewertung) oder eine Zeichenkette (Text) sein.",
+  "FEEDBACK_QUESTION_NOT_FOUND": "Feedback-Frage nicht gefunden.",
+  "FEEDBACK_QUESTION_AND_ANSWER_TYPE_REQUIRED": "Frage und Antworttyp sind erforderlich.",
   "FEEDBACK_QUESTIONS_FETCH_ERROR": "Fehler beim Abrufen der Feedback-Fragen.",
   "FEEDBACK_QUESTIONS_FETCH_SUCCESS": "Feedback-Fragen erfolgreich abgerufen.",
   "FILE_UPLOAD_ERROR": "Fehler beim Hochladen der Datei.",
@@ -362,5 +365,16 @@
   "OWNER_FEEDBACK_QUESTION_ARCHIVE_SUCCESS": "Umfragefrage archiviert.",
   "OWNER_FEEDBACK_ARCHIVE_ERROR": "Fehler beim Archivieren der Umfragefrage.",
   "OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS": "Restaurant kann nicht geschlossen werden, solange noch Bestellungen aktiv sind.",
-  "OWNER_ENTITY_NOT_ASSOCIATED": "Eintrag existiert nicht oder ist dem Benutzer nicht zugeordnet."
+  "OWNER_ENTITY_NOT_ASSOCIATED": "Eintrag existiert nicht oder ist dem Benutzer nicht zugeordnet.",
+  "app_feedback_q1": "Wie würden Sie Ihr Erlebnis mit countr insgesamt bewerten?",
+  "app_feedback_q2": "Wie benutzerfreundlich finden Sie countr?",
+  "app_feedback_q3": "Wie wahrscheinlich ist es, dass Sie countr weiterempfehlen?",
+  "app_feedback_q4": "Gibt es noch etwas, das Sie mit uns teilen möchten?",
+  "USER_FEEDBACK_FETCH_SUCCESS": "Benutzerfeedback erfolgreich abgerufen.",
+  "USER_FEEDBACK_FETCH_ERROR": "Fehler beim Abrufen des Benutzerfeedbacks.",
+  "Very user friendly": "Sehr benutzerfreundlich",
+  "User-friendly": "Benutzerfreundlich",
+  "Neutral": "Teils",
+  "Less user friendly": "Weniger benutzerfreundlich",
+  "Difficult to understand": "Schwer zu verstehen"
 }

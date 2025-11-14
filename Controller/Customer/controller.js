@@ -36,6 +36,9 @@ const {
   getTablesUserSide,
   fetchNotificationSettings,
   updateNotificationSettings,
+  userAppFeedback,
+  getFeedbackAppQuestions,
+  getUserAppFeedbackAnswers,
 } = require("./service");
 const { t, getLanguageFromRequest } = require("../../Utils/translator");
 
@@ -408,7 +411,20 @@ router.post("/user-feedback", async (req, res) => {
     });
   }
 });
-
+router.post("/user-app-feedback", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    await userAppFeedback(req);
+    res
+      .status(STATUS_CODES.OK)
+      .json({ message: t("USER_FEEDBACK_SUBMIT_SUCCESS", lang) });
+  } catch (error) {
+    console.error("Error while submitting the feedabck: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("USER_FEEDBACK_SUBMIT_ERROR", lang),
+    });
+  }
+});
 router.get("/get-all-countries", async (req, res) => {
   const lang = getLanguageFromRequest(req);
   try {
@@ -560,6 +576,37 @@ router.get("/get-feedback-questions", async (req, res) => {
     console.error("Error occured while getting feedback questions: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("FEEDBACK_QUESTIONS_FETCH_ERROR", lang),
+    });
+  }
+});
+router.get("/get-feedback-app-questions", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const data = await getFeedbackAppQuestions(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: t("FEEDBACK_QUESTIONS_FETCH_SUCCESS", lang),
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting feedback questions: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("FEEDBACK_QUESTIONS_FETCH_ERROR", lang),
+    });
+  }
+});
+
+router.get("/get-user-app-feedback-answers", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const data = await getUserAppFeedbackAnswers(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: t("USER_FEEDBACK_FETCH_SUCCESS", lang),
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting user feedback answers: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("USER_FEEDBACK_FETCH_ERROR", lang),
     });
   }
 });

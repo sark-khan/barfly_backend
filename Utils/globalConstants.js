@@ -301,14 +301,45 @@ const STRIPE_PAYMENT_STATUS = {
 
 const ANSWER_TYPES = {
   RATING: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+  RATING_FIVE: ["1", "2", "3", "4", "5"],
   FEEDBACK: ["Good", "Decent", "Bad"],
   BOOLEAN: ["True", "False", "Neutral"],
+  FRIENDLY: [
+    "Very user friendly",
+    "User-friendly",
+    "Neutral",
+    "Less user friendly",
+    "Difficult to understand",
+  ],
 };
 
 const ALL_ANSWER_TYPES = [
   ...ANSWER_TYPES.RATING,
   ...ANSWER_TYPES.FEEDBACK,
   ...ANSWER_TYPES.BOOLEAN,
+];
+
+const APP_FEEDBACK_QUESTIONS = [
+  {
+    id: "appFeedback1",
+    question: "How would you rate your overall experience with countr?",
+    answerType: "RATING_FIVE",
+  },
+  {
+    id: "appFeedback2",
+    question: "How user-friendly do you find countr?",
+    answerType: "RATING",
+  },
+  {
+    id: "appFeedback3",
+    question: "How likely is it that you would recommend countr to others?",
+    answerType: "FRIENDLY",
+  },
+  {
+    id: "appFeedback4",
+    question: "Is there anything else you would like to share?",
+    answerType: "TEXT",
+  },
 ];
 
 module.exports = {
@@ -332,4 +363,5 @@ module.exports = {
   UNIT_TYPE,
   ANSWER_TYPES,
   ALL_ANSWER_TYPES,
+  APP_FEEDBACK_QUESTIONS,
 };
