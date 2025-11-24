@@ -384,8 +384,7 @@ module.exports.getInsiderElements = async (insiderId, lang) => {
   } catch (error) {
     throw {
       status: error.status || STATUS_CODES.BAD_REQUEST,
-      message:
-        error.message || t("OWNER_INSIDER_FETCH_ERROR", lang),
+      message: error.message || t("OWNER_INSIDER_FETCH_ERROR", lang),
     };
   }
 };
@@ -976,6 +975,7 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
+      serialType,
       // startingDate,
       // endDate,
       isRepetitive,
@@ -985,6 +985,7 @@ module.exports.createEvent = async (req) => {
       counterIds,
       // ageLimit,
       location,
+      isAllDay,
     },
   } = req;
 
@@ -1065,6 +1066,7 @@ module.exports.createEvent = async (req) => {
 
   const newEvent = new Event({
     eventName,
+    serialType,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
     // startingDate: new Date(startingDate),
@@ -1078,6 +1080,7 @@ module.exports.createEvent = async (req) => {
     entityId: req.entityId,
     image: fileName,
     location,
+    isAllDay,
   });
 
   const savedEvent = await newEvent.save();
@@ -1413,7 +1416,12 @@ module.exports.getOngoingEventDetails = async (req) => {
       _id: event._id,
       from: event.from,
       to: event.to,
+      isAllDay: event.isAllDay,
       eventName: event.eventName,
+      serialType: event.serialType,
+      location: event.location,
+      isRepetitive: event.isRepetitive,
+      repetitiveDays: event.repetitiveDays,
       activeUsers: event.activeUsers || 0,
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
@@ -3544,10 +3552,7 @@ module.exports.restaurantOpen = async (req) => {
     if (activeOrders > 0) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: t(
-          "OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS",
-          lang
-        ),
+        message: t("OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS", lang),
       });
     }
   }

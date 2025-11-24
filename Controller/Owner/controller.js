@@ -154,14 +154,15 @@ router.get("/get-menu-category", async (req, res) => {
 });
 
 router.post("/edit-category", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const message = await editCategory(req);
     return res.status(STATUS_CODES.OK).json({ message });
   } catch (error) {
     console.error("Error while updating category", error);
-    return res
-      .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message });
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("OWNER_CATEGORY_UPDATE_ERROR", lang),
+    });
   }
 });
 

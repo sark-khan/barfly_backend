@@ -333,6 +333,7 @@
   "OWNER_CATEGORIES_UPDATE_SUCCESS": "Categories updated successfully.",
   "OWNER_CATEGORIES_DELETE_SUCCESS": "Categories deleted successfully.",
   "OWNER_CATEGORY_INVALID_ACTION": "Invalid action provided.",
+  "OWNER_CATEGORY_UPDATE_ERROR": "Error while updating category.",
   "OWNER_ITEM_NOT_IN_ENTITY": "This item does not belong to this entity.",
   "OWNER_COUNTER_NOT_FOUND": "Counter doesn't exist.",
   "OWNER_COUNTER_NAME_ALREADY_EXISTS": "Counter name already exists. Please try a new one.",
