@@ -74,6 +74,8 @@
   "OWNER_EVENT_CREATE_ERROR": "Error while creating event.",
   "OWNER_EVENT_DELETE_SUCCESS": "Event deleted successfully.",
   "OWNER_EVENT_DELETE_ERROR": "Error while deleting event.",
+  "EVENT_UPDATE_SUCCESS": "Event updated successfully.",
+  "EVENT_UPDATE_ERROR": "Error while updating event.",
   "OWNER_UPCOMING_EVENTS_FETCH_SUCCESS": "Upcoming events fetched successfully.",
   "OWNER_UPCOMING_EVENTS_FETCH_ERROR": "Error while fetching upcoming events.",
   "OWNER_PAST_EVENTS_YEARS_FETCH_SUCCESS": "Past event months and years fetched successfully.",

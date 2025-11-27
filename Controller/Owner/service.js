@@ -3769,3 +3769,111 @@ module.exports.downloadSalesReport = async (req, res) => {
     throw new Error("Failed to generate presigned URL");
   }
 };
+
+module.exports.editEvent = async (req) => {
+  const {
+    file,
+    body: {
+      eventId,
+      eventName,
+      serialType,
+      isRepetitive,
+      repetitiveDays,
+      from,
+      to,
+      counterIds,
+      location,
+      isAllDay,
+    },
+  } = req;
+
+  const lang = getLanguageFromRequest(req);
+
+  const event = await Event.findOne({ _id: eventId });
+  if (!event) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  // Handle file upload if provided (same as createEvent)
+  let fileName = "";
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("FILE_UPLOAD_ERROR", lang),
+        });
+      }
+      event.image = fileName;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
+      });
+    }
+  }
+
+  // Parse repetitiveDays if provided (same as createEvent)
+  if (isRepetitive && repetitiveDays) {
+    try {
+      const repetitiveDaysArr = JSON.parse(repetitiveDays);
+      event.repetitiveDays = repetitiveDaysArr;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_REPETITIVE_DAYS_INVALID", lang),
+      });
+    }
+  }
+
+  // Convert and validate date/time if provided (same as createEvent)
+  if (from || to) {
+    const dateTimeFrom = from ? new Date(from) : event.from;
+    const dateTimeTo = to ? new Date(to) : event.to;
+
+    if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_FORMAT_INVALID", lang),
+      });
+    }
+
+    if (dateTimeFrom > dateTimeTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_SELECTION_INVALID", lang),
+      });
+    }
+
+    if (from) event.from = dateTimeFrom;
+    if (to) event.to = dateTimeTo;
+  }
+
+  // Update other fields
+  if (eventName) event.eventName = eventName;
+  if (serialType) event.serialType = serialType;
+  if (isRepetitive !== undefined) event.isRepetitive = isRepetitive;
+  if (counterIds) event.counterIds = counterIds;
+  if (location !== undefined) event.location = location;
+  if (isAllDay !== undefined) event.isAllDay = isAllDay;
+
+  try {
+    await event.save();
+    return { message: t("EVENT_UPDATE_SUCCESS", lang) };
+  } catch (error) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_UPDATE_ERROR", lang),
+    });
+  }
+};
