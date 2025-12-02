@@ -13,14 +13,39 @@ const Event = require("../Models/Event");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
 
 const createPaymentIntent = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     userId,
     body: { amount, currency, paymentMethodType = "card", eventId },
   } = req;
 
-  // if (paymentMethodType === "twint" && currency.toLowerCase() !== "chf") {
-  //   throw new Error("TWINT is only supported for CHF currency.");
-  // }
+  // Normalize paymentMethodType to always be an array
+  // Handle both single string and array from frontend
+  let paymentMethodTypes = Array.isArray(paymentMethodType)
+    ? paymentMethodType
+    : [paymentMethodType];
+
+  // Remove duplicates
+  paymentMethodTypes = [...new Set(paymentMethodTypes)];
+
+  // Validate TWINT currency requirement if TWINT is in the payment methods
+  if (
+    paymentMethodTypes.includes("twint") &&
+    currency.toLowerCase() !== "chf"
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_TWINT_CURRENCY_ERROR", lang),
+    });
+  }
+
+  // Validate that at least one payment method is provided
+  if (paymentMethodTypes.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_NO_PAYMENT_METHOD", lang),
+    });
+  }
 
   const restaurantAccountId = await Event.findById(eventId).populate({
     path: "entityId",
@@ -33,13 +58,15 @@ const createPaymentIntent = async (req) => {
   const paymentIntent = await stripe.paymentIntents.create({
     amount: Math.round(amount * 100),
     currency,
-    payment_method_types: [paymentMethodType],
+    payment_method_types: paymentMethodTypes, // Pass array to Stripe - user can choose
     application_fee_amount: Math.round(platformFees * 100),
     transfer_data: {
       destination: restaurantAccountId.entityId.stripeAccountId,
     },
     metadata: {
-      integration_check: paymentMethodType,
+      integration_check: Array.isArray(paymentMethodType)
+        ? paymentMethodType.join(",")
+        : paymentMethodType,
       userId: req.userId,
     },
   });
@@ -48,7 +75,9 @@ const createPaymentIntent = async (req) => {
   const obj = {
     amount,
     currency,
-    paymentMethodType,
+    paymentMethodType: Array.isArray(paymentMethodType)
+      ? paymentMethodType
+      : paymentMethodType, // Store original format
     userId: req.userId,
     stripePaymentIntentId: paymentIntent.id,
     lastPaymentDate: new Date(),

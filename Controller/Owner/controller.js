@@ -48,6 +48,7 @@ const {
   getSalesReportHistory,
   editCategory,
   deleteEvent,
+  editEvent,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -154,14 +155,15 @@ router.get("/get-menu-category", async (req, res) => {
 });
 
 router.post("/edit-category", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const message = await editCategory(req);
     return res.status(STATUS_CODES.OK).json({ message });
   } catch (error) {
     console.error("Error while updating category", error);
-    return res
-      .status(error.status || STATUS_CODES.SERVER_ERROR)
-      .json({ message: error.message });
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("OWNER_CATEGORY_UPDATE_ERROR", lang),
+    });
   }
 });
 
@@ -351,6 +353,20 @@ router.post("/delete-event", async (req, res) => {
     console.error({ error, message: "Error occured in deleting event" });
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("OWNER_EVENT_DELETE_ERROR", lang),
+    });
+  }
+});
+router.post("/edit-event", upload.single("file"), async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    await editEvent(req);
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: t("EVENT_UPDATE_SUCCESS", lang) });
+  } catch (error) {
+    console.error({ error, message: "Error occured in updating event" });
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("EVENT_UPDATE_ERROR", lang),
     });
   }
 });

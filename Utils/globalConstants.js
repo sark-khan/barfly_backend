@@ -48,6 +48,7 @@ const UNIT_TYPE = {
   ML: "ML",
   Litre: "L",
   GRAM: "G",
+  KILOGRAM: "KG",
   EMPTY: "",
 };
 
@@ -342,6 +343,13 @@ const APP_FEEDBACK_QUESTIONS = [
   },
 ];
 
+const SERIAL_TYPE = {
+  WORKDAYS: "Workdays",
+  ONE_DAY: "One Day",
+  CUSTOM: "Custom",
+  WEEKENDS: "Weekends",
+};
+
 module.exports = {
   STATUS_CODES,
   ROLES,
@@ -364,4 +372,5 @@ module.exports = {
   ANSWER_TYPES,
   ALL_ANSWER_TYPES,
   APP_FEEDBACK_QUESTIONS,
+  SERIAL_TYPE,
 };
