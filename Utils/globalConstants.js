@@ -48,6 +48,7 @@ const UNIT_TYPE = {
   ML: "ML",
   Litre: "L",
   GRAM: "G",
+  KILOGRAM: "KG",
   EMPTY: "",
 };
 

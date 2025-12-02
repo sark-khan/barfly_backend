@@ -15,6 +15,8 @@
     "STRIPE_ACCOUNT_NOT_FOUND": "Konto nicht gefunden",
     "STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY": "Kein Stripe-Konto für diesen Eintrag gefunden",
     "STRIPE_BALANCE_FETCH_FAILED": "Fehler beim Abrufen deines Stripe-Guthabens",
+    "STRIPE_TWINT_CURRENCY_ERROR": "TWINT wird nur für CHF-Währung unterstützt.",
+    "STRIPE_NO_PAYMENT_METHOD": "Mindestens eine gültige Zahlungsmethode ist erforderlich.",
     "STRIPE_MISSING_ENTITY_ID": "Fehlende entityId",
     "STRIPE_MISSING_ENTITY_OR_EMAIL": "Fehlende entityId oder E-Mail",
     "CARD_ADD_ERROR": "Fehler beim Hinzufügen deiner Kartendetails",
