@@ -11,6 +11,7 @@ const {
   EDIT_ACTION,
   COUNTRY_ARRAY,
   ANSWER_TYPES,
+  APP_FEEDBACK_QUESTIONS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -28,6 +29,7 @@ const { createMail, sendSMS } = require("../../Utils/mailer");
 const {
   haversineDistance,
   comparePassword,
+  verifyTokenWithoutResponse,
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
 const Userfeedback = require("../../Models/UserFeedback");
@@ -37,6 +39,9 @@ const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const Tables = require("../../Models/Tables");
 const notificationSettings = require("../../Models/notificationSettings");
 const { io } = require("../../app");
+const { t, getLanguageFromRequest } = require("../../Utils/translator");
+const verifyToken = require("../../Utils/verifyToken");
+const UserAppFeedback = require("../../Models/UserAppFeedback");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -48,17 +53,23 @@ module.exports.getEntities = async (req) => {
   } = req.query;
   const now = new Date();
 
+  if (req.headers["token"] != null) {
+    verifyTokenWithoutResponse(req);
+  }
+
+  const userId = req.id || req.userId;
   const favouritesList = await FavouriteEntity.find(
-    { userId: req.id, isFavourite: true },
+    { userId, isFavourite: true },
     { _id: 1, entityId: 1 },
     { lean: true }
   );
 
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
-    favouritesIdsSet.add(id.entityId.toString());
+    if (id.entityId) {
+      favouritesIdsSet.add(id.entityId.toString());
+    }
   });
-
   const currentRunningEvents = await Event.find(
     {
       $and: [
@@ -246,8 +257,22 @@ module.exports.getEntities = async (req) => {
 };
 
 module.exports.addFavouriteEntity = async (req) => {
-  const userId = req.id;
+  const userId = req.id || req.userId;
   const { entityId, isFavourite } = req.body;
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", getLanguageFromRequest(req)),
+    });
+  }
+
+  if (!entityId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ENTITY_ID_REQUIRED", getLanguageFromRequest(req)),
+    });
+  }
 
   await FavouriteEntity.updateOne(
     { userId, entityId },
@@ -279,12 +304,13 @@ module.exports.removeFavouriteEvents = async (req) => {
     userId,
     body: { eventId },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const eventExists = await Event.findById(eventId);
   if (!eventExists) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such event found",
+      message: t("EVENT_NOT_FOUND", lang),
     });
   }
 
@@ -296,11 +322,12 @@ module.exports.removeFavouriteEvents = async (req) => {
 
 module.exports.visitorCount = async (req) => {
   const { eventId } = req.body;
+  const lang = getLanguageFromRequest(req);
   const eventExists = await Event.findById(eventId);
   if (!eventExists) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such event found",
+      message: t("EVENT_NOT_FOUND", lang),
     });
   }
   return Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
@@ -696,11 +723,12 @@ module.exports.updateLanguage = async (req) => {
 module.exports.updateFavouriteItem = async (req) => {
   const userId = req.userId;
   const { menuId, itemId, isFavourite } = req.body;
+  const lang = getLanguageFromRequest(req);
   const menuCategory = await MenuCategory.findById(menuId, { counterId: 1 });
   if (!menuCategory) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such menu Exists",
+      message: t("MENU_NOT_FOUND", lang),
     });
   }
   await FavouriteItem.updateOne(
@@ -807,12 +835,13 @@ module.exports.addCards = async (req) => {
     userId,
     body: { cardHolderName, cardNo, cardExpireAt, securityCode, type },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
@@ -826,6 +855,7 @@ module.exports.addCards = async (req) => {
     userId: user._id,
   };
   await Cards.create(cardObj);
+  return t("CARD_ADDED_SUCCESS", lang);
 };
 
 module.exports.getUserCards = async (req) => {
@@ -851,6 +881,7 @@ module.exports.editOrDeleteCards = async (req) => {
   } = req;
 
   let message = "";
+  const lang = getLanguageFromRequest(req);
 
   const cardDetails = await Cards.findOne({
     userId,
@@ -861,7 +892,7 @@ module.exports.editOrDeleteCards = async (req) => {
   if (!cardDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Card not found.",
+      message: t("CARD_NOT_FOUND", lang),
     });
   }
 
@@ -870,12 +901,12 @@ module.exports.editOrDeleteCards = async (req) => {
     if (cardNo) cardDetails.cardNo = cardNo;
     if (cardExpireAt) cardDetails.cardExpireAt = cardExpireAt;
     if (securityCode) cardDetails.securityCode = securityCode;
-    message = "Card details updated successfully.";
+    message = t("CARD_UPDATE_SUCCESS", lang);
   }
 
   if (action === EDIT_ACTION.DELETE) {
     cardDetails.status = STATUS.DELETED;
-    message = "Card deleted successfully.";
+    message = t("CARD_DELETE_SUCCESS", lang);
   }
   await cardDetails.save();
 
@@ -884,6 +915,7 @@ module.exports.editOrDeleteCards = async (req) => {
 
 module.exports.getUserDetails = async (req) => {
   const { userId } = req;
+  const lang = getLanguageFromRequest(req);
   const userDetails = await User.findOne({
     _id: userId,
     status: STATUS.ACTIVE,
@@ -892,7 +924,7 @@ module.exports.getUserDetails = async (req) => {
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
@@ -909,13 +941,14 @@ module.exports.updateUserDetails = async (req) => {
   console.log({ body: req.body });
 
   let message = "";
+  const lang = getLanguageFromRequest(req);
 
   if (newPassword) {
     const userPass = await User.findOne({ _id: userId });
     if (!userPass) {
       throwError({
         status: STATUS_CODES.NOT_FOUND,
-        message: "User not found.",
+        message: t("USER_NOT_FOUND", lang),
       });
     }
 
@@ -926,7 +959,7 @@ module.exports.updateUserDetails = async (req) => {
     if (passwordCompare) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
+        message: t("PASSWORD_REUSE_ERROR", lang),
       });
     }
 
@@ -934,7 +967,7 @@ module.exports.updateUserDetails = async (req) => {
     userPass.password = passwordChange;
     await userPass.save();
 
-    message = "Password updated successfully.";
+    message = t("PASSWORD_UPDATE_SUCCESS", lang);
     return message;
   }
 
@@ -951,8 +984,8 @@ module.exports.updateUserDetails = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: email
-        ? `Email ${email} already exists.`
-        : `Contact number ${contactNumber} already exists.`,
+        ? t("EMAIL_ALREADY_EXISTS", lang, { email })
+        : t("CONTACT_NUMBER_ALREADY_EXISTS", lang, { contactNumber }),
     });
   }
 
@@ -978,7 +1011,8 @@ module.exports.updateUserDetails = async (req) => {
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      return (message = "OTP sent to your new email.");
+      message = t("OTP_SENT_NEW_EMAIL", lang);
+      return message;
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -988,7 +1022,7 @@ module.exports.updateUserDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
 
@@ -996,7 +1030,7 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
 
-      message = "Email updated successfully.";
+      message = t("EMAIL_UPDATE_SUCCESS", lang);
       return { message };
     }
   }
@@ -1012,13 +1046,13 @@ module.exports.updateUserDetails = async (req) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
+      const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
 
-      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+      await sendSMS({ toPhoneNumber: contactNumber, message: smsMessage });
 
       await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
 
-      return { message: "OTP sent to your new mobile number." };
+      return { message: t("OTP_SENT_NEW_MOBILE", lang) };
     } else {
       const otpRecord = await Otp.findOne({ contactNumber });
       if (
@@ -1028,7 +1062,7 @@ module.exports.updateUserDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
 
@@ -1039,7 +1073,7 @@ module.exports.updateUserDetails = async (req) => {
         { contactNumber, phoneOtpVerified: true }
       );
 
-      message = "Mobile number updated successfully.";
+      message = t("MOBILE_UPDATE_SUCCESS", lang);
       return { message };
     }
   }
@@ -1047,6 +1081,7 @@ module.exports.updateUserDetails = async (req) => {
 
 module.exports.processLocationForUser = async (req) => {
   const { userId, latitude, longitude, locationEnabled } = req.body;
+  const lang = getLanguageFromRequest(req);
   const insideArea =
     latitude >= 10 && latitude <= 20 && longitude >= 30 && longitude <= 40;
 
@@ -1063,7 +1098,7 @@ module.exports.processLocationForUser = async (req) => {
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User not found.",
+      message: t("USER_NOT_FOUND", lang),
     });
   }
   if (locationEnabled) {
@@ -1091,12 +1126,13 @@ module.exports.userFeedback = async (req) => {
     userId,
     body: { entityId, answers },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
@@ -1104,14 +1140,14 @@ module.exports.userFeedback = async (req) => {
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Entity doesn't exist.",
+      message: t("ENTITY_NOT_FOUND", lang),
     });
   }
 
   if (!Array.isArray(answers) || answers.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Feedback answers are required.",
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
     });
   }
 
@@ -1119,7 +1155,7 @@ module.exports.userFeedback = async (req) => {
     if (!answer.questionId || answer.value === undefined) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Each answer must have questionId and value.",
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
       });
     }
   }
@@ -1132,6 +1168,70 @@ module.exports.userFeedback = async (req) => {
 
   const feebackFromUser = await Userfeedback.create(feedbackObj);
   io.to(entityId.toString()).emit("feedback", feebackFromUser);
+};
+module.exports.userAppFeedback = async (req) => {
+  const userId = req.userId || req.id;
+  const { answers } = req.body;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("USER_DOES_NOT_EXIST", lang),
+    });
+  }
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
+    });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.answer === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
+      });
+    }
+    // Validate questionId exists in hardcoded questions
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+    if (!question) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_QUESTION_NOT_FOUND", lang),
+      });
+    }
+    // Validate answer type (must be number or string)
+    if (
+      typeof answer.answer !== "number" &&
+      typeof answer.answer !== "string"
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER_TYPE", lang),
+      });
+    }
+  }
+
+  const feedbackObj = {
+    userId,
+    answers,
+  };
+
+  const feedbackFromUser = await UserAppFeedback.create(feedbackObj);
+  return feedbackFromUser;
 };
 
 exports.getAllcountries = () => {
@@ -1208,12 +1308,13 @@ exports.removeLogs = async (req) => {
     userId,
     body: { entityId, isRemoved },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const logs = await SearchLogs.findOne({ userId, entityId, isRemoved: false });
   if (!logs) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "logs not found.",
+      message: t("LOGS_NOT_FOUND", lang),
     });
   }
   if (isRemoved) logs.isRemoved = isRemoved;
@@ -1304,6 +1405,112 @@ module.exports.getFeedbackQuestions = async (req) => {
   });
 
   return questionsWithAnswerTypeKey;
+};
+
+module.exports.getFeedbackAppQuestions = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Return translated questions based on user's language
+  const translatedQuestions = APP_FEEDBACK_QUESTIONS.map((question) => {
+    const translationKey = `app_feedback_q${question.id.replace(
+      "appFeedback",
+      ""
+    )}`;
+
+    const result = {
+      id: question.id,
+      question: t(translationKey, lang),
+      answerType: question.answerType,
+    };
+
+    // Add translated options for FRIENDLY answer type
+    if (question.answerType === "FRIENDLY" && ANSWER_TYPES.FRIENDLY) {
+      result.options = ANSWER_TYPES.FRIENDLY.map((option) => {
+        const translatedValue = t(option, lang);
+        return {
+          value: translatedValue,  // Use translated value for submission
+          label: translatedValue,  // Use translated value for display
+        };
+      });
+    }
+
+    return result;
+  });
+
+  return translatedQuestions;
+};
+
+module.exports.getUserAppFeedbackAnswers = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Find the most recent feedback submission from this user
+  const userFeedback = await UserAppFeedback.findOne({ userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!userFeedback) {
+    return null;
+  }
+
+  // Translate answers to current user language
+  const translatedAnswers = userFeedback.answers.map((answer) => {
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+
+    // For FRIENDLY type answers, check if the answer is a translatable option
+    if (question && question.answerType === "FRIENDLY") {
+      // Check if answer exists in any language's FRIENDLY options
+      const isTranslatableOption = ANSWER_TYPES.FRIENDLY.some(
+        (option) =>
+          t(option, "en") === answer.answer || t(option, "de") === answer.answer
+      );
+
+      if (isTranslatableOption) {
+        // Find the original English key
+        let originalKey = answer.answer;
+        for (const option of ANSWER_TYPES.FRIENDLY) {
+          if (
+            t(option, "en") === answer.answer ||
+            t(option, "de") === answer.answer
+          ) {
+            originalKey = option;
+            break;
+          }
+        }
+        // Translate to current language
+        return {
+          questionId: answer.questionId,
+          answer: t(originalKey, lang),
+        };
+      }
+    }
+
+    // Return as-is for other types or non-translatable strings
+    return answer;
+  });
+
+  return {
+    feedbackId: userFeedback._id,
+    submittedAt: userFeedback.createdAt,
+    answers: translatedAnswers,
+  };
 };
 
 module.exports.getTablesUserSide = async (req) => {

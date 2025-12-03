@@ -109,6 +109,7 @@ const {
 const { ownerTrades } = require("./PdfServices/ownerTrades");
 const verifyToken = require("./Utils/verifyToken");
 const { sendFirebaseNotification } = require("./Utils/commonFunction");
+const { t, getLanguageFromRequest } = require("./Utils/translator");
 const User = require("./Models/User");
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -118,6 +119,19 @@ const unProtectedApis = {
   "/api/customer/auth/login": true,
   "/api/customer/auth/register": true,
   "/api/customer/auth/countR-tag": true,
+  "/api/get-entities": true,
+  "/api/customer/entities/get-entities": true,
+  "/api/customer/entities/get-entity": true,
+  "/api/customer/entities/visitor-count": true,
+  "/api/customer/entities/get-counter-list": true,
+  "/api/customer/entities/get-counter-menu-category": true,
+  "/api/customer/entities/get-menu-category-items": true,
+  "/api/customer/entities/recommended-items": true,
+  "/api/customer/entities/newly-added-entities": true,
+  "/api/customer/entities/popular-entities": true,
+  "/api/customer/entities/entity-offers": true,
+  "/api/customer/entities/get-tables-user-side": true,
+
   // "/api/customer/entities/get-entities": true,
   "/api/owner/auth/register": true,
   "/api/owner/auth/login": true,
@@ -194,21 +208,26 @@ app.post("/api/update-menu-items", async (req, res) => {
 });
 
 app.post("/api/upload-file", upload.single("file"), async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     if (!req.file) {
-      return res.status(400).send("No file uploaded.");
+      return res
+        .status(STATUS_CODES.BAD_REQUEST)
+        .json({ message: t("FILE_UPLOAD_MISSING", lang) });
     }
     const fileBuffer = req.file.buffer;
     const fileName = "coca-cola.png";
 
     const data = await uploadBufferToS3(fileBuffer, fileName);
     return res.status(200).json({
-      message: "Uploaded successfully",
+      message: t("FILE_UPLOAD_SUCCESS", lang),
       location: data.Location,
     });
   } catch (error) {
     console.log("error occured in update-menu", error);
-    return res.status(500).json({ error });
+    return res.status(STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("FILE_UPLOAD_FAILED", lang),
+    });
   }
 });
 
@@ -224,6 +243,7 @@ app.get("/api/download-file", async (req, res) => {
 });
 
 app.post("/update-entity-items", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     console.log({ ee: req.entityId });
     const itemsId = await ItemDetails.find({ entityId: req.entityId }).lean();
@@ -233,7 +253,9 @@ app.post("/update-entity-items", async (req, res) => {
       { _id: { $in: itemIds } },
       { $set: { entityId: req.entityId } }
     );
-    return res.status(STATUS_CODES.OK).json({ message: "Updated all the doc" });
+    return res
+      .status(STATUS_CODES.OK)
+      .json({ message: t("ENTITY_ITEMS_UPDATE_SUCCESS", lang) });
   } catch (error) {
     return res
       .status(STATUS_CODES.SERVER_ERROR)
@@ -242,42 +264,48 @@ app.post("/update-entity-items", async (req, res) => {
 });
 
 app.get("/api/get-trade-and-download-pdf", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const signedUrl = await ownerTrades(req);
     return res.status(STATUS_CODES.OK).json({ downloadUrl: signedUrl });
   } catch (error) {
     console.error("Error occurred while creating trade PDF", error);
-    return res
-      .status(STATUS_CODES.SERVER_ERROR)
-      .json({ message: "PDF creation failed", error });
+    return res.status(STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("TRADE_PDF_GENERATION_ERROR", lang),
+    });
   }
 });
 
 app.post("/send-firebase-notification", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   const { token, title, body } = req.body;
 
   if (!token)
     return res
       .status(STATUS_CODES.BAD_REQUEST)
-      .json({ error: "FCM token is required" });
+      .json({ message: t("FCM_TOKEN_REQUIRED", lang) });
 
   await sendFirebaseNotification(token, title, body);
-  res.json({ success: true, message: "Notification sent!" });
+  res.json({
+    success: true,
+    message: t("FIREBASE_NOTIFICATION_SENT", lang),
+  });
 });
 
 app.post("/api/register-token", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
   const { fcmToken } = req.body;
 
   if (!fcmToken) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "FCM token is required",
+      message: t("FCM_TOKEN_REQUIRED", lang),
     };
   }
 
   await User.updateOne({ _id: req.userId }, { $addToSet: { fcmToken } });
 
-  return { message: "FCM token registered successfully" };
+  return { message: t("FCM_TOKEN_REGISTER_SUCCESS", lang) };
 });
 
 // app.post(

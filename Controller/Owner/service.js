@@ -42,10 +42,12 @@ const { io } = require("../../app");
 const { messaging } = require("firebase-admin");
 const { messagingPlus } = require("../../firebaseAdmin");
 const SalesReport = require("../../Models/SalesReport");
+const { t, getLanguageFromRequest } = require("../../Utils/translator");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
 module.exports.createCounter = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     counterName,
     isTableService,
@@ -58,7 +60,7 @@ module.exports.createCounter = async (req) => {
   if (!counterName) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter name is required",
+      message: t("OWNER_COUNTER_NAME_REQUIRED", lang),
     };
   }
 
@@ -75,14 +77,14 @@ module.exports.createCounter = async (req) => {
   if (existingCounter) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "This counter name already exists",
+      message: t("OWNER_COUNTER_NAME_EXISTS", lang),
     };
   }
 
   if (Number(tableFrom) >= Number(tableTo)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid table range.",
+      message: t("OWNER_TABLE_RANGE_INVALID", lang),
     });
   }
 
@@ -225,6 +227,7 @@ module.exports.createCounter = async (req) => {
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
     body: { categories },
@@ -233,7 +236,7 @@ module.exports.createCounterMenuCategory = async (req) => {
   if (!Array.isArray(categories) || categories.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Categories must be a non-empty array.",
+      message: t("OWNER_CATEGORIES_REQUIRED", lang),
     });
   }
 
@@ -249,7 +252,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     ) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Please add the counters first.",
+        message: t("OWNER_COUNTERS_REQUIRED", lang),
       });
     }
 
@@ -262,7 +265,9 @@ module.exports.createCounterMenuCategory = async (req) => {
     if (existingCategory) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: `Category name '${categoryName}' already exists for one of the selected counters.`,
+        message: t("OWNER_CATEGORY_ALREADY_EXISTS_FOR_COUNTER", lang, {
+          categoryName,
+        }),
       });
     }
   }
@@ -366,12 +371,12 @@ module.exports.getCounters = async (req) => {
   return counterDetails;
 };
 
-module.exports.getInsiderElements = async (insiderId) => {
+module.exports.getInsiderElements = async (insiderId, lang) => {
   try {
     if (!insiderId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "InsiderId is required",
+        message: t("OWNER_INSIDER_ID_REQUIRED", lang),
       });
     }
     const elements = await InsiderElement.find({ insiderId }).lean();
@@ -379,7 +384,7 @@ module.exports.getInsiderElements = async (insiderId) => {
   } catch (error) {
     throw {
       status: error.status || STATUS_CODES.BAD_REQUEST,
-      message: error.message || "Failed to fetch insider elements",
+      message: error.message || t("OWNER_INSIDER_FETCH_ERROR", lang),
     };
   }
 };
@@ -511,6 +516,8 @@ module.exports.createMenuItem = async (req) => {
     },
   } = req;
 
+  const lang = getLanguageFromRequest(req);
+
   let fileName = "";
 
   // Upload image to S3 if provided
@@ -526,13 +533,13 @@ module.exports.createMenuItem = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
@@ -569,7 +576,7 @@ module.exports.createMenuItem = async (req) => {
   if (existingItem) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Same item exists in one of the selected menu categories",
+      message: t("OWNER_MENU_ITEM_DUPLICATE_CATEGORY", lang),
     });
   }
 
@@ -682,11 +689,13 @@ module.exports.updateMenuItem = async (req) => {
     },
   } = req;
 
+  const lang = getLanguageFromRequest(req);
+
   const item = await ItemDetails.findOne({ _id: itemId });
   if (!item) {
     return throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "Item not found.",
+      message: t("OWNER_ITEM_NOT_FOUND", lang),
     });
   }
 
@@ -703,13 +712,13 @@ module.exports.updateMenuItem = async (req) => {
       if (!data.Location) {
         return throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       return throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
@@ -966,6 +975,7 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
+      serialType,
       // startingDate,
       // endDate,
       isRepetitive,
@@ -975,22 +985,25 @@ module.exports.createEvent = async (req) => {
       counterIds,
       // ageLimit,
       location,
+      isAllDay,
     },
   } = req;
+
+  const lang = getLanguageFromRequest(req);
 
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "The time format is invalid",
+      message: t("OWNER_EVENT_TIME_FORMAT_INVALID", lang),
     });
   }
 
   if (dateTimeFrom > dateTimeTo) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid time selection",
+      message: t("OWNER_EVENT_TIME_SELECTION_INVALID", lang),
     });
   }
 
@@ -1009,8 +1022,7 @@ module.exports.createEvent = async (req) => {
   if (existingEvent) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message:
-        "An event with the same name and overlapping time already exists",
+      message: t("OWNER_EVENT_DUPLICATE_TIME_ERROR", lang),
     });
   }
   let repetitiveDaysArr = [];
@@ -1022,7 +1034,7 @@ module.exports.createEvent = async (req) => {
       console.error("Error parsing repetitiveDays:", error);
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid repetitiveDays format",
+        message: t("OWNER_EVENT_REPETITIVE_DAYS_INVALID", lang),
       });
     }
   }
@@ -1041,19 +1053,20 @@ module.exports.createEvent = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
 
   const newEvent = new Event({
     eventName,
+    serialType,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
     // startingDate: new Date(startingDate),
@@ -1067,6 +1080,7 @@ module.exports.createEvent = async (req) => {
     entityId: req.entityId,
     image: fileName,
     location,
+    isAllDay,
   });
 
   const savedEvent = await newEvent.save();
@@ -1080,11 +1094,12 @@ module.exports.createEvent = async (req) => {
 
 module.exports.deleteEvent = async (req) => {
   const { eventId } = req.body;
+  const lang = getLanguageFromRequest(req);
   const event = await Event.findById(eventId);
   if (!event) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "EVent not found.",
+      message: t("OWNER_EVENT_NOT_FOUND", lang),
     });
   }
   await Event.deleteOne({ _id: eventId });
@@ -1401,7 +1416,12 @@ module.exports.getOngoingEventDetails = async (req) => {
       _id: event._id,
       from: event.from,
       to: event.to,
+      isAllDay: event.isAllDay,
       eventName: event.eventName,
+      serialType: event.serialType,
+      location: event.location,
+      isRepetitive: event.isRepetitive,
+      repetitiveDays: event.repetitiveDays,
       activeUsers: event.activeUsers || 0,
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
@@ -1544,11 +1564,12 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
     entityId,
     query: { month, year },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   if (!month || !year) {
     return res
       .status(STATUS_CODES.BAD_REQUEST)
-      .json({ message: "Month and year are required" });
+      .json({ message: t("OWNER_EVENTS_MONTH_YEAR_REQUIRED", lang) });
   }
 
   const monthNum = parseInt(month, 10);
@@ -1557,7 +1578,7 @@ module.exports.getEventsByMonthAndYear = async (req, res) => {
   if (isNaN(monthNum) || isNaN(yearNum)) {
     return res
       .status(STATUS_CODES.BAD_REQUEST)
-      .json({ message: "Invalid month or year format" });
+      .json({ message: t("OWNER_EVENTS_MONTH_YEAR_INVALID", lang) });
   }
 
   const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
@@ -1660,12 +1681,13 @@ module.exports.getMenuCategory = async (req) => {
 
 module.exports.editCategory = async (req) => {
   const { action, categoryName, newCategoryName, nutritionType } = req.body;
+  const lang = getLanguageFromRequest(req);
   let message = "";
 
   if (!action || !categoryName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Missing required fields: action or categoryName.",
+      message: t("OWNER_CATEGORY_ACTION_REQUIRED", lang),
     });
   }
 
@@ -1674,7 +1696,7 @@ module.exports.editCategory = async (req) => {
   if (!categories.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "No categories found with the given name.",
+      message: t("OWNER_CATEGORY_NOT_FOUND_BY_NAME", lang),
     });
   }
 
@@ -1684,14 +1706,14 @@ module.exports.editCategory = async (req) => {
       if (nutritionType) category.nutritionType = nutritionType;
       await category.save();
     }
-    message = "Categories updated successfully.";
+    message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
   } else if (action === EDIT_ACTION.DELETE) {
     await MenuCategory.deleteMany({ categoryName });
-    message = "Categories deleted successfully.";
+    message = t("OWNER_CATEGORIES_DELETE_SUCCESS", lang);
   } else {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid action provided.",
+      message: t("OWNER_CATEGORY_INVALID_ACTION", lang),
     });
   }
 
@@ -1767,6 +1789,7 @@ module.exports.getOrderDetailsOfEvents = async (req) => {
 
 module.exports.getCounterMenuQuantites = async (req) => {
   const { itemId } = req.query;
+  const lang = getLanguageFromRequest(req);
   const itemDetails = await ItemDetails.find(
     { entityId: req.entityId, itemId },
     { counterId: 1, quantity: 1 },
@@ -1774,7 +1797,7 @@ module.exports.getCounterMenuQuantites = async (req) => {
   );
   if (!itemDetails.length) {
     throwError({
-      message: "This item does not belong to this entity",
+      message: t("OWNER_ITEM_NOT_IN_ENTITY", lang),
       status: 404,
     });
   }
@@ -1826,11 +1849,13 @@ module.exports.updateCounterSettings = async (req) => {
     tableTo,
   } = req.body;
 
+  const lang = getLanguageFromRequest(req);
+
   const counter = await Counter.findOne({ _id: counterId });
   if (!counter) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter doesn't exist.",
+      message: t("OWNER_COUNTER_NOT_FOUND", lang),
     });
   }
 
@@ -1846,7 +1871,7 @@ module.exports.updateCounterSettings = async (req) => {
       if (duplicate) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Counter name already exists. Please try new one.",
+          message: t("OWNER_COUNTER_NAME_ALREADY_EXISTS", lang),
         });
       }
     }
@@ -1864,7 +1889,7 @@ module.exports.updateCounterSettings = async (req) => {
     ) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Table with this name already exists.",
+        message: t("OWNER_TABLE_NAME_EXISTS", lang),
       });
     }
 
@@ -1893,14 +1918,14 @@ module.exports.updateCounterSettings = async (req) => {
       if (isNaN(newFrom) || isNaN(newTo)) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Table numbers must be valid integers",
+          message: t("OWNER_TABLE_NUMBER_INVALID", lang),
         });
       }
 
       if (newFrom < 0 || newTo < 0) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Table numbers cannot be negative",
+          message: t("OWNER_TABLE_NUMBER_NEGATIVE", lang),
         });
       }
 
@@ -1908,21 +1933,24 @@ module.exports.updateCounterSettings = async (req) => {
         if (newFrom >= newTo) {
           throwError({
             status: STATUS_CODES.BAD_REQUEST,
-            message: `Invalid table range (${newFrom} >= ${newTo})`,
+            message: t("OWNER_TABLE_RANGE_INVALID_COMPARISON", lang, {
+              from: newFrom,
+              to: newTo,
+            }),
           });
         }
 
         if (newTo - newFrom < 0) {
           throwError({
             status: STATUS_CODES.BAD_REQUEST,
-            message: "Table range must include at least 1 table",
+            message: t("OWNER_TABLE_RANGE_MINIMUM", lang),
           });
         }
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid table number format",
+        message: t("OWNER_TABLE_NUMBER_FORMAT_INVALID", lang),
       });
     }
 
@@ -1967,7 +1995,7 @@ module.exports.updateCounterSettings = async (req) => {
       if (isConflict) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Multiple counters attached to these tables",
+          message: t("OWNER_TABLE_COUNTER_CONFLICT", lang),
         });
       }
 
@@ -1979,7 +2007,7 @@ module.exports.updateCounterSettings = async (req) => {
       if (!existingTable) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "No table found for this counter",
+          message: t("OWNER_TABLE_FOR_COUNTER_NOT_FOUND", lang),
         });
       }
 
@@ -2011,7 +2039,7 @@ module.exports.updateCounterSettings = async (req) => {
     if (activeOrders) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Counter has active orders",
+        message: t("OWNER_COUNTER_ACTIVE_ORDERS", lang),
       });
     }
 
@@ -2036,7 +2064,7 @@ module.exports.updateCounterSettings = async (req) => {
 
     return {
       success: true,
-      message: "Counter deleted successfully",
+      message: t("OWNER_COUNTER_DELETE_SUCCESS", lang),
     };
   }
 };
@@ -2341,6 +2369,8 @@ module.exports.editBusinessDetails = async (req) => {
     },
   } = req;
 
+  const lang = getLanguageFromRequest(req);
+
   let message = "";
   const updateEntityFields = {};
 
@@ -2349,7 +2379,7 @@ module.exports.editBusinessDetails = async (req) => {
     if (!userPass) {
       throwError({
         status: STATUS_CODES.NOT_FOUND,
-        message: "User not found.",
+        message: t("USER_NOT_FOUND", lang),
       });
     }
 
@@ -2360,7 +2390,7 @@ module.exports.editBusinessDetails = async (req) => {
     if (passwordCompare) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
+        message: t("PASSWORD_REUSE_ERROR", lang),
       });
     }
 
@@ -2368,7 +2398,7 @@ module.exports.editBusinessDetails = async (req) => {
     userPass.password = passwordChange;
     await userPass.save();
 
-    message = "Password updated successfully.";
+    message = t("PASSWORD_UPDATE_SUCCESS", lang);
     io.to(entityId.toString()).emit("passwordUpdated", { message });
     sendFirebaseNotification({
       topic: `entity_${entityId}`,
@@ -2392,7 +2422,7 @@ module.exports.editBusinessDetails = async (req) => {
   if (!entity) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "Entity not found.",
+      message: t("ENTITY_NOT_FOUND", lang),
     });
   }
 
@@ -2408,7 +2438,7 @@ module.exports.editBusinessDetails = async (req) => {
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   } else if (action === EDIT_ACTION.DELETE) {
@@ -2461,7 +2491,7 @@ module.exports.editBusinessDetails = async (req) => {
         { _id: userId },
         { contactNumber: unifiedContactNumber, contactOtpVerified: false }
       );
-      message = "OTP sent to your new contact number.";
+      message = t("OWNER_CONTACT_OTP_SENT", lang);
       return { message, otp, otpSent: true };
     } else {
       const otpRecord = await Otp.findOne({
@@ -2474,7 +2504,7 @@ module.exports.editBusinessDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
       await Otp.deleteOne({ contactNumber: unifiedContactNumber });
@@ -2491,7 +2521,7 @@ module.exports.editBusinessDetails = async (req) => {
         { entityContactNumber: unifiedContactNumber, contactOtpVerified: true }
       );
 
-      message = "Contact number updated successfully.";
+      message = t("OWNER_CONTACT_UPDATE_SUCCESS", lang);
       io.to(entityId.toString()).emit("contactNumberUpdated", {
         contactNumber: unifiedContactNumber,
       });
@@ -2522,7 +2552,7 @@ module.exports.editBusinessDetails = async (req) => {
       if (user) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: `Email ${email} already exists.`,
+          message: t("EMAIL_ALREADY_EXISTS", lang, { email }),
         });
       }
       const otp = crypto.randomInt(100000, 999999).toString();
@@ -2542,7 +2572,11 @@ module.exports.editBusinessDetails = async (req) => {
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      return { message: "OTP sent to your new email.", otp, otpSent: true };
+      return {
+        message: t("OTP_SENT_NEW_EMAIL", lang),
+        otp,
+        otpSent: true,
+      };
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -2552,14 +2586,14 @@ module.exports.editBusinessDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
       await Otp.deleteOne({ email });
       await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
       // return { message: "Email updated successfully.", otpVerified: true };
 
-      message = "Email updated successfully.";
+      message = t("EMAIL_UPDATE_SUCCESS", lang);
       io.to(entityId.toString()).emit("emailUpdated", { email });
       sendFirebaseNotification({
         topic: `entity_${entityId}`,
@@ -2577,7 +2611,7 @@ module.exports.editBusinessDetails = async (req) => {
     }
   }
 
-  return { message: "Business details updated successfully." };
+  return { message: t("OWNER_BUSINESS_DETAILS_UPDATE_SUCCESS", lang) };
 };
 
 module.exports.getBusinessUserDetails = async (req) => {
@@ -2611,18 +2645,20 @@ module.exports.addingTables = async (req) => {
     body: { tableFrom, tableTo, counterIds, tableSectionName },
   } = req;
 
+  const lang = getLanguageFromRequest(req);
+
   const entity = await EntityDetails.findById(entityId);
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Entity doesn't exist.",
+      message: t("ENTITY_NOT_FOUND", lang),
     });
   }
 
   if (!Array.isArray(counterIds) || counterIds.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "At least one counter ID must be provided.",
+      message: t("OWNER_COUNTER_IDS_REQUIRED", lang),
     });
   }
 
@@ -2630,14 +2666,14 @@ module.exports.addingTables = async (req) => {
   if (counters.length !== counterIds.length) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "One or more counters do not exist.",
+      message: t("OWNER_COUNTERS_NOT_FOUND", lang),
     });
   }
 
   if (Number(tableFrom) >= Number(tableTo)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid table range.",
+      message: t("OWNER_TABLE_RANGE_INVALID", lang),
     });
   }
 
@@ -2654,7 +2690,7 @@ module.exports.addingTables = async (req) => {
   if (tablesExists.length > 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Table service is already created for the following counters",
+      message: t("OWNER_TABLE_SERVICE_ALREADY_EXISTS", lang),
     });
   }
   const lastTable = await Tables.findOne(
@@ -2666,7 +2702,7 @@ module.exports.addingTables = async (req) => {
   if (lastTable?.tableSectionName === tableSectionName) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Table with this name already exists.",
+      message: t("OWNER_TABLE_NAME_EXISTS", lang),
     });
   }
 
@@ -2783,13 +2819,14 @@ module.exports.editTable = async (req) => {
     status,
   } = req.body;
 
+  const lang = getLanguageFromRequest(req);
   let message = "";
 
   const tableData = await Tables.findById(tableId);
   if (!tableData) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Table not found.",
+      message: t("OWNER_TABLE_NOT_FOUND", lang),
     });
   }
 
@@ -2797,7 +2834,7 @@ module.exports.editTable = async (req) => {
     if (tableData.tableSectionName === tableSectionName) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Table with this name already exists.",
+        message: t("OWNER_TABLE_NAME_EXISTS", lang),
       });
     }
     if (tableSectionName !== undefined) {
@@ -2808,7 +2845,7 @@ module.exports.editTable = async (req) => {
       if (!Array.isArray(counterIds) || counterIds.length === 0) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "At least one counter ID must be provided.",
+          message: t("OWNER_COUNTER_IDS_REQUIRED", lang),
         });
       }
       tableData.counterIds = counterIds;
@@ -2830,7 +2867,7 @@ module.exports.editTable = async (req) => {
     if (newFrom >= newTo) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid table range.",
+        message: t("OWNER_TABLE_RANGE_INVALID", lang),
       });
     }
 
@@ -2854,7 +2891,7 @@ module.exports.editTable = async (req) => {
         { $set: counterUpdate }
       );
     }
-    message = "Table edited successfully.";
+    message = t("OWNER_TABLE_EDIT_SUCCESS", lang);
     io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
     sendFirebaseNotification({
       topic: `entity_${tableData.entityId}`,
@@ -2873,7 +2910,7 @@ module.exports.editTable = async (req) => {
     if (!Array.isArray(counterIds) || counterIds.length === 0) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "At least one counter ID must be provided for deletion.",
+        message: t("OWNER_COUNTER_IDS_REQUIRED_FOR_DELETION", lang),
       });
     }
 
@@ -2882,7 +2919,7 @@ module.exports.editTable = async (req) => {
     if (!counters.length) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "No matching counters found.",
+        message: t("OWNER_COUNTERS_NOT_FOUND", lang),
       });
     }
 
@@ -2891,8 +2928,7 @@ module.exports.editTable = async (req) => {
     if (anyTableService) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message:
-          "Cannot delete table. One or more counters have table service enabled.",
+        message: t("OWNER_TABLE_DELETE_COUNTERS_ACTIVE", lang),
       });
     }
 
@@ -2903,7 +2939,7 @@ module.exports.editTable = async (req) => {
     //   { _id: { $in: counterIds } },
     //   { $set: { status } }
     // );
-    message = "Table deleted successfully.";
+    message = t("OWNER_TABLE_DELETE_SUCCESS", lang);
   }
   return { message };
 };
@@ -3347,9 +3383,13 @@ module.exports.getUsersFeedback = async (req) => {
 
 module.exports.addFeedbackQuestions = async (req) => {
   const { entityId, userId, body } = req;
+  const lang = getLanguageFromRequest(req);
 
   if (!body) {
-    throw new Error("Invalid request: body is missing.");
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_BODY_REQUIRED", lang),
+    });
   }
 
   const { question, answerType, comment } = body;
@@ -3357,14 +3397,14 @@ module.exports.addFeedbackQuestions = async (req) => {
   if (!ALL_ANSWER_TYPES || !Array.isArray(ALL_ANSWER_TYPES)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Answer type list is not available.",
+      message: t("OWNER_FEEDBACK_ANSWER_TYPES_UNAVAILABLE", lang),
     });
   }
 
   if (!Array.isArray(answerType)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid answer type. Expected an array of valid answer types.",
+      message: t("OWNER_FEEDBACK_INVALID_ANSWER_TYPE", lang),
     });
   }
 
@@ -3372,11 +3412,13 @@ module.exports.addFeedbackQuestions = async (req) => {
     (ans) => !ALL_ANSWER_TYPES.includes(ans)
   );
   if (invalidAnswers.length > 0) {
-    throw new Error(
-      `Invalid answerType values: ${invalidAnswers.join(
-        ", "
-      )}. Allowed values are: ${ALL_ANSWER_TYPES.join(", ")}`
-    );
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_INVALID_ANSWER_VALUES", lang, {
+        values: invalidAnswers.join(", "),
+        allowedValues: ALL_ANSWER_TYPES.join(", "),
+      }),
+    });
   }
 
   const existingQuestion = await FeedbackQuestions.findOne({
@@ -3386,7 +3428,7 @@ module.exports.addFeedbackQuestions = async (req) => {
   if (existingQuestion) {
     throwError({
       status: STATUS_CODES.CONFLICT,
-      message: "This question already exists for the entity.",
+      message: t("OWNER_FEEDBACK_QUESTION_EXISTS", lang),
     });
   }
 
@@ -3394,7 +3436,7 @@ module.exports.addFeedbackQuestions = async (req) => {
   if (questionCount >= 5) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Maximum of 5 feedback questions are allowed per entity.",
+      message: t("OWNER_FEEDBACK_MAX_LIMIT", lang),
     });
   }
 
@@ -3458,11 +3500,12 @@ module.exports.addFeedbackQuestions = async (req) => {
 
 module.exports.deleteFeedbackQuestions = async (req) => {
   const { questionId } = req.body;
+  const lang = getLanguageFromRequest(req);
 
   if (!questionId) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "questionId is required.",
+      message: t("OWNER_FEEDBACK_QUESTION_ID_REQUIRED", lang),
     });
   }
 
@@ -3470,7 +3513,7 @@ module.exports.deleteFeedbackQuestions = async (req) => {
   if (!question) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Question not found.",
+      message: t("OWNER_FEEDBACK_QUESTION_NOT_FOUND", lang),
     });
   }
 
@@ -3487,9 +3530,13 @@ module.exports.restaurantOpen = async (req) => {
     entityId,
     body: { isOpen },
   } = req;
+  const lang = getLanguageFromRequest(req);
   const restaurant = await EntityDetails.findById(entityId);
   if (!restaurant) {
-    throwError({ status: STATUS_CODES, message: "Entity doesn't exist." });
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ENTITY_NOT_FOUND", lang),
+    });
   }
   if (!isOpen) {
     const activeOrders = await Order.countDocuments({
@@ -3505,7 +3552,7 @@ module.exports.restaurantOpen = async (req) => {
     if (activeOrders > 0) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Restaurant cannot be closed while orders are still active.",
+        message: t("OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS", lang),
       });
     }
   }
@@ -3556,12 +3603,13 @@ module.exports.emailExist = async (req) => {
 
 module.exports.deleteEntityAccount = async (req) => {
   const { entityId, userId } = req;
+  const lang = getLanguageFromRequest(req);
 
   const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Entity doesn't exist or is not associated with the user.",
+      message: t("OWNER_ENTITY_NOT_ASSOCIATED", lang),
     });
   }
 
@@ -3623,6 +3671,7 @@ exports.removeSearchLogs = async (req) => {
     entityId,
     body: { itemId, isRemoved },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const logs = await ItemSearchLogs.findOne({
     itemId,
@@ -3632,7 +3681,7 @@ exports.removeSearchLogs = async (req) => {
   if (!logs) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "logs not found.",
+      message: t("LOGS_NOT_FOUND", lang),
     });
   }
   if (isRemoved) logs.isRemoved = isRemoved;
@@ -3642,6 +3691,7 @@ exports.removeSearchLogs = async (req) => {
 
 module.exports.restaurantCancelOrder = async (req) => {
   const { orderId } = req.body;
+  const lang = getLanguageFromRequest(req);
 
   const order = await Order.findOne({
     _id: orderId,
@@ -3651,7 +3701,7 @@ module.exports.restaurantCancelOrder = async (req) => {
   if (!order) {
     throwError({
       status: STATUS_CODES.NOT_ACCEPTABLE,
-      message: "Order not found",
+      message: t("ORDER_NOT_FOUND", lang),
     });
   }
 
@@ -3665,7 +3715,7 @@ module.exports.restaurantCancelOrder = async (req) => {
   ) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Apologies! order cannot be cancelled now.",
+      message: t("ORDER_CANNOT_CANCEL", lang),
     });
   }
 
@@ -3717,5 +3767,113 @@ module.exports.downloadSalesReport = async (req, res) => {
     return { url };
   } catch (error) {
     throw new Error("Failed to generate presigned URL");
+  }
+};
+
+module.exports.editEvent = async (req) => {
+  const {
+    file,
+    body: {
+      eventId,
+      eventName,
+      serialType,
+      isRepetitive,
+      repetitiveDays,
+      from,
+      to,
+      counterIds,
+      location,
+      isAllDay,
+    },
+  } = req;
+
+  const lang = getLanguageFromRequest(req);
+
+  const event = await Event.findOne({ _id: eventId });
+  if (!event) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  // Handle file upload if provided (same as createEvent)
+  let fileName = "";
+  if (file) {
+    const fileBuffer = file.buffer;
+    fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+
+    try {
+      const data = await uploadBufferToS3(fileBuffer, fileName);
+      if (!data.Location) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("FILE_UPLOAD_ERROR", lang),
+        });
+      }
+      event.image = fileName;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
+      });
+    }
+  }
+
+  // Parse repetitiveDays if provided (same as createEvent)
+  if (isRepetitive && repetitiveDays) {
+    try {
+      const repetitiveDaysArr = JSON.parse(repetitiveDays);
+      event.repetitiveDays = repetitiveDaysArr;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_REPETITIVE_DAYS_INVALID", lang),
+      });
+    }
+  }
+
+  // Convert and validate date/time if provided (same as createEvent)
+  if (from || to) {
+    const dateTimeFrom = from ? new Date(from) : event.from;
+    const dateTimeTo = to ? new Date(to) : event.to;
+
+    if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_FORMAT_INVALID", lang),
+      });
+    }
+
+    if (dateTimeFrom > dateTimeTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_SELECTION_INVALID", lang),
+      });
+    }
+
+    if (from) event.from = dateTimeFrom;
+    if (to) event.to = dateTimeTo;
+  }
+
+  // Update other fields
+  if (eventName) event.eventName = eventName;
+  if (serialType) event.serialType = serialType;
+  if (isRepetitive !== undefined) event.isRepetitive = isRepetitive;
+  if (counterIds) event.counterIds = counterIds;
+  if (location !== undefined) event.location = location;
+  if (isAllDay !== undefined) event.isAllDay = isAllDay;
+
+  try {
+    await event.save();
+    return { message: t("EVENT_UPDATE_SUCCESS", lang) };
+  } catch (error) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_UPDATE_ERROR", lang),
+    });
   }
 };

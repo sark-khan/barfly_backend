@@ -10,51 +10,245 @@ const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const Order = require("../Models/Order");
 const Event = require("../Models/Event");
+const { t, getLanguageFromRequest } = require("../Utils/translator");
 
 const createPaymentIntent = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     userId,
     body: { amount, currency, paymentMethodType = "card", eventId },
   } = req;
 
-  // if (paymentMethodType === "twint" && currency.toLowerCase() !== "chf") {
-  //   throw new Error("TWINT is only supported for CHF currency.");
-  // }
+  // Validate required fields
+  if (!amount || !currency || !eventId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_MISSING_REQUIRED_FIELDS", lang),
+    });
+  }
 
-  const restaurantAccountId = await Event.findById(eventId).populate({
+  // Normalize paymentMethodType to always be an array
+  let paymentMethodTypes = Array.isArray(paymentMethodType)
+    ? paymentMethodType
+    : [paymentMethodType];
+
+  // Remove duplicates
+  paymentMethodTypes = [...new Set(paymentMethodTypes)];
+
+  // Validate that at least one payment method is provided
+  if (paymentMethodTypes.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_NO_PAYMENT_METHOD", lang),
+    });
+  }
+
+  // Validate TWINT currency requirement
+  if (
+    paymentMethodTypes.includes("twint") &&
+    currency.toLowerCase() !== "chf"
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_TWINT_CURRENCY_ERROR", lang),
+    });
+  }
+
+  // Fetch event and restaurant account
+  const event = await Event.findById(eventId).populate({
     path: "entityId",
     select: "stripeAccountId",
   });
-  console.log({ restaurantAccountId });
-  const platformFees = global.PLATFORM_FEES;
-  console.log({ platformFees });
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amount * 100),
-    currency,
-    payment_method_types: [paymentMethodType],
-    application_fee_amount: Math.round(platformFees * 100),
-    transfer_data: {
-      destination: restaurantAccountId.entityId.stripeAccountId,
-    },
-    metadata: {
-      integration_check: paymentMethodType,
+  if (!event || !event.entityId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  const stripeAccountId = event.entityId.stripeAccountId;
+  if (!stripeAccountId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY", lang),
+    });
+  }
+
+  // Check if transfers capability is enabled
+  try {
+    const account = await stripe.accounts.retrieve(stripeAccountId);
+    if (account.capabilities?.transfers !== "active") {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+      });
+    }
+  } catch (error) {
+    // If it's already our custom error, re-throw it
+    if (
+      error.status === STATUS_CODES.BAD_REQUEST &&
+      error.message === t("STRIPE_TRANSFERS_NOT_ENABLED", lang)
+    ) {
+      throw error;
+    }
+    // Otherwise, log and continue (account might be inaccessible, but let Stripe handle it)
+    console.warn("Could not verify transfers capability:", error.message);
+  }
+
+  const platformFees = global.PLATFORM_FEES || 0;
+  const amountInCents = Math.round(amount * 100);
+  const feeInCents = Math.round(platformFees * 100);
+
+  // If TWINT is the payment method, use Stripe Checkout Session (for iOS compatibility)
+  if (paymentMethodTypes.includes("twint")) {
+    try {
+      const checkoutSession = await stripe.checkout.sessions.create({
+        payment_method_types: ["twint"],
+        line_items: [
+          {
+            price_data: {
+              currency: currency.toLowerCase(),
+              product_data: {
+                name: "Payment",
+              },
+              unit_amount: amountInCents,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        payment_intent_data: {
+          application_fee_amount: feeInCents,
+          transfer_data: {
+            destination: stripeAccountId,
+          },
+          metadata: {
+            userId: req.userId,
+            eventId: eventId,
+            paymentMethodType: "twint",
+          },
+        },
+        success_url: `countr://payment/success?session_id={CHECKOUT_SESSION_ID}&eventId=${eventId}&userId=${req.userId}`,
+        cancel_url: `countr://payment/cancel?eventId=${eventId}&userId=${req.userId}`,
+        metadata: {
+          userId: req.userId,
+          eventId: eventId,
+          paymentMethodType: "twint",
+        },
+      });
+
+      // Store checkout session info in database
+      await StripeModel.create({
+        amount,
+        currency,
+        paymentMethodType: "twint",
+        userId: req.userId,
+        stripePaymentIntentId:
+          checkoutSession.payment_intent || checkoutSession.id,
+        stripeCheckoutSessionId: checkoutSession.id,
+        lastPaymentDate: new Date(),
+      });
+
+      // Return checkout session response
+      return {
+        id: checkoutSession.id,
+        url: checkoutSession.url,
+        type: "checkout_session",
+        clientSecret: null, // Checkout sessions don't have client_secret
+      };
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+
+      // Check for test/live mode mismatch
+      if (
+        error.code === "resource_missing" &&
+        error.message?.includes("test mode")
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("STRIPE_TEST_LIVE_MODE_MISMATCH", lang),
+        });
+      }
+
+      // Check for insufficient capabilities error
+      if (error.code === "insufficient_capabilities_for_transfer") {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+        });
+      }
+
+      throwError({
+        status: STATUS_CODES.SERVER_ERROR,
+        message: error.message || t("STRIPE_CHECKOUT_SESSION_ERROR", lang),
+      });
+    }
+  }
+
+  // For other payment methods, use Payment Intent
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: currency.toLowerCase(),
+      payment_method_types: paymentMethodTypes,
+      application_fee_amount: feeInCents,
+      transfer_data: {
+        destination: stripeAccountId,
+      },
+      metadata: {
+        userId: req.userId,
+        eventId: eventId,
+        paymentMethodType: Array.isArray(paymentMethodType)
+          ? paymentMethodType.join(",")
+          : paymentMethodType,
+      },
+    });
+
+    // Store payment intent info in database
+    await StripeModel.create({
+      amount,
+      currency,
+      paymentMethodType: Array.isArray(paymentMethodType)
+        ? paymentMethodType
+        : paymentMethodType,
       userId: req.userId,
-    },
-  });
-  console.log({ paymentIntent: paymentIntent });
+      stripePaymentIntentId: paymentIntent.id,
+      lastPaymentDate: new Date(),
+    });
 
-  const obj = {
-    amount,
-    currency,
-    paymentMethodType,
-    userId: req.userId,
-    stripePaymentIntentId: paymentIntent.id,
-    lastPaymentDate: new Date(),
-  };
+    // Return payment intent with type for frontend to identify
+    return {
+      ...paymentIntent,
+      type: "payment_intent",
+    };
+  } catch (error) {
+    console.error("Error creating payment intent:", error);
 
-  await StripeModel.create(obj);
-  return paymentIntent;
+    // Check for test/live mode mismatch
+    if (
+      error.code === "resource_missing" &&
+      error.message?.includes("test mode")
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TEST_LIVE_MODE_MISMATCH", lang),
+      });
+    }
+
+    // Check for insufficient capabilities error
+    if (error.code === "insufficient_capabilities_for_transfer") {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+      });
+    }
+
+    throwError({
+      status: STATUS_CODES.SERVER_ERROR,
+      message: error.message || t("STRIPE_PAYMENT_INTENT_ERROR", lang),
+    });
+  }
 };
 
 // const createPaymentMethod = async (req) => {
@@ -181,6 +375,7 @@ const getPaymentStatus = async (req) => {
 };
 
 const createStripeOnboardingLink = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
     body: { email, platform },
@@ -189,7 +384,7 @@ const createStripeOnboardingLink = async (req) => {
   if (!entityId || !email) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Missing entityId or email",
+      message: t("STRIPE_MISSING_ENTITY_OR_EMAIL", lang),
     });
   }
 
@@ -232,7 +427,7 @@ const createStripeOnboardingLink = async (req) => {
 
   return {
     success: true,
-    message: "Stripe onboarding link created",
+    message: t("STRIPE_ONBOARDING_LINK_SUCCESS", lang),
     url: accountLink.url,
   };
 };
@@ -301,13 +496,14 @@ const createStripeOnboardingLink = async (req) => {
 // };
 
 const checkStripeAccountMissingFields = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { entityId } = req;
 
     if (!entityId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing entityId",
+        message: t("STRIPE_MISSING_ENTITY_ID", lang),
       });
     }
 
@@ -315,7 +511,7 @@ const checkStripeAccountMissingFields = async (req) => {
     if (!entity?.stripeAccountId) {
       return {
         success: true,
-        message: "No Stripe account associated with this entity",
+        message: t("STRIPE_ACCOUNT_NOT_ASSOCIATED", lang),
         hasMissingFields: true,
         missingFields: [],
       };
@@ -328,7 +524,7 @@ const checkStripeAccountMissingFields = async (req) => {
       console.error("Stripe retrieve failed:", err);
       return {
         success: true,
-        message: "Stripe account not found or inaccessible",
+        message: t("STRIPE_ACCOUNT_INACCESSIBLE", lang),
         hasMissingFields: true,
         missingFields: [],
       };
@@ -363,7 +559,7 @@ const checkStripeAccountMissingFields = async (req) => {
 
     return {
       success: true,
-      message: "Stripe account check complete",
+      message: t("STRIPE_ACCOUNT_CHECK_COMPLETE", lang),
       hasMissingFields: !!missingFields.length,
       missingFields,
     };
@@ -371,12 +567,13 @@ const checkStripeAccountMissingFields = async (req) => {
     console.error("Stripe Account Check Error:", error);
     throwError({
       status: STATUS_CODES.INTERNAL_SERVER_ERROR,
-      message: "Failed to check Stripe account fields",
+      message: t("STRIPE_ACCOUNT_CHECK_FAILED", lang),
     });
   }
 };
 
 const continueStripeOnboarding = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const {
       entityId,
@@ -386,7 +583,7 @@ const continueStripeOnboarding = async (req) => {
     if (!entityId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Missing entityId",
+        message: t("STRIPE_MISSING_ENTITY_ID", lang),
       });
     }
 
@@ -394,7 +591,7 @@ const continueStripeOnboarding = async (req) => {
     if (!entity?.stripeAccountId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "No Stripe account found for this entity",
+        message: t("STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY", lang),
       });
     }
 
@@ -427,6 +624,7 @@ const continueStripeOnboarding = async (req) => {
 };
 
 const retrieveAccountBalance = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { accountId } = req.body;
     const balance = await stripe.balance.retrieve({
@@ -442,31 +640,37 @@ const retrieveAccountBalance = async (req) => {
     console.error("Error fetching balance:", error);
     return {
       success: false,
-      message: "Failed to fetch Stripe balance",
+      message: t("STRIPE_BALANCE_FETCH_FAILED", lang),
       error: error.message,
     };
   }
 };
 
 const getStripeAccount = async (req) => {
+  const lang = getLanguageFromRequest(req);
   try {
     const { accountId } = req.query;
+
     const account = await stripe.accounts.retrieve(accountId);
+
+    if (!account) {
+      return {
+        error: t("STRIPE_ACCOUNT_NOT_FOUND", lang),
+      };
+    }
 
     const bankAccounts = await stripe.accounts.listExternalAccounts(accountId, {
       object: "bank_account",
     });
 
     return {
-      account: account || [],
-      bankAccounts: bankAccounts?.data || [],
+      account: account,
+      bankAccounts: bankAccounts.data || [],
     };
   } catch (err) {
     console.error("Error fetching Stripe account:", err);
     return {
-      account: null,
-      bankAccounts: [],
-      error: err.message,
+      error: err.message || t("STRIPE_ACCOUNT_FETCH_ERROR_GENERIC", lang),
     };
   }
 };
