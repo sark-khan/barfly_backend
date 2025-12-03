@@ -24,7 +24,7 @@ const itemSchema = new Schema(
     nutritionType: { type: String, enum: Object.values(NUTRITION_TYPE) },
     isVegan: { type: Boolean, default: false },
     itemName: { type: String, required: true },
-    description: { type: String, required: true },
+    description: { type: String },
     image: { type: String },
 
     price: { type: Number },
@@ -40,7 +40,8 @@ const itemSchema = new Schema(
         required: true,
       },
     ],
-    isOutOfStock: { type: Boolean, default: false },
+    counterId: { type: ObjectId },
+    inStock: { type: Boolean, default: true },
     quantity: { type: Number },
   },
   { timestamps: true, minimize: false }

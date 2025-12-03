@@ -10,6 +10,8 @@ const {
   STATUS,
   EDIT_ACTION,
   COUNTRY_ARRAY,
+  ANSWER_TYPES,
+  APP_FEEDBACK_QUESTIONS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -27,14 +29,19 @@ const { createMail, sendSMS } = require("../../Utils/mailer");
 const {
   haversineDistance,
   comparePassword,
+  verifyTokenWithoutResponse,
 } = require("../../Utils/commonFunction");
 const Location = require("./../../Models/Location");
-const CountRTags = require("../../Models/CountRTags");
 const Userfeedback = require("../../Models/UserFeedback");
 const SearchLogs = require("../../Models/searchLogs");
 const Discount = require("../../Models/Discount");
 const FeedbackQuestions = require("../../Models/FeedbackQuestions");
 const Tables = require("../../Models/Tables");
+const notificationSettings = require("../../Models/notificationSettings");
+const { io } = require("../../app");
+const { t, getLanguageFromRequest } = require("../../Utils/translator");
+const verifyToken = require("../../Utils/verifyToken");
+const UserAppFeedback = require("../../Models/UserAppFeedback");
 
 module.exports.getEntities = async (req) => {
   const {
@@ -46,17 +53,23 @@ module.exports.getEntities = async (req) => {
   } = req.query;
   const now = new Date();
 
+  if (req.headers["token"] != null) {
+    verifyTokenWithoutResponse(req);
+  }
+
+  const userId = req.id || req.userId;
   const favouritesList = await FavouriteEntity.find(
-    { userId: req.id, isFavourite: true },
+    { userId, isFavourite: true },
     { _id: 1, entityId: 1 },
     { lean: true }
   );
 
   const favouritesIdsSet = new Set();
   favouritesList.forEach((id) => {
-    favouritesIdsSet.add(id.entityId.toString());
+    if (id.entityId) {
+      favouritesIdsSet.add(id.entityId.toString());
+    }
   });
-
   const currentRunningEvents = await Event.find(
     {
       $and: [
@@ -65,10 +78,61 @@ module.exports.getEntities = async (req) => {
         { entityId: { $exists: true } },
       ],
     },
-    { entityId: 1, counterIds: 1 }
+    {
+      entityId: 1,
+      counterIds: 1,
+      from: 1,
+      to: 1,
+      isRepetitive: 1,
+      repetitiveDays: 1,
+    }
   );
+  const currentDay = (now.getDay() + 6) % 7;
+  const nowUTC = new Date();
+  let entityIds = [];
 
-  const entityIds = currentRunningEvents.map((entity) => entity.entityId);
+  currentRunningEvents.forEach((event) => {
+    if (event.isRepetitive) {
+      if (
+        Array.isArray(event.repetitiveDays) &&
+        event.repetitiveDays[currentDay]
+      ) {
+        const fromHours = new Date(event.from).getUTCHours();
+        const fromMinutes = new Date(event.from).getUTCMinutes();
+        const toHours = new Date(event.to).getUTCHours();
+        const toMinutes = new Date(event.to).getUTCMinutes();
+        const eventStartToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            fromHours,
+            fromMinutes
+          )
+        );
+
+        let eventEndToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            toHours,
+            toMinutes
+          )
+        );
+
+        if (eventEndToday <= eventStartToday) {
+          eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
+        }
+        console.log({ nowUTC, eventStartToday, eventEndToday });
+        if (nowUTC >= eventStartToday && nowUTC <= eventEndToday) {
+          entityIds.push(event.entityId);
+        }
+      }
+    } else {
+      entityIds.push(event.entityId);
+    }
+  });
 
   const query = {
     _id: { $in: entityIds },
@@ -85,7 +149,7 @@ module.exports.getEntities = async (req) => {
   }
 
   if (searchTerm) {
-    query.entityName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
+    query.entityName = { $regex: searchTerm, $options: "i" };
   }
 
   const currentRunningEntitiesDetails1 = await EntityDetails.find(query, {
@@ -96,7 +160,7 @@ module.exports.getEntities = async (req) => {
     image: 1,
     views: 1,
   })
-    .sort(sort)
+    .sort({ _id: -1 })
     .lean();
   const query2 = {
     _id: { $nin: entityIds },
@@ -109,9 +173,6 @@ module.exports.getEntities = async (req) => {
     fortyEightHoursago.setHours(fortyEightHoursago.getHours() - 48);
     query2.createdAt = { $gte: fortyEightHoursago };
   }
-  // else if (isPopular) {
-  //   sort.views = -1;
-  // }
 
   currentRunningEntitiesDetails1.map((items) => {
     if (!items.image) {
@@ -134,7 +195,7 @@ module.exports.getEntities = async (req) => {
   );
 
   if (req.query?.searchTerm && req.query.searchTerm != "") {
-    query2.entityName = { $regex: req.query.searchTerm, $options: "i" }; // Case-insensitive search
+    query2.entityName = { $regex: req.query.searchTerm, $options: "i" };
   }
 
   const remainingEntities = await EntityDetails.find(
@@ -147,8 +208,10 @@ module.exports.getEntities = async (req) => {
       image: 1,
       views: 1,
     },
-    { limit: limit, skip: skip, sort: sort }
-  ).lean();
+    { limit: limit, skip: skip }
+  )
+    .sort({ _id: -1 })
+    .lean();
   remainingEntities.map((items) => {
     if (!items.image) {
       return items;
@@ -193,29 +256,23 @@ module.exports.getEntities = async (req) => {
   };
 };
 
-// module.exports.getEntitiesList= async(req)=>{
-//   const now = new Date();
-//   const favouritesList = await FavouriteEntity.find(
-//     { userId: req.id, isFavourite: true },
-//     { _id: 1, entityId: 1 },
-//     { lean: true }
-//   );
-
-//   const ongoingEvents= await Event.find({
-//       $and: [
-//         { from: { $lte: now } },
-//         { to: { $gte: now } },
-//         { entityId: { $exists: true } },
-//       ],
-//     },
-//     { entityId: 1 }
-//   );
-//   const
-// }
-
 module.exports.addFavouriteEntity = async (req) => {
-  const userId = req.id;
+  const userId = req.id || req.userId;
   const { entityId, isFavourite } = req.body;
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", getLanguageFromRequest(req)),
+    });
+  }
+
+  if (!entityId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ENTITY_ID_REQUIRED", getLanguageFromRequest(req)),
+    });
+  }
 
   await FavouriteEntity.updateOne(
     { userId, entityId },
@@ -247,12 +304,13 @@ module.exports.removeFavouriteEvents = async (req) => {
     userId,
     body: { eventId },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const eventExists = await Event.findById(eventId);
   if (!eventExists) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such event found",
+      message: t("EVENT_NOT_FOUND", lang),
     });
   }
 
@@ -264,83 +322,296 @@ module.exports.removeFavouriteEvents = async (req) => {
 
 module.exports.visitorCount = async (req) => {
   const { eventId } = req.body;
+  const lang = getLanguageFromRequest(req);
   const eventExists = await Event.findById(eventId);
   if (!eventExists) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such event found",
+      message: t("EVENT_NOT_FOUND", lang),
     });
   }
   return Event.findOneAndUpdate({ _id: eventId }, { $inc: { visitor: 1 } });
 };
 
+// module.exports.counterList = async (req) => {
+//   const { entityId, searchTerm } = req.query;
+//   const query = { entityId, status: STATUS.ACTIVE };
+//   if (searchTerm) {
+//     query.counterName = { $regex: searchTerm, $options: "i" };
+//   }
+//   const counters = await Counter.find(
+//     query,
+//     { counterName: 1, totalTables: 1, isTableService: 1 },
+//     { sort: { _id: -1 }, lean: true }
+//   );
+//   const counterIds = counters.map((counter) => ObjectId(counter._id));
+
+//   const now = new Date();
+//   const eventOfThisCounters = await Event.find(
+//     {
+//       counterIds: { $in: counterIds },
+//       from: { $lte: now },
+//       to: { $gte: now },
+//     },
+//     {
+//       from: 1,
+//       to: 1,
+//       startingDate: 1,
+//       endDate: 1,
+//       isRepetitive: 1,
+//       repetitiveDays: 1,
+//       counterIds: 1,
+//     }
+//   ).lean();
+
+//   // const counterIdsList = new Set();
+//   // console.log({ eventOfThisCounters });
+//   // eventOfThisCounters.forEach((event) => {
+//   //   console.log({ event }, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+//   //   event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
+//   // });
+
+//   const counterLists = [];
+//   const counterIdsSet = new Set();
+
+//   eventOfThisCounters.forEach((event) => {
+//     event.counterIds.forEach((counterId) => {
+//       counterIdsSet.add(counterId.toString());
+//       counterLists.push({
+//         counterId: counterId.toString(),
+//         eventId: event._id.toString(),
+//       });
+//     });
+//   });
+
+//   await EntityDetails.findByIdAndUpdate(
+//     { _id: entityId },
+//     { $inc: { views: 1 } }
+//   );
+
+//   const counterList = counters
+//     .map((counter) => {
+//       const matchedCounter = counterLists.find(
+//         (c) => c.counterId == counter._id.toString()
+//       );
+
+//       return {
+//         ...counter,
+//         isLive: counterIdsSet.has(counter._id.toString()),
+//         eventId: matchedCounter ? matchedCounter.eventId : null,
+//       };
+//     })
+//     .sort((a, b) => b.isLive - a.isLive);
+
+//   return counterList;
+// };
+
+// module.exports.counterList = async (req) => {
+//   const { entityId, searchTerm } = req.query;
+//   const query = { entityId, status: STATUS.ACTIVE };
+
+//   if (searchTerm) {
+//     query.counterName = { $regex: searchTerm, $options: "i" };
+//   }
+
+//   const counters = await Counter.find(
+//     query,
+//     { counterName: 1, totalTables: 1, isTableService: 1 },
+//     { sort: { _id: -1 }, lean: true }
+//   );
+
+//   const counterIds = counters.map((counter) => ObjectId(counter._id));
+
+//   const now = new Date();
+//   const currentDay = (now.getDay() + 6) % 7;
+//   const currentTime = now.getTime();
+
+//   const events = await Event.find(
+//     {
+//       counterIds: { $in: counterIds },
+//       from: { $lte: now },
+//       to: { $gte: now },
+//     },
+//     {
+//       from: 1,
+//       to: 1,
+//       isRepetitive: 1,
+//       repetitiveDays: 1,
+//       counterIds: 1,
+//     }
+//   ).lean();
+
+//   const liveCounterIds = new Set();
+//   const counterToEventMap = {};
+
+//   events.forEach((event) => {
+//     const fromTime = new Date(event.from).getTime();
+//     const toTime = new Date(event.to).getTime();
+
+//     if (event.isRepetitive) {
+//       if (
+//         Array.isArray(event.repetitiveDays) &&
+//         event.repetitiveDays[currentDay]
+//       ) {
+//         const fromHours = new Date(event.from).getUTCHours();
+//         const fromMinutes = new Date(event.from).getUTCMinutes();
+//         const toHours = new Date(event.to).getUTCHours();
+//         const toMinutes = new Date(event.to).getUTCMinutes();
+
+//         const nowUTC = new Date();
+//         const eventStartToday = new Date(
+//           Date.UTC(
+//             nowUTC.getUTCFullYear(),
+//             nowUTC.getUTCMonth(),
+//             nowUTC.getUTCDate(),
+//             fromHours,
+//             fromMinutes
+//           )
+//         );
+//         const eventEndToday = new Date(
+//           Date.UTC(
+//             nowUTC.getUTCFullYear(),
+//             nowUTC.getUTCMonth(),
+//             nowUTC.getUTCDate(),
+//             toHours,
+//             toMinutes
+//           )
+//         );
+
+//         if (nowUTC >= eventStartToday && nowUTC <= eventEndToday) {
+//           event.counterIds.forEach((counterId) => {
+//             liveCounterIds.add(counterId.toString());
+//             counterToEventMap[counterId.toString()] = event._id.toString();
+//           });
+//         }
+//       }
+//     } else {
+//       event.counterIds.forEach((counterId) => {
+//         liveCounterIds.add(counterId.toString());
+//         counterToEventMap[counterId.toString()] = event._id.toString();
+//       });
+//     }
+//   });
+
+//   await EntityDetails.findByIdAndUpdate(entityId, { $inc: { views: 1 } });
+
+//   const counterList = counters
+//     .map((counter) => {
+//       const idStr = counter._id.toString();
+//       return {
+//         ...counter,
+//         isLive: liveCounterIds.has(idStr),
+//         eventId: counterToEventMap[idStr] || null,
+//       };
+//     })
+//     .sort((a, b) => b.isLive - a.isLive);
+
+//   return counterList;
+// };
+
 module.exports.counterList = async (req) => {
   const { entityId, searchTerm } = req.query;
   const query = { entityId, status: STATUS.ACTIVE };
+
   if (searchTerm) {
-    query.counterName = { $regex: searchTerm, $options: "i" }; // Case-insensitive search
+    query.counterName = { $regex: searchTerm, $options: "i" };
   }
+
   const counters = await Counter.find(
     query,
-    { counterName: 1, totalTables: 1 },
+    { counterName: 1, totalTables: 1, isTableService: 1 },
     { sort: { _id: -1 }, lean: true }
   );
+
   const counterIds = counters.map((counter) => ObjectId(counter._id));
 
   const now = new Date();
-  const eventOfThisCounters = await Event.find(
+  const currentDay = (now.getDay() + 6) % 7;
+  const nowUTC = new Date();
+
+  const events = await Event.find(
     {
-      counterIds: { $in: counterIds }, // Match events with counterIds in the given array
-      from: { $lte: now }, // `from` date should be less than or equal to `now`
-      to: { $gte: now }, // `to` date should be greater than or equal to `now`
+      counterIds: { $in: counterIds },
+      from: { $lte: now },
+      to: { $gte: now },
     },
     {
-      from: 1, // Include these fields in the result
+      from: 1,
       to: 1,
-      startingDate: 1,
-      endDate: 1,
       isRepetitive: 1,
       repetitiveDays: 1,
       counterIds: 1,
     }
   ).lean();
 
-  // const counterIdsList = new Set();
-  // console.log({ eventOfThisCounters });
-  // eventOfThisCounters.forEach((event) => {
-  //   console.log({ event }, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-  //   event.counterIds.forEach((id) => counterIdsList.add(id.toString()));
-  // });
+  const liveCounterIds = new Set();
+  const counterToEventMap = {};
 
-  const counterLists = [];
-  const counterIdsSet = new Set();
+  events.forEach((event) => {
+    const fromTime = new Date(event.from).getTime();
+    const toTime = new Date(event.to).getTime();
 
-  eventOfThisCounters.forEach((event) => {
-    event.counterIds.forEach((counterId) => {
-      counterIdsSet.add(counterId.toString());
-      counterLists.push({
-        counterId: counterId.toString(),
-        eventId: event._id.toString(),
+    if (event.isRepetitive) {
+      if (
+        Array.isArray(event.repetitiveDays) &&
+        event.repetitiveDays[currentDay]
+      ) {
+        const fromHours = new Date(event.from).getUTCHours();
+        const fromMinutes = new Date(event.from).getUTCMinutes();
+        const toHours = new Date(event.to).getUTCHours();
+        const toMinutes = new Date(event.to).getUTCMinutes();
+
+        const eventStartToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            fromHours,
+            fromMinutes
+          )
+        );
+
+        let eventEndToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            toHours,
+            toMinutes
+          )
+        );
+
+        if (eventEndToday <= eventStartToday) {
+          eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
+        }
+
+        if (nowUTC >= eventStartToday && nowUTC <= eventEndToday) {
+          event.counterIds.forEach((counterId) => {
+            liveCounterIds.add(counterId.toString());
+            counterToEventMap[counterId.toString()] = event._id.toString();
+          });
+        }
+      }
+    } else {
+      event.counterIds.forEach((counterId) => {
+        liveCounterIds.add(counterId.toString());
+        counterToEventMap[counterId.toString()] = event._id.toString();
       });
-    });
+    }
   });
 
-  await EntityDetails.findByIdAndUpdate(
-    { _id: entityId },
-    { $inc: { views: 1 } }
-  );
+  await EntityDetails.findByIdAndUpdate(entityId, { $inc: { views: 1 } });
 
-  const counterList = counters.map((counter) => {
-    const matchedCounter = counterLists.find(
-      (c) => c.counterId == counter._id.toString()
-    );
-
-    return {
-      ...counter,
-      isLive: counterIdsSet.has(counter._id.toString()),
-      eventId: matchedCounter ? matchedCounter.eventId : null,
-    };
-  });
+  const counterList = counters
+    .map((counter) => {
+      const idStr = counter._id.toString();
+      return {
+        ...counter,
+        isLive: liveCounterIds.has(idStr),
+        eventId: counterToEventMap[idStr] || null,
+      };
+    })
+    .sort((a, b) => b.isLive - a.isLive);
 
   return counterList;
 };
@@ -357,54 +628,30 @@ module.exports.getCounterMenuCategory = async (req) => {
 };
 
 module.exports.getMenuItems = async (req) => {
-  let { menuCategoryId, searchTerm } = req.query;
+  let { menuCategoryId, searchTerm, counterId, entityId } = req.query;
 
-  // if (mongoose.Types.ObjectId.isValid(menuCategoryId)) {
-  //   menuCategoryId = new mongoose.Types.ObjectId(menuCategoryId);
-  // }
-
-  let filter = { menuCategoryId, isOutOfStock: false };
+  let filter = { inStock: true, counterId: counterId, entityId };
 
   if (searchTerm && searchTerm.trim()) {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
-
-  const menuItems = await ItemDetails.find(filter)
+  const menuCategory = await MenuCategory.find({ _id: menuCategoryId });
+  const categoryName = menuCategory[0].categoryName;
+  const menuItems1 = await ItemDetails.find(filter)
     .populate("menuCategoryId")
     .lean();
-  if (!menuItems.length) {
-    return [];
-  }
 
-  // console.log({menuItems: menuItems[0].menuCategoryId.categoryName});
-  // // const name = await MenuCategory.findOne(
-  // //   { _id: menuCategoryId },
-  // //   { name: 1, _id: 0 }
-  // // ).lean();
-
-  const favouriteItemList = await FavouriteItem.find(
-    {
-      userId: req.userId,
-      counterId: menuItems[0].counterId,
-      isFavourite: true,
-    },
-    { favouriteItemId: 1 }
-  );
-  let favouriteItemIds = new Set();
-  favouriteItemList.forEach((item) => {
-    favouriteItemIds.add(item.favouriteItemId.toString());
-  });
+  // Now filter by categoryName manually (because it's in a populated field)
+  const menuItems = categoryName
+    ? menuItems1.filter(
+        (item) => item.menuCategoryId?.categoryName === categoryName
+      )
+    : menuItems1;
 
   const menuItemsResp = menuItems.reduce((acc, menuItem) => {
     let itemDetails = menuItem.item;
     menuItem.image = generatePresignedUrl(menuItem.image);
     delete menuItem.item;
-    if (favouriteItemIds.has(menuItem._id.toString())) {
-      menuItem.isFavourite = true;
-    } else {
-      menuItem.isFavourite = false;
-    }
-    // itemDetails.image = generatePresignedUrl(itemDetails?.image);
     delete menuItem.itemId;
     acc.push({
       ...menuItem,
@@ -414,29 +661,6 @@ module.exports.getMenuItems = async (req) => {
   }, []);
   return menuItemsResp;
 };
-
-// module.exports.getRecommendedItems = async (req) => {
-//   const { entityId, counterId, searchTerm } = req.query;
-
-//   const query = { entityId, counterIds: counterId };
-
-//   if (searchTerm) {
-//     query.itemName = { $regex: searchTerm, $options: "i" };
-//   }
-
-//   const allItems = await ItemDetails.find(query).populate("menuCategoryId");
-
-//   const categoryMap = {};
-
-//   allItems.forEach((item) => {
-//     item.image = generatePresignedUrl(item.image);
-//     if (!categoryMap[item.menuCategoryId]) {
-//       categoryMap[item.menuCategoryId] = item;
-//     }
-//   });
-
-//   return Object.values(categoryMap);
-// };
 
 module.exports.getRecommendedItems = async (req) => {
   const { entityId, counterId, searchTerm } = req.query;
@@ -454,11 +678,13 @@ module.exports.getRecommendedItems = async (req) => {
   const counterItemMap = {};
 
   allItems.forEach((item) => {
-    item.image = generatePresignedUrl(item.image);
-    const counterKey = `${item.counterId}_${item.itemName}`;
+    if (item.menuCategoryId && item.menuCategoryId.counterId == counterId) {
+      item.image = generatePresignedUrl(item.image);
+      const counterKey = `${item.counterId}_${item.itemName}`;
 
-    if (!counterItemMap[counterKey]) {
-      counterItemMap[counterKey] = item;
+      if (!counterItemMap[counterKey]) {
+        counterItemMap[counterKey] = item;
+      }
     }
   });
 
@@ -497,11 +723,12 @@ module.exports.updateLanguage = async (req) => {
 module.exports.updateFavouriteItem = async (req) => {
   const userId = req.userId;
   const { menuId, itemId, isFavourite } = req.body;
+  const lang = getLanguageFromRequest(req);
   const menuCategory = await MenuCategory.findById(menuId, { counterId: 1 });
   if (!menuCategory) {
     throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "No such menu Exists",
+      message: t("MENU_NOT_FOUND", lang),
     });
   }
   await FavouriteItem.updateOne(
@@ -527,50 +754,43 @@ module.exports.getFavouriteItems = async (req) => {
     { favouriteItemId: 1 }
   );
 
-  const searchTerm = req.query.searchTerm?.trim(); // The search term for itemName
+  const searchTerm = req.query.searchTerm?.trim();
 
-  // Fetch the list of favourite item IDs
   const favouriteItemIds = favouriteItemList.map(
     (item) => item.favouriteItemId
   );
 
   const menuItems = await ItemDetails.aggregate([
-    // Match documents in `ItemDetails` based on `counterId`
     {
       $match: {
-        counterId: ObjectId(counterId), // Ensure `counterId` is an ObjectId
+        counterId: ObjectId(counterId),
       },
     },
-    // Populate `itemId` from `MenuItem` collection
     {
       $lookup: {
-        from: "menuitems", // Collection name for `MenuItem`
+        from: "menuitems",
         localField: "itemId",
         foreignField: "_id",
-        as: "item", // Name for the populated field
+        as: "item",
       },
     },
-    // Unwind the `item` array to treat it as a single object
     {
       $unwind: "$item",
     },
-    // Match items that are in the `favouriteItemList`
     {
       $match: {
         "item._id": { $in: favouriteItemIds },
       },
     },
-    // Apply regex search for `item.itemName` if `searchTerm` is provided
     ...(searchTerm
       ? [
           {
             $match: {
-              "item.itemName": { $regex: searchTerm, $options: "i" }, // Case-insensitive search
+              "item.itemName": { $regex: searchTerm, $options: "i" },
             },
           },
         ]
       : []),
-    // Project only the necessary fields
     {
       $project: {
         "item._id": 1,
@@ -581,7 +801,7 @@ module.exports.getFavouriteItems = async (req) => {
         "item.currency": 1,
         "item.image": 1,
         "item.quantity": 1,
-        price: 1, // Price from `ItemDetails`
+        price: 1,
         availableQuantity: 1,
         counterId: 1,
         entityId: 1,
@@ -590,7 +810,6 @@ module.exports.getFavouriteItems = async (req) => {
         currency: 1,
       },
     },
-    // Sort the results by `updatedAt`
     {
       $sort: { updatedAt: -1 },
     },
@@ -616,12 +835,13 @@ module.exports.addCards = async (req) => {
     userId,
     body: { cardHolderName, cardNo, cardExpireAt, securityCode, type },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
@@ -635,6 +855,7 @@ module.exports.addCards = async (req) => {
     userId: user._id,
   };
   await Cards.create(cardObj);
+  return t("CARD_ADDED_SUCCESS", lang);
 };
 
 module.exports.getUserCards = async (req) => {
@@ -660,6 +881,7 @@ module.exports.editOrDeleteCards = async (req) => {
   } = req;
 
   let message = "";
+  const lang = getLanguageFromRequest(req);
 
   const cardDetails = await Cards.findOne({
     userId,
@@ -670,7 +892,7 @@ module.exports.editOrDeleteCards = async (req) => {
   if (!cardDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Card not found.",
+      message: t("CARD_NOT_FOUND", lang),
     });
   }
 
@@ -679,12 +901,12 @@ module.exports.editOrDeleteCards = async (req) => {
     if (cardNo) cardDetails.cardNo = cardNo;
     if (cardExpireAt) cardDetails.cardExpireAt = cardExpireAt;
     if (securityCode) cardDetails.securityCode = securityCode;
-    message = "Card details updated successfully.";
+    message = t("CARD_UPDATE_SUCCESS", lang);
   }
 
   if (action === EDIT_ACTION.DELETE) {
     cardDetails.status = STATUS.DELETED;
-    message = "Card deleted successfully.";
+    message = t("CARD_DELETE_SUCCESS", lang);
   }
   await cardDetails.save();
 
@@ -693,24 +915,21 @@ module.exports.editOrDeleteCards = async (req) => {
 
 module.exports.getUserDetails = async (req) => {
   const { userId } = req;
+  const lang = getLanguageFromRequest(req);
   const userDetails = await User.findOne({
     _id: userId,
     status: STATUS.ACTIVE,
   });
-  const couterTag = await CountRTags.findOne(
-    { userId },
-    { countRTag: 1, _id: 0 }
-  );
+
   if (!userDetails) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
   return {
     ...userDetails.toObject(),
-    countRTag: couterTag ? couterTag.countRTag : "",
   };
 };
 
@@ -719,15 +938,17 @@ module.exports.updateUserDetails = async (req) => {
     userId,
     body: { email, contactNumber, newPassword, enteredOtp },
   } = req;
+  console.log({ body: req.body });
 
   let message = "";
+  const lang = getLanguageFromRequest(req);
 
   if (newPassword) {
     const userPass = await User.findOne({ _id: userId });
     if (!userPass) {
       throwError({
         status: STATUS_CODES.NOT_FOUND,
-        message: "User not found.",
+        message: t("USER_NOT_FOUND", lang),
       });
     }
 
@@ -738,7 +959,7 @@ module.exports.updateUserDetails = async (req) => {
     if (passwordCompare) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
+        message: t("PASSWORD_REUSE_ERROR", lang),
       });
     }
 
@@ -746,7 +967,7 @@ module.exports.updateUserDetails = async (req) => {
     userPass.password = passwordChange;
     await userPass.save();
 
-    message = "Password updated successfully.";
+    message = t("PASSWORD_UPDATE_SUCCESS", lang);
     return message;
   }
 
@@ -763,15 +984,15 @@ module.exports.updateUserDetails = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: email
-        ? `Email ${email} already exists.`
-        : `Contact number ${contactNumber} already exists.`,
+        ? t("EMAIL_ALREADY_EXISTS", lang, { email })
+        : t("CONTACT_NUMBER_ALREADY_EXISTS", lang, { contactNumber }),
     });
   }
 
   if (email) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP valid for 5 minutes
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
         { email },
@@ -790,7 +1011,8 @@ module.exports.updateUserDetails = async (req) => {
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
-      return (message = "OTP sent to your new email.");
+      message = t("OTP_SENT_NEW_EMAIL", lang);
+      return message;
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -800,7 +1022,7 @@ module.exports.updateUserDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
 
@@ -808,7 +1030,7 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
 
-      message = "Email updated successfully.";
+      message = t("EMAIL_UPDATE_SUCCESS", lang);
       return { message };
     }
   }
@@ -824,12 +1046,13 @@ module.exports.updateUserDetails = async (req) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      const msg = `Your verification code is: ${otp}`;
-      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+      const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
+
+      await sendSMS({ toPhoneNumber: contactNumber, message: smsMessage });
 
       await User.updateOne({ _id: userId }, { phoneOtpVerified: false });
 
-      return { message: "OTP sent to your new mobile number." };
+      return { message: t("OTP_SENT_NEW_MOBILE", lang) };
     } else {
       const otpRecord = await Otp.findOne({ contactNumber });
       if (
@@ -839,7 +1062,7 @@ module.exports.updateUserDetails = async (req) => {
       ) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Invalid OTP or OTP expired.",
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
         });
       }
 
@@ -850,7 +1073,7 @@ module.exports.updateUserDetails = async (req) => {
         { contactNumber, phoneOtpVerified: true }
       );
 
-      message = "Mobile number updated successfully.";
+      message = t("MOBILE_UPDATE_SUCCESS", lang);
       return { message };
     }
   }
@@ -858,6 +1081,7 @@ module.exports.updateUserDetails = async (req) => {
 
 module.exports.processLocationForUser = async (req) => {
   const { userId, latitude, longitude, locationEnabled } = req.body;
+  const lang = getLanguageFromRequest(req);
   const insideArea =
     latitude >= 10 && latitude <= 20 && longitude >= 30 && longitude <= 40;
 
@@ -874,7 +1098,7 @@ module.exports.processLocationForUser = async (req) => {
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User not found.",
+      message: t("USER_NOT_FOUND", lang),
     });
   }
   if (locationEnabled) {
@@ -900,23 +1124,15 @@ module.exports.processLocationForUser = async (req) => {
 module.exports.userFeedback = async (req) => {
   const {
     userId,
-    body: {
-      entityId,
-      counterId,
-      experience,
-      experienceDescription,
-      placingOrderProcess,
-      placingOrderProcessDescription,
-      statusUpdation,
-      statusUpdationDescription,
-    },
+    body: { entityId, answers },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("USER_DOES_NOT_EXIST", lang),
     });
   }
 
@@ -924,39 +1140,98 @@ module.exports.userFeedback = async (req) => {
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Entity doesn't exist.",
+      message: t("ENTITY_NOT_FOUND", lang),
     });
   }
 
-  const counter = await Counter.findById(counterId);
-  if (!counter) {
+  if (!Array.isArray(answers) || answers.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Counter not found.",
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
     });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.value === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
+      });
+    }
   }
 
   const feedbackObj = {
     userId,
     entityId: entity._id,
-    counterId: counter._id,
-    experience: {
-      value: experience,
-      description: experienceDescription || "",
-    },
-    placingOrderProcess: {
-      value: placingOrderProcess,
-      description: placingOrderProcessDescription || "",
-    },
-    statusUpdation: {
-      value: statusUpdation,
-      description: statusUpdationDescription || "",
-    },
+    answers,
   };
 
-  await Userfeedback.create(feedbackObj);
+  const feebackFromUser = await Userfeedback.create(feedbackObj);
+  io.to(entityId.toString()).emit("feedback", feebackFromUser);
+};
+module.exports.userAppFeedback = async (req) => {
+  const userId = req.userId || req.id;
+  const { answers } = req.body;
+  const lang = getLanguageFromRequest(req);
 
-  return feedbackObj;
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("USER_DOES_NOT_EXIST", lang),
+    });
+  }
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
+    });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.answer === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
+      });
+    }
+    // Validate questionId exists in hardcoded questions
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+    if (!question) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_QUESTION_NOT_FOUND", lang),
+      });
+    }
+    // Validate answer type (must be number or string)
+    if (
+      typeof answer.answer !== "number" &&
+      typeof answer.answer !== "string"
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER_TYPE", lang),
+      });
+    }
+  }
+
+  const feedbackObj = {
+    userId,
+    answers,
+  };
+
+  const feedbackFromUser = await UserAppFeedback.create(feedbackObj);
+  return feedbackFromUser;
 };
 
 exports.getAllcountries = () => {
@@ -1033,12 +1308,13 @@ exports.removeLogs = async (req) => {
     userId,
     body: { entityId, isRemoved },
   } = req;
+  const lang = getLanguageFromRequest(req);
 
   const logs = await SearchLogs.findOne({ userId, entityId, isRemoved: false });
   if (!logs) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "logs not found.",
+      message: t("LOGS_NOT_FOUND", lang),
     });
   }
   if (isRemoved) logs.isRemoved = isRemoved;
@@ -1089,34 +1365,215 @@ module.exports.entityOffers = async () => {
   };
   const coupons = await Discount.find({}, projection).populate({
     path: "entityId",
-    select: "entityName image city country",
+    select: "entityName image city country status",
     model: "EntityDetails",
   });
 
-  coupons.map((entityImage) => {
-    entityImage.entityId.image = generatePresignedUrl(
-      entityImage.entityId.image
-    );
+  coupons.forEach((coupon) => {
+    if (coupon.entityId?.status === STATUS.ACTIVE) {
+      coupon.entityId.image = generatePresignedUrl(coupon.entityId.image);
+    }
   });
 
   return coupons;
 };
 
 module.exports.getFeedbackQuestions = async (req) => {
-  const { entityId } = req.query;
+  const entityId = req.query?.entityId || req.entityId;
 
-  const feedbackQuestions = await FeedbackQuestions.find({ entityId });
-  if (!feedbackQuestions) return [];
-  return feedbackQuestions;
+  const feedbackQuestions = await FeedbackQuestions.find({ entityId }).lean();
+  if (!feedbackQuestions || feedbackQuestions.length === 0) return [];
+
+  const questionsWithAnswerTypeKey = feedbackQuestions.map((question) => {
+    let answerTypeKey = null;
+
+    for (const [key, values] of Object.entries(ANSWER_TYPES)) {
+      if (
+        Array.isArray(question.answerType) &&
+        question.answerType.length === values.length &&
+        question.answerType.every((val) => values.includes(val))
+      ) {
+        answerTypeKey = key;
+        break;
+      }
+    }
+
+    return {
+      ...question,
+      answerTypeKey,
+    };
+  });
+
+  return questionsWithAnswerTypeKey;
+};
+
+module.exports.getFeedbackAppQuestions = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Return translated questions based on user's language
+  const translatedQuestions = APP_FEEDBACK_QUESTIONS.map((question) => {
+    const translationKey = `app_feedback_q${question.id.replace(
+      "appFeedback",
+      ""
+    )}`;
+
+    const result = {
+      id: question.id,
+      question: t(translationKey, lang),
+      answerType: question.answerType,
+    };
+
+    // Add translated options for FRIENDLY answer type
+    if (question.answerType === "FRIENDLY" && ANSWER_TYPES.FRIENDLY) {
+      result.options = ANSWER_TYPES.FRIENDLY.map((option) => {
+        const translatedValue = t(option, lang);
+        return {
+          value: translatedValue,  // Use translated value for submission
+          label: translatedValue,  // Use translated value for display
+        };
+      });
+    }
+
+    return result;
+  });
+
+  return translatedQuestions;
+};
+
+module.exports.getUserAppFeedbackAnswers = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Find the most recent feedback submission from this user
+  const userFeedback = await UserAppFeedback.findOne({ userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!userFeedback) {
+    return null;
+  }
+
+  // Translate answers to current user language
+  const translatedAnswers = userFeedback.answers.map((answer) => {
+    const question = APP_FEEDBACK_QUESTIONS.find(
+      (q) => q.id === answer.questionId
+    );
+
+    // For FRIENDLY type answers, check if the answer is a translatable option
+    if (question && question.answerType === "FRIENDLY") {
+      // Check if answer exists in any language's FRIENDLY options
+      const isTranslatableOption = ANSWER_TYPES.FRIENDLY.some(
+        (option) =>
+          t(option, "en") === answer.answer || t(option, "de") === answer.answer
+      );
+
+      if (isTranslatableOption) {
+        // Find the original English key
+        let originalKey = answer.answer;
+        for (const option of ANSWER_TYPES.FRIENDLY) {
+          if (
+            t(option, "en") === answer.answer ||
+            t(option, "de") === answer.answer
+          ) {
+            originalKey = option;
+            break;
+          }
+        }
+        // Translate to current language
+        return {
+          questionId: answer.questionId,
+          answer: t(originalKey, lang),
+        };
+      }
+    }
+
+    // Return as-is for other types or non-translatable strings
+    return answer;
+  });
+
+  return {
+    feedbackId: userFeedback._id,
+    submittedAt: userFeedback.createdAt,
+    answers: translatedAnswers,
+  };
 };
 
 module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
   const query = { entityId, counterIds: counterId };
 
-  const tables = await Tables.findOne(query);
+  const tables = await Tables.findOne(query, {
+    tableCount: 1,
+    counterIds: 1,
+    entityId: 1,
+  })
+    .populate({
+      path: "counterIds",
+      model: "Counter",
+    })
+    .lean();
+
   if (!tables) {
     return [];
   }
-  return tables;
+  // console.log("reache dehr ehr vef[ier");
+  // if (tables.isTableService) {
+  //   console.log("eache dher er");
+  //   return tables;
+  // }
+
+  console.log({ tables });
+  const tablesRes = [];
+  tables.counterIds.forEach((counter) => {
+    if (counter._id == counterId && counter.isTableService == true) {
+      tablesRes.push(tables);
+    }
+    // return false;
+  });
+
+  return tablesRes;
+};
+
+module.exports.fetchNotificationSettings = async (req) => {
+  return notificationSettings.findOne({ userId: req.userId });
+};
+
+module.exports.updateNotificationSettings = async (req) => {
+  const { isEmailOn, isPushOn, isPromotionalOn, value } = req.body;
+  let updatedValue = {};
+  if (isEmailOn == true) {
+    updatedValue = {
+      isEmailOn: value,
+    };
+  } else if (isPushOn == true) {
+    updatedValue = {
+      isPushOn: value,
+    };
+  } else if (isPromotionalOn) {
+    updatedValue = {
+      isPromotionalOn: value,
+    };
+  }
+
+  await notificationSettings.updateOne(
+    { userId: req.userId },
+    { $set: updatedValue },
+    { upsert: true }
+  );
+  return;
 };
