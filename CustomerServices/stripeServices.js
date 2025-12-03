@@ -19,8 +19,15 @@ const createPaymentIntent = async (req) => {
     body: { amount, currency, paymentMethodType = "card", eventId },
   } = req;
 
+  // Validate required fields
+  if (!amount || !currency || !eventId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_MISSING_REQUIRED_FIELDS", lang),
+    });
+  }
+
   // Normalize paymentMethodType to always be an array
-  // Handle both single string and array from frontend
   let paymentMethodTypes = Array.isArray(paymentMethodType)
     ? paymentMethodType
     : [paymentMethodType];
@@ -28,7 +35,15 @@ const createPaymentIntent = async (req) => {
   // Remove duplicates
   paymentMethodTypes = [...new Set(paymentMethodTypes)];
 
-  // Validate TWINT currency requirement if TWINT is in the payment methods
+  // Validate that at least one payment method is provided
+  if (paymentMethodTypes.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_NO_PAYMENT_METHOD", lang),
+    });
+  }
+
+  // Validate TWINT currency requirement
   if (
     paymentMethodTypes.includes("twint") &&
     currency.toLowerCase() !== "chf"
@@ -39,52 +54,201 @@ const createPaymentIntent = async (req) => {
     });
   }
 
-  // Validate that at least one payment method is provided
-  if (paymentMethodTypes.length === 0) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: t("STRIPE_NO_PAYMENT_METHOD", lang),
-    });
-  }
-
-  const restaurantAccountId = await Event.findById(eventId).populate({
+  // Fetch event and restaurant account
+  const event = await Event.findById(eventId).populate({
     path: "entityId",
     select: "stripeAccountId",
   });
-  console.log({ restaurantAccountId });
-  const platformFees = global.PLATFORM_FEES;
-  console.log({ platformFees });
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amount * 100),
-    currency,
-    payment_method_types: paymentMethodTypes, // Pass array to Stripe - user can choose
-    application_fee_amount: Math.round(platformFees * 100),
-    transfer_data: {
-      destination: restaurantAccountId.entityId.stripeAccountId,
-    },
-    metadata: {
-      integration_check: Array.isArray(paymentMethodType)
-        ? paymentMethodType.join(",")
+  if (!event || !event.entityId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  const stripeAccountId = event.entityId.stripeAccountId;
+  if (!stripeAccountId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY", lang),
+    });
+  }
+
+  // Check if transfers capability is enabled
+  try {
+    const account = await stripe.accounts.retrieve(stripeAccountId);
+    if (account.capabilities?.transfers !== "active") {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+      });
+    }
+  } catch (error) {
+    // If it's already our custom error, re-throw it
+    if (
+      error.status === STATUS_CODES.BAD_REQUEST &&
+      error.message === t("STRIPE_TRANSFERS_NOT_ENABLED", lang)
+    ) {
+      throw error;
+    }
+    // Otherwise, log and continue (account might be inaccessible, but let Stripe handle it)
+    console.warn("Could not verify transfers capability:", error.message);
+  }
+
+  const platformFees = global.PLATFORM_FEES || 0;
+  const amountInCents = Math.round(amount * 100);
+  const feeInCents = Math.round(platformFees * 100);
+
+  // If TWINT is the payment method, use Stripe Checkout Session (for iOS compatibility)
+  if (paymentMethodTypes.includes("twint")) {
+    try {
+      const checkoutSession = await stripe.checkout.sessions.create({
+        payment_method_types: ["twint"],
+        line_items: [
+          {
+            price_data: {
+              currency: currency.toLowerCase(),
+              product_data: {
+                name: "Payment",
+              },
+              unit_amount: amountInCents,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        payment_intent_data: {
+          application_fee_amount: feeInCents,
+          transfer_data: {
+            destination: stripeAccountId,
+          },
+          metadata: {
+            userId: req.userId,
+            eventId: eventId,
+            paymentMethodType: "twint",
+          },
+        },
+        success_url: `countr://payment/success?session_id={CHECKOUT_SESSION_ID}&eventId=${eventId}&userId=${req.userId}`,
+        cancel_url: `countr://payment/cancel?eventId=${eventId}&userId=${req.userId}`,
+        metadata: {
+          userId: req.userId,
+          eventId: eventId,
+          paymentMethodType: "twint",
+        },
+      });
+
+      // Store checkout session info in database
+      await StripeModel.create({
+        amount,
+        currency,
+        paymentMethodType: "twint",
+        userId: req.userId,
+        stripePaymentIntentId:
+          checkoutSession.payment_intent || checkoutSession.id,
+        stripeCheckoutSessionId: checkoutSession.id,
+        lastPaymentDate: new Date(),
+      });
+
+      // Return checkout session response
+      return {
+        id: checkoutSession.id,
+        url: checkoutSession.url,
+        type: "checkout_session",
+        clientSecret: null, // Checkout sessions don't have client_secret
+      };
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+
+      // Check for test/live mode mismatch
+      if (
+        error.code === "resource_missing" &&
+        error.message?.includes("test mode")
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("STRIPE_TEST_LIVE_MODE_MISMATCH", lang),
+        });
+      }
+
+      // Check for insufficient capabilities error
+      if (error.code === "insufficient_capabilities_for_transfer") {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+        });
+      }
+
+      throwError({
+        status: STATUS_CODES.SERVER_ERROR,
+        message: error.message || t("STRIPE_CHECKOUT_SESSION_ERROR", lang),
+      });
+    }
+  }
+
+  // For other payment methods, use Payment Intent
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: currency.toLowerCase(),
+      payment_method_types: paymentMethodTypes,
+      application_fee_amount: feeInCents,
+      transfer_data: {
+        destination: stripeAccountId,
+      },
+      metadata: {
+        userId: req.userId,
+        eventId: eventId,
+        paymentMethodType: Array.isArray(paymentMethodType)
+          ? paymentMethodType.join(",")
+          : paymentMethodType,
+      },
+    });
+
+    // Store payment intent info in database
+    await StripeModel.create({
+      amount,
+      currency,
+      paymentMethodType: Array.isArray(paymentMethodType)
+        ? paymentMethodType
         : paymentMethodType,
       userId: req.userId,
-    },
-  });
-  console.log({ paymentIntent: paymentIntent });
+      stripePaymentIntentId: paymentIntent.id,
+      lastPaymentDate: new Date(),
+    });
 
-  const obj = {
-    amount,
-    currency,
-    paymentMethodType: Array.isArray(paymentMethodType)
-      ? paymentMethodType
-      : paymentMethodType, // Store original format
-    userId: req.userId,
-    stripePaymentIntentId: paymentIntent.id,
-    lastPaymentDate: new Date(),
-  };
+    // Return payment intent with type for frontend to identify
+    return {
+      ...paymentIntent,
+      type: "payment_intent",
+    };
+  } catch (error) {
+    console.error("Error creating payment intent:", error);
 
-  await StripeModel.create(obj);
-  return paymentIntent;
+    // Check for test/live mode mismatch
+    if (
+      error.code === "resource_missing" &&
+      error.message?.includes("test mode")
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TEST_LIVE_MODE_MISMATCH", lang),
+      });
+    }
+
+    // Check for insufficient capabilities error
+    if (error.code === "insufficient_capabilities_for_transfer") {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
+      });
+    }
+
+    throwError({
+      status: STATUS_CODES.SERVER_ERROR,
+      message: error.message || t("STRIPE_PAYMENT_INTENT_ERROR", lang),
+    });
+  }
 };
 
 // const createPaymentMethod = async (req) => {
