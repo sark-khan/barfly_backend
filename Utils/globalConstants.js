@@ -41,11 +41,15 @@ const NUTRITION_TYPE = {
   LIQUID: "Liquid",
   FOOD: "Food",
   SOLID: "Solid",
+  DEFAULT: "",
 };
 
 const UNIT_TYPE = {
-  ML: "Ml",
-  Litre: "Litre",
+  ML: "ML",
+  Litre: "L",
+  GRAM: "G",
+  KILOGRAM: "KG",
+  EMPTY: "",
 };
 
 const DRINKS_SIZE = {
@@ -84,6 +88,7 @@ const STATUS = {
   ACTIVE: "Active",
   INACTIVE: "Inactive",
   DELETED: "Deleted",
+  BLOCKED: "Blocked",
 };
 
 const EDIT_ACTION = {
@@ -286,10 +291,63 @@ const COUNTRY_ARRAY = [
 ];
 
 const STRIPE_PAYMENT_STATUS = {
+  CREATED: "Created",
   SUCCESSFUL: "Successful",
   PENDING: "Pending",
   FAILED: "Failed",
   CANCELLED: "Cancelled",
+  INCOMPLETE: "Incomplete",
+  DISPUTED: "Disputed",
+};
+
+const ANSWER_TYPES = {
+  RATING: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+  RATING_FIVE: ["1", "2", "3", "4", "5"],
+  FEEDBACK: ["Good", "Decent", "Bad"],
+  BOOLEAN: ["True", "False", "Neutral"],
+  FRIENDLY: [
+    "Very user friendly",
+    "User-friendly",
+    "Neutral",
+    "Less user friendly",
+    "Difficult to understand",
+  ],
+};
+
+const ALL_ANSWER_TYPES = [
+  ...ANSWER_TYPES.RATING,
+  ...ANSWER_TYPES.FEEDBACK,
+  ...ANSWER_TYPES.BOOLEAN,
+];
+
+const APP_FEEDBACK_QUESTIONS = [
+  {
+    id: "appFeedback1",
+    question: "How would you rate your overall experience with countr?",
+    answerType: "RATING_FIVE",
+  },
+  {
+    id: "appFeedback2",
+    question: "How user-friendly do you find countr?",
+    answerType: "RATING",
+  },
+  {
+    id: "appFeedback3",
+    question: "How likely is it that you would recommend countr to others?",
+    answerType: "FRIENDLY",
+  },
+  {
+    id: "appFeedback4",
+    question: "Is there anything else you would like to share?",
+    answerType: "TEXT",
+  },
+];
+
+const SERIAL_TYPE = {
+  WORKDAYS: "Workdays",
+  ONE_DAY: "One Day",
+  CUSTOM: "Custom",
+  WEEKENDS: "Weekends",
 };
 
 module.exports = {
@@ -311,4 +369,8 @@ module.exports = {
   STRIPE_PAYMENT_STATUS,
   NUTRITION_TYPE,
   UNIT_TYPE,
+  ANSWER_TYPES,
+  ALL_ANSWER_TYPES,
+  APP_FEEDBACK_QUESTIONS,
+  SERIAL_TYPE,
 };

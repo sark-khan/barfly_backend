@@ -29,14 +29,13 @@ const uploadBufferToS3 = async (buffer, key) => {
 };
 
 // Example usage
-
-const downloadBufferFromS3 = (key) => {
+const downloadBufferFromS3 = async (key) => {
   const params = {
-    Bucket: process.env.BUCKET_NAME, // Your S3 bucket name
-    Key: key, // The key (file name) you want to download
+    Bucket: process.env.BUCKET_NAME,
+    Key: key,
   };
-
-  return s3.getObject(params).createReadStream();
+  const data = await s3.getObject(params).promise();
+  return data.Body; // returns a Buffer
 };
 
 const generatePresignedUrl = (key, expiresIn = 3600) => {

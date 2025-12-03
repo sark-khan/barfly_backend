@@ -4,17 +4,19 @@ const { ObjectId } = mongoose.Types;
 const feedbackAnswerSchema = new mongoose.Schema(
   {
     questionId: {
-      type: ObjectId,
-      ref: "FeedbackQuestions",
+      type: String,
       required: true,
     },
-    value: {
+    answer: {
       type: mongoose.Schema.Types.Mixed,
       required: true,
-    },
-    description: {
-      type: String,
-      default: "",
+      validate: {
+        validator: function (value) {
+          // Allow both number (for rating) and string (for text)
+          return typeof value === "number" || typeof value === "string";
+        },
+        message: "Answer must be either a number (rating) or a string (text)",
+      },
     },
   },
   { _id: false }
@@ -27,18 +29,13 @@ const feedbackSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    entityId: {
-      type: ObjectId,
-      ref: "entitydetails",
-      required: true,
-    },
     answers: [feedbackAnswerSchema],
   },
   { timestamps: true, minimize: false }
 );
 
-module.exports = new mongoose.model(
-  "Userfeedback",
+module.exports = mongoose.model(
+  "UserAppFeedback",
   feedbackSchema,
-  "Userfeedback"
+  "UserAppFeedback"
 );

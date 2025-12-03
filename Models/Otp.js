@@ -9,6 +9,7 @@ const otpSchema = new Schema(
     contactNumber: { type: String },
     otp: { type: Number, required: true },
     expiresAt: { type: Date, required: true },
+    sentAt: { type: Date },
   },
   { timestamps: true }
 );

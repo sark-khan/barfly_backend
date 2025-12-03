@@ -16,43 +16,64 @@ const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
+const notificationSettings = require("../../../Models/notificationSettings");
+const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
-  const {
-    email,
-    fullName,
-    city,
-    street,
-    zipcode,
-    password,
-    dob,
-    country,
-    address,
-    contactNumber,
-  } = req.body;
+  const lang = getLanguageFromRequest(req);
+  const { email, firstName, lastName, password, dob, countrTag } = req.body;
 
-  const userExist = await User.findOne({ email, status: STATUS.ACTIVE }).lean();
+  const userExist = await User.findOne({
+    email,
+    status: STATUS.ACTIVE,
+    role: ROLES.CUSTOMER,
+  }).lean();
   if (userExist) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registerd",
+      message: t("CUSTOMER_ALREADY_REGISTERED_EMAIL", lang),
+    });
+  }
+  const countrTagExists = await User.findOne({
+    countrTag,
+    status: STATUS.ACTIVE,
+  });
+  if (countrTagExists) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("COUNTR_TAG_ALREADY_EXISTS", lang),
     });
   }
 
   const hashedPassword = hashPassword(password);
+
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+
   const userObj = await User.create({
     role: ROLES.CUSTOMER,
-    fullName,
+    fullName: `${firstName} ${lastName}`,
+    firstName,
+    lastName,
     email,
     password: hashedPassword,
-    city,
-    street,
-    zipcode,
-    dob,
-    country,
-    address,
-    contactNumber,
     status: STATUS.ACTIVE,
+    countrTag,
+  });
+
+  await notificationSettings.create({
+    userId: userObj._id,
+    isEmailOn: true,
+    isPushOn: true,
+    isPromotionalOn: true,
   });
 
   delete userObj.password;
@@ -62,6 +83,7 @@ module.exports.register = async (req) => {
 };
 
 module.exports.login = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, password } = req.body;
   const userProjection = {
     role: 1,
@@ -73,21 +95,21 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email, status: STATUS.ACTIVE },
+    { email, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
     userProjection
   ).lean();
 
   if (!user) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "User does not exist",
+      message: t("CUSTOMER_NOT_FOUND", lang),
     });
   }
 
   if (user.role !== ROLES.CUSTOMER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Only Customers can log in",
+      message: t("CUSTOMER_ONLY_LOGIN", lang),
     });
   }
 
@@ -95,7 +117,7 @@ module.exports.login = async (req) => {
   if (!isPasswordValid) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Invalid password",
+      message: t("CUSTOMER_INVALID_PASSWORD", lang),
     });
   }
 
@@ -104,52 +126,11 @@ module.exports.login = async (req) => {
   return { user, token };
 };
 
-module.exports.countRTag = async (req) => {
-  const { countRTag, userId } = req.body;
-
-  const user = await User.findById(userId);
-  if (!user) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist",
-    });
-  }
-
-  const countRTagExists = await CountRTags.findOne({ countRTag }).lean();
-  if (countRTagExists) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Oops! This username is not available. Please try again.",
-    });
-  }
-
-  const obj = {
-    userId: user._id,
-    countRTag: `${countRTag}`,
-  };
-  await CountRTags.create(obj);
-  // await User.findOneAndUpdate(
-  //   { _id: userId },
-  //   { $set: { isRegistrationCompleted: true } }
-  // );
-};
-
 module.exports.checkAndProvideCountRTag = async (req) => {
-  const { userId } = req.query;
-  const user = await User.findOne({ _id: userId, status: STATUS.ACTIVE });
-
-  if (!user) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
-    });
-    return;
-  }
-
-  let [firstName = "", lastName = ""] = user.fullName.split(" ");
+  const { firstName, lastName } = req.query;
 
   const isUsernameExists = async (username) => {
-    return CountRTags.exists({ countRTag: username });
+    return User.exists({ countrTag: username, status: STATUS.ACTIVE });
   };
 
   const generateUniqueUsername = async (baseUsername) => {
@@ -178,7 +159,9 @@ module.exports.checkAndProvideCountRTag = async (req) => {
     uniqueUsernames.push(await generateUniqueUsername(base));
   }
 
-  const existingTags = await CountRTags.distinct("countRTag");
+  const existingTags = await User.distinct("countrTag", {
+    status: STATUS.ACTIVE,
+  });
 
   const availableTags = uniqueUsernames.filter(
     (tag) => !existingTags.includes(tag)
@@ -195,13 +178,20 @@ module.exports.logoutUser = async (req) => {
 };
 
 module.exports.deleteAccount = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { userId } = req;
   const user = await User.findById(userId);
   if (!user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User doesn't exist.",
+      message: t("CUSTOMER_DOES_NOT_EXIST", lang),
     });
   }
-  await User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } });
+  await Promise.all([
+    User.updateOne(
+      { _id: userId },
+      { $set: { status: STATUS.DELETED, countrTag: null } }
+    ),
+    CountRTags.deleteMany({ userId }),
+  ]);
 };

@@ -7,3 +7,5 @@ countrapp-key.pem
 logo.png
 web.zip
 firebaseKey.json
+firebaseCountrplusKey.json
+ecosystem.config.js

@@ -12,6 +12,7 @@ const orderSchme = new Schema(
         {
           itemId: { type: ObjectId, ref: "ItemDetails" },
           quantity: { type: Number },
+          note: { type: String, default: "" },
         },
       ],
     },
@@ -37,12 +38,16 @@ const orderSchme = new Schema(
     },
     tableNo: { type: Number, default: 0 },
     isSelfPickup: { type: Boolean },
-    note: { type: String },
+    note: { type: String, default: "" },
     discountAmount: { type: Number, default: 0 },
-    finalAmount: { type: Number, required: true },
+    finalAmount: {
+      type: Number,
+      required: true,
+      set: (value) => Number(value.toFixed(2)),
+    },
     couponCode: { type: String },
-    tax: { type: Number, },
-    platformFee: { type: Number },
+    tax: { type: Number },
+    platformFees: { type: Number },
   },
   { timestamps: true, minimize: false }
 );

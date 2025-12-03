@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { STATUS } = require("../Utils/globalConstants");
 const Schema = mongoose.Schema;
 
 const counterSchema = new Schema(
@@ -9,6 +10,9 @@ const counterSchema = new Schema(
     isTableService: { type: Boolean, default: false },
     isSelfPickUp: { type: Boolean, default: true },
     totalTables: { type: Number, default: 0 },
+    status: { type: String, enum: Object.values(STATUS) },
+    tableCount: [{ type: String }],
+    tableSectionName: { type: String },
   },
   { timestamps: true }
 );

@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const Event = require("../../Models/Event");
 const InsiderElement = require("../../Models/MenuCategory");
 const MenuItem = require("../../Models/MenuItem");
+const crypto = require("crypto");
 const {
   STATUS_CODES,
   INSIDER_TYPE,
@@ -14,103 +15,368 @@ const throwError = require("../../Utils/throwError");
 const Counter = require("../../Models/Counter");
 const MenuCategory = require("../../Models/MenuCategory");
 const ItemDetails = require("../../Models/ItemDetails");
-const { uploadBufferToS3, generatePresignedUrl } = require("../aws-service");
+const {
+  uploadBufferToS3,
+  generatePresignedUrl,
+  downloadBufferFromS3,
+} = require("../aws-service");
 const {
   shiftArrayRight,
   comparePassword,
+  sendFirebaseNotification,
 } = require("../../Utils/commonFunction");
 const Order = require("../../Models/Order");
 const Discount = require("../../Models/Discount");
 const EntityDetails = require("../../Models/EntityDetails");
 const User = require("../../Models/User");
+const Tables = require("../../Models/Tables");
+const Feedbacks = require("../../Models/UserFeedback");
+const FeedbackQuestions = require("../../Models/FeedbackQuestions");
+const globalConstants = require("../../Utils/globalConstants");
+const ItemSearchLogs = require("../../Models/ItemSearchLogs");
+const Otp = require("../../Models/Otp");
+const { createMail, sendSMS } = require("../../Utils/mailer");
+// const { path } = require("pdfkit");
+const path = require("path");
+const { io } = require("../../app");
+const { messaging } = require("firebase-admin");
+const { messagingPlus } = require("../../firebaseAdmin");
+const SalesReport = require("../../Models/SalesReport");
+const { t, getLanguageFromRequest } = require("../../Utils/translator");
+
+const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
 
 module.exports.createCounter = async (req) => {
-  const { counterName, isTableService, isSelfPickUp, totalTables } = req.body;
+  const lang = getLanguageFromRequest(req);
+  const {
+    counterName,
+    isTableService,
+    isSelfPickUp,
+    tableFrom,
+    tableTo,
+    tableSectionName,
+  } = req.body;
+
   if (!counterName) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Couter name is required",
+      message: t("OWNER_COUNTER_NAME_REQUIRED", lang),
     };
   }
 
   const existingCounter = await Counter.findOne(
-    { counterName, ownerId: req.userId },
+    {
+      counterName,
+      ownerId: req.userId,
+      entityId: req.entityId,
+      status: STATUS.ACTIVE,
+    },
     { _id: 1 }
   );
 
   if (existingCounter) {
     throw {
       status: STATUS_CODES.BAD_REQUEST,
-      message: "This counter name already exists",
+      message: t("OWNER_COUNTER_NAME_EXISTS", lang),
     };
   }
 
-  const newCounter = await Counter.findOneAndUpdate(
-    { counterName, ownerId: req.id, entityId: req.entityId },
-    {
-      counterName,
-      ownerId: req.userId,
-      entityId: req.entityId,
-      isTableService,
-      isSelfPickUp,
-      totalTables,
-    },
-    { new: true, upsert: true, lean: true }
+  if (Number(tableFrom) >= Number(tableTo)) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_TABLE_RANGE_INVALID", lang),
+    });
+  }
+
+  const tableNumbers = Array.from(
+    { length: Number(tableTo) - Number(tableFrom) + 1 },
+    (_, i) => String(Number(tableFrom) + i)
   );
 
-  if (!newCounter) {
-    throw {
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "Failed to create a counter",
-    };
+  const newCounter = await Counter.create({
+    counterName,
+    ownerId: req.userId,
+    entityId: req.entityId,
+    isTableService,
+    isSelfPickUp,
+    status: STATUS.ACTIVE,
+    tableCount: tableNumbers,
+    tableSectionName,
+  });
+
+  const categoryList = await MenuCategory.find({
+    entityId: req.entityId,
+  }).select("categoryName nutritionType");
+
+  const uniqueCategoriesMap = new Map();
+
+  // Use a Map to ensure uniqueness based on categoryName
+  for (const item of categoryList) {
+    if (!uniqueCategoriesMap.has(item.categoryName)) {
+      uniqueCategoriesMap.set(item.categoryName, item.nutritionType);
+    }
   }
 
-  // const response = newCounter;
-  // delete response.createdAt;
-  // delete response.updatedAt;
-  // delete response.ownerId;
+  // Now iterate and create new categories
+  for (const [categoryName, nutritionType] of uniqueCategoriesMap.entries()) {
+    await MenuCategory.create({
+      counterId: newCounter._id,
+      entityId: req.entityId,
+      categoryName,
+      nutritionType,
+    });
+  }
 
-  return newCounter;
+  io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
+
+  if (isTableService) {
+    const lastTable = await Tables.findOne(
+      { entityId: req.entityId },
+      { tableSetionNo: 1 }
+    ).sort({ createdAt: -1 });
+
+    const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+
+    await Tables.create({
+      tableCount: tableNumbers,
+      tableSectionName,
+      userId: req.userId,
+      entityId: req.entityId,
+      counterIds: newCounter._id,
+      tableSetionNo: newTableSectionNo,
+      status: STATUS.ACTIVE,
+    });
+  }
+
+  // const owner = await User.findOne(
+  //   {
+  //     _id: newCounter.ownerId,
+  //     fcmToken: { $exists: true, $not: { $size: 0 } },
+  //   },
+  //   { fcmToken: 1 }
+  // );
+
+  sendFirebaseNotification({
+    topic: `entity_${newCounter.entityId}`,
+    showNotification: true,
+    title: "New Counter Added",
+    body: "You have a new counter added. Tap to view.",
+    data: {
+      action: "counter_update",
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${newCounter.entityId}`,
+    },
+  });
+  // if (!owner?.fcmToken?.length) return newCounter.toObject();
+
+  // const notificationPayload = (token) => ({
+  //   notification: {
+  //     title: "New Counter Created",
+  //     body: `Counter "${counterName}" is now available.`,
+  //   },
+  //   data: {
+  //     screen: "counter",
+  //     entityId: req.entityId.toString(),
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  //   token,
+  //   android: {
+  //     priority: "high",
+  //     notification: {
+  //       click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //     },
+  //   },
+  //   apns: {
+  //     payload: {
+  //       aps: {
+  //         content_available: true,
+  //         alert: {
+  //           title: "New Counter Created",
+  //           body: `Counter "${counterName}" is now available.`,
+  //         },
+  //         category: "FLUTTER_NOTIFICATION_CLICK",
+  //         mutableContent: 1,
+  //       },
+  //     },
+  //   },
+  // });
+
+  // for (const token of owner.fcmToken) {
+  //   try {
+  //     await messagingPlus.send(notificationPayload(token));
+  //     console.log(`Notification sent to token: ${token}`);
+  //   } catch (err) {
+  //     console.error("FCM push failed for token:", token, err.message);
+
+  //     // Optional: Remove invalid tokens
+  //     if (
+  //       err.code === "messaging/invalid-argument" ||
+  //       err.code === "messaging/registration-token-not-registered" ||
+  //       err.code === "messaging/invalid-recipient"
+  //     ) {
+  //       await User.updateOne(
+  //         { _id: newCounter.ownerId },
+  //         { $pull: { fcmToken: token } }
+  //       );
+  //     }
+  //   }
+  // }
+
+  return newCounter.toObject();
 };
 
 module.exports.createCounterMenuCategory = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     entityId,
-    body: { counterIds, categoryName, nutritionType },
+    body: { categories },
   } = req;
 
-  if (!counterIds || !categoryName) {
+  if (!Array.isArray(categories) || categories.length === 0) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "CounterIds and category name are required.",
+      message: t("OWNER_CATEGORIES_REQUIRED", lang),
     });
   }
 
-  if (!Array.isArray(counterIds) || counterIds.length === 0) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: "CounterIds must be a non-empty array.",
+  const counters = await Counter.find({ entityId: req.entityId }).select("_id");
+  const counterIds = counters.map((counter) => counter._id.toString());
+
+  for (const category of categories) {
+    const { categoryName, nutritionType } = category;
+    if (
+      !categoryName ||
+      !Array.isArray(counterIds) ||
+      counterIds.length === 0
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTERS_REQUIRED", lang),
+      });
+    }
+
+    const existingCategory = await MenuCategory.findOne({
+      entityId,
+      categoryName,
+      counterId: { $in: counterIds },
     });
+
+    if (existingCategory) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_CATEGORY_ALREADY_EXISTS_FOR_COUNTER", lang, {
+          categoryName,
+        }),
+      });
+    }
   }
 
-  const categoryObjects = counterIds.map((counterId) => ({
-    counterId,
-    categoryName,
-    entityId,
-    nutritionType,
-  }));
+  const categoryObjects = categories.flatMap(
+    ({ categoryName, nutritionType }) =>
+      counterIds.map((counterId) => ({
+        categoryName,
+        nutritionType,
+        counterId,
+        entityId,
+      }))
+  );
+
+  // const
 
   const createdCategories = await MenuCategory.insertMany(categoryObjects);
+
+  io.to(createdCategories[0].entityId.toString()).emit(
+    "newCategory",
+    createdCategories
+  );
+
+  sendFirebaseNotification({
+    topic: `entity_${createdCategories[0].entityId}`,
+    showNotification: true,
+    title: "New Category Added",
+    body: "You have a new category added. Tap to view.",
+    data: {
+      action: "category_update",
+      screen: "category_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${createdCategories[0].entityId}`,
+    },
+  });
 
   return createdCategories;
 };
 
-module.exports.getInsiderElements = async (insiderId) => {
+module.exports.getCounters = async (req) => {
+  const {
+    userId,
+    entityId,
+    query: { isItemRequired = "false", isSettings = "false" },
+  } = req;
+
+  const query = { ownerId: userId, entityId };
+
+  if (isSettings === "true") {
+    query.$or = [{ status: STATUS.ACTIVE }, { status: STATUS.INACTIVE }];
+  } else {
+    query.status = STATUS.ACTIVE;
+  }
+
+  const fetchCounters = await Counter.find(query, {
+    counterName: 1,
+    isSelfPickUp: 1,
+    isTableService: 1,
+    tableCount: 1,
+    status: 1,
+    tableSectionName: 1,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (isItemRequired !== "true") {
+    return fetchCounters;
+  }
+
+  // Map of counterId -> []
+  const counterIds = fetchCounters.map((counter) => counter._id);
+
+  const items = await ItemDetails.find(
+    {
+      entityId,
+      counterId: { $in: counterIds },
+    },
+    { itemName: 1, inStock: 1, counterId: 1 }
+  ).lean();
+
+  // Build mapping of counterId to its items
+  const itemMapping = {};
+  items.forEach((item) => {
+    const counterIdStr = item.counterId.toString();
+    if (!itemMapping[counterIdStr]) {
+      itemMapping[counterIdStr] = [];
+    }
+    itemMapping[counterIdStr].push({
+      itemName: item.itemName,
+      inStock: item.inStock,
+      _id: item._id,
+    });
+  });
+
+  // Attach items to counters
+  const counterDetails = fetchCounters.map((counter) => ({
+    ...counter,
+    items: itemMapping[counter._id.toString()] || [],
+  }));
+
+  return counterDetails;
+};
+
+module.exports.getInsiderElements = async (insiderId, lang) => {
   try {
     if (!insiderId) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "InsiderId is required",
+        message: t("OWNER_INSIDER_ID_REQUIRED", lang),
       });
     }
     const elements = await InsiderElement.find({ insiderId }).lean();
@@ -118,10 +384,119 @@ module.exports.getInsiderElements = async (insiderId) => {
   } catch (error) {
     throw {
       status: error.status || STATUS_CODES.BAD_REQUEST,
-      message: error.message || "Failed to fetch insider elements",
+      message: error.message || t("OWNER_INSIDER_FETCH_ERROR", lang),
     };
   }
 };
+
+// module.exports.createMenuItem = async (req) => {
+//   const {
+//     file,
+//     body: {
+//       itemName,
+//       price,
+//       description,
+//       currency,
+//       menuCategoryIds,
+//       quantity,
+//       isVegan,
+//       unit,
+//       nutritionType,
+//       counterIds,
+//     },
+//   } = req;
+
+//   let fileName = "";
+
+//   if (file) {
+//     const fileBuffer = file.buffer;
+//     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+
+//     try {
+//       const data = await uploadBufferToS3(fileBuffer, fileName);
+//       if (!data.Location) {
+//         throwError({
+//           status: STATUS_CODES.BAD_REQUEST,
+//           message: "Error occurred while uploading the file",
+//         });
+//       }
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   }
+
+//   if (menuCategoryIds.length === 0) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "At least one menu category is required",
+//     });
+//   }
+
+//   const menuCategories = await MenuCategory.find({
+//     _id: { $in: menuCategoryIds },
+//   });
+
+//   // if (menuCategories.length != menuCategoryIds.length) {
+//   //   throwError({
+//   //     status: STATUS_CODES.NOT_FOUND,
+//   //     message: "One or more menu categories not found",
+//   //   });
+//   // }
+
+//   const existingItem = await ItemDetails.findOne({
+//     itemName,
+//     menuCategoryId: { $in: menuCategoryIds },
+//   });
+
+//   if (existingItem) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Same item exists in one of the selected menu categories",
+//     });
+//   }
+
+//   const createdItems = await Promise.all(
+//     menuCategories.map(async (category) => {
+//       return ItemDetails.create({
+//         itemName,
+//         price,
+//         currency: "CHF",
+//         menuCategoryId: category._id,
+//         entityId: req.entityId,
+//         counterId: category.counterId,
+//         counterIds,
+//         image: fileName,
+//         isVegan,
+//         unit,
+//         description,
+//         nutritionType,
+//         inStock: true,
+//         quantity,
+//       });
+//     })
+//   );
+
+//   io.to(createdItems[0].entityId.toString()).emit("newItem", createdItems);
+
+//   sendFirebaseNotification({
+//     titleText: "New item added",
+//     body: "New Item Added in the menu list",
+//     data: {
+//       action: "item created",
+//       click_action: "FLUTTER_NOTIFICATION_CLICK",
+//     },
+//     token: "",
+//     showNotification: false,
+//   });
+
+//   return createdItems;
+// };
 
 module.exports.createMenuItem = async (req) => {
   const {
@@ -131,17 +506,21 @@ module.exports.createMenuItem = async (req) => {
       price,
       description,
       currency,
-      menuCategoryId,
-      availableQuantity,
+      // menuCategoryIds,
+      quantity,
       isVegan,
       unit,
       nutritionType,
       counterIds,
+      categoryName,
     },
   } = req;
 
+  const lang = getLanguageFromRequest(req);
+
   let fileName = "";
 
+  // Upload image to S3 if provided
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -154,54 +533,110 @@ module.exports.createMenuItem = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
 
-  const menuCategory = await MenuCategory.findById(menuCategoryId);
-  if (!menuCategory) {
-    throw {
-      status: STATUS_CODES.NOT_FOUND,
-      message: "Menu Category not found",
-    };
-  }
+  // if (!menuCategoryIds || menuCategoryIds.length === 0) {
+  //   throwError({
+  //     status: STATUS_CODES.BAD_REQUEST,
+  //     message: "At least one menu category is required",
+  //   });
+  // }
 
-  const existingItem = await ItemDetails.findOne(
-    { itemName, menuCategoryId },
-    { _id: 1 }
-  );
+  // Get menu categories by IDs
+  const menuCategories = await MenuCategory.find({
+    categoryName: categoryName,
+    entityId: req.entityId,
+    counterId: { $in: counterIds }, // ✅ Use $in to match array of ObjectIds
+  });
+
+  // if (menuCategories.length !== menuCategoryIds.length) {
+  //   throwError({
+  //     status: STATUS_CODES.NOT_FOUND,
+  //     message: "One or more menu categories not found",
+  //   });
+  // }
+
+  // Check duplicate item per category
+  const menuCategoryIds = menuCategories.map((cat) => cat._id);
+
+  const existingItem = await ItemDetails.findOne({
+    itemName,
+    menuCategoryId: { $in: menuCategoryIds },
+  });
+
   if (existingItem) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Same item exists in this menu",
+      message: t("OWNER_MENU_ITEM_DUPLICATE_CATEGORY", lang),
     });
   }
 
-  const itemDetails = await ItemDetails.create({
-    itemName,
-    price,
-    availableQuantity,
-    currency: "CHF",
-    menuCategoryId,
-    entityId: req.entityId,
-    counterId: menuCategory.counterId,
-    counterIds,
-    image: fileName,
-    isVegan,
-    unit,
-    description,
-    nutritionType,
-    isOutOfStock: false,
+  // Create item once per category, assign all counterIds, and category's own counterId if available
+
+  // console.log({menuCategoryIds});
+  const createdItems = await Promise.all(
+    menuCategories.map(async (category) => {
+      return ItemDetails.create({
+        itemName,
+        price,
+        currency: currency || "CHF",
+        menuCategoryId: category._id,
+        entityId: req.entityId,
+        counterIds, // Full array as requested
+        counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
+        image: fileName,
+        isVegan,
+        unit,
+        description,
+        nutritionType,
+        inStock: true,
+        quantity,
+      });
+    })
+  );
+
+  // Emit socket event to entity room
+  io.to(req.entityId.toString()).emit("newItem", createdItems);
+
+  sendFirebaseNotification({
+    topic: `entity_${req.entityId}`,
+    showNotification: true,
+    title: "New Item Added",
+    body: "You have a new item added. Tap to view.",
+    data: {
+      action: "item_update",
+      screen: "item_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${req.entityId}`,
+      // categoryName: categoryName,
+      // counter: category.counterId,
+      // category: category._id,
+      entityId: req.entityId,
+    },
   });
 
-  return itemDetails;
+  // Send Firebase notification
+  // sendFirebaseNotification({
+  //   titleText: "New item added",
+  //   body: "New Item Added in the menu list",
+  //   data: {
+  //     action: "item created",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  //   token: "",
+  //   showNotification: false,
+  // });
+
+  return createdItems;
 };
 
 // module.exports.createItems = async (req) => {
@@ -245,105 +680,278 @@ module.exports.updateMenuItem = async (req) => {
       description,
       nutritionType,
       currency,
-      availableQuantity,
+      quantity,
       action,
-      isOutOfStock,
+      inStock,
       counterIds,
+      unit,
+      isCounterRemove,
     },
   } = req;
 
-  console.log({ body: req.body });
+  const lang = getLanguageFromRequest(req);
 
   const item = await ItemDetails.findOne({ _id: itemId });
-  console.log({ item });
-
   if (!item) {
     return throwError({
       status: STATUS_CODES.NOT_FOUND,
-      message: "Item not found.",
+      message: t("OWNER_ITEM_NOT_FOUND", lang),
     });
   }
 
-  if (action === EDIT_ACTION.EDIT) {
-    // Update fields only if they exist (handle falsy values correctly)
-    if (itemName !== undefined) item.itemName = itemName;
-    if (price !== undefined) item.price = price;
-    if (description !== undefined) item.description = description;
-    if (nutritionType !== undefined) item.nutritionType = nutritionType;
-    if (currency !== undefined) item.currency = currency;
-    if (availableQuantity !== undefined)
-      item.availableQuantity = availableQuantity;
-    if (counterIds !== undefined) item.counterIds = counterIds;
-    if (isOutOfStock !== undefined) item.isOutOfStock = isOutOfStock;
+  const referenceItemName = item.itemName;
+  const items = await ItemDetails.find({ itemName: referenceItemName });
 
-    if (file) {
-      const fileBuffer = file.buffer;
-      const fileName = `${
-        req.entityId
-      }_${Date.now()}_${file.originalname.replace(/ /g, "_")}`;
+  const fileName = file
+    ? `${req.entityId}_${Date.now()}_${file.originalname.replace(/ /g, "_")}`
+    : null;
 
-      try {
-        const data = await uploadBufferToS3(fileBuffer, fileName);
-        if (!data.Location) {
-          return throwError({
-            status: STATUS_CODES.BAD_REQUEST,
-            message: "Error occurred while uploading the file",
-          });
-        }
-        item.image = fileName;
-      } catch (error) {
+  if (file) {
+    try {
+      const data = await uploadBufferToS3(file.buffer, fileName);
+      if (!data.Location) {
         return throwError({
-          status: STATUS_CODES.INTERNAL_SERVER_ERROR,
-          message: "File upload failed",
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
+    } catch (error) {
+      return throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
+      });
     }
+  }
 
-    await item.save(); // Save the updated item
-  } else if (action === EDIT_ACTION.DELETE) {
-    await ItemDetails.deleteOne({ _id: itemId });
+  if (isCounterRemove) {
+    if (action === EDIT_ACTION.EDIT) {
+      if (itemName !== undefined) item.itemName = itemName;
+      if (price !== undefined) item.price = price;
+      if (description !== undefined) item.description = description;
+      if (nutritionType !== undefined) item.nutritionType = nutritionType;
+      if (currency !== undefined) item.currency = currency;
+      if (quantity !== undefined) item.quantity = quantity;
+      if (counterIds !== undefined) item.counterIds = counterIds;
+      if (inStock !== undefined) item.inStock = inStock;
+      if (unit !== undefined) item.unit = unit;
+      if (fileName) item.image = fileName;
+
+      await item.save();
+      io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
+        },
+      });
+    } else if (action === EDIT_ACTION.DELETE) {
+      await ItemDetails.deleteOne({ _id: itemId });
+      io.to(item.entityId.toString()).emit("menuItemUpdated", {
+        itemId: item._id,
+      });
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
+        },
+      });
+    }
+  }
+
+  for (const item of items) {
+    if (action === EDIT_ACTION.EDIT) {
+      if (itemName !== undefined) item.itemName = itemName;
+      if (price !== undefined) item.price = price;
+      if (description !== undefined) item.description = description;
+      if (nutritionType !== undefined) item.nutritionType = nutritionType;
+      if (currency !== undefined) item.currency = currency;
+      if (quantity !== undefined) item.quantity = quantity;
+      if (counterIds !== undefined) item.counterIds = counterIds;
+      if (inStock !== undefined) item.inStock = inStock;
+      if (unit !== undefined) item.unit = unit;
+      if (fileName) item.image = fileName;
+
+      await item.save();
+      io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
+        },
+      });
+    } else if (action === EDIT_ACTION.DELETE) {
+      await ItemDetails.deleteOne({ _id: item._id });
+      io.to(item.entityId.toString()).emit("menuItemUpdated", {
+        itemId: item._id,
+      });
+      sendFirebaseNotification({
+        topic: `entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${item.entityId}`,
+        },
+      });
+    }
   }
 };
 
 module.exports.getCreatedItems = async (req) => {
   const {
     entityId,
-    query: { menuCategoryId, pageNo = 1, pageLimit = 8, isOutOfStock },
+    query: {
+      itemId,
+      menuCategoryId,
+      pageNo = 1,
+      pageLimit = 8,
+      inStock,
+      searchTerm,
+      searchedId,
+      menuCategoryName,
+    },
   } = req;
 
+  if (itemId) {
+    const item = await ItemDetails.findOne({ _id: itemId, entityId })
+      .populate({
+        path: "menuCategoryId",
+        select: "categoryName counterId",
+        model: "CounterMenuCategory",
+        populate: {
+          path: "counterId",
+          select: "status counterName",
+          model: "Counter",
+        },
+      })
+      .lean();
+
+    if (!item || item.menuCategoryId?.counterId?.status !== STATUS.ACTIVE) {
+      return { itemsList: [], totalCount: 0 };
+    }
+
+    const itemWithImage = {
+      ...item,
+      image: item.image ? generatePresignedUrl(item.image) : null,
+    };
+
+    return { itemsList: [itemWithImage], totalCount: 1 };
+  }
+  let menuCategoryIds;
+  if (menuCategoryName) {
+    const categories = await MenuCategory.find(
+      { categoryName: menuCategoryName },
+      { _id: 1 }
+    );
+    menuCategoryIds = categories.map((cat) => cat._id);
+  }
+
+  console.log({ menuCategoryIds });
+
   const query = { entityId };
+
+  if (searchedId && !menuCategoryId) {
+    query._id = { $ne: searchedId };
+  }
+
   if (menuCategoryId) {
     query.menuCategoryId = menuCategoryId;
   }
-  if (isOutOfStock) {
-    query.isOutOfStock = isOutOfStock;
+
+  if (menuCategoryName && menuCategoryIds?.length) {
+    query.menuCategoryId = { $in: menuCategoryIds };
   }
 
-  const limit = Math.max(Number(pageLimit), 1);
-  const skip = (Math.max(Number(pageNo), 1) - 1) * limit;
+  if (inStock !== undefined) {
+    query.inStock = inStock;
+  }
 
-  const totalCount = await ItemDetails.countDocuments(query);
+  if (searchTerm) {
+    query.itemName = { $regex: searchTerm, $options: "i" };
+  }
+  console.log(query);
+
   const createdItems = await ItemDetails.find(query)
-    .lean()
+    .sort({ _id: -1 })
     .populate({
       path: "menuCategoryId",
-      select: "categoryName",
+      select: "categoryName counterId",
       model: "CounterMenuCategory",
+      populate: {
+        path: "counterId",
+        select: "status counterName",
+        model: "Counter",
+      },
     })
-    .skip(skip)
-    .limit(limit);
+    .lean();
 
-  const itemsList = createdItems.map((item) => {
-    if (!item.image) {
-      console.warn(`⚠️ Warning: Missing image for item ${item._id}`);
-      return item;
+  console.log({ createdItems });
+
+  if (searchedId && pageNo == 1 && !menuCategoryId) {
+    const searchedIdItem = await ItemDetails.findById(searchedId)
+      .sort({ _id: -1 })
+      .populate({
+        path: "menuCategoryId",
+        select: "categoryName counterId",
+        model: "CounterMenuCategory",
+        populate: {
+          path: "counterId",
+          select: "status counterName",
+          model: "Counter",
+        },
+      })
+      .lean();
+    if (searchedIdItem) {
+      createdItems.unshift(searchedIdItem); // Use unshift() to add item to the start of the array
+    }
+  }
+
+  const alreadyAddedItems = {};
+
+  const filteredItems = createdItems.filter((item) => {
+    const isActive = item.menuCategoryId?.counterId?.status === STATUS.ACTIVE;
+    const isNewItem = !alreadyAddedItems[item.itemName];
+
+    if (isActive && isNewItem) {
+      alreadyAddedItems[item.itemName] = true;
+      return true;
     }
 
-    return {
-      ...item,
-      image: generatePresignedUrl(item.image),
-    };
+    return false;
   });
+
+  const totalCount = filteredItems.length;
+
+  const paginatedItems = filteredItems.slice(
+    (pageNo - 1) * pageLimit,
+    pageNo * pageLimit
+  );
+
+  const itemsList = paginatedItems.map((item) => ({
+    ...item,
+    image: item.image ? generatePresignedUrl(item.image) : null,
+  }));
 
   return { itemsList, totalCount };
 };
@@ -367,33 +975,35 @@ module.exports.createEvent = async (req) => {
     userId,
     body: {
       eventName,
-      startingDate,
-      endDate,
+      serialType,
+      // startingDate,
+      // endDate,
       isRepetitive,
       repetitiveDays,
       from,
       to,
       counterIds,
-      ageLimit,
+      // ageLimit,
       location,
+      isAllDay,
     },
   } = req;
 
-  console.log({ from, to, startingDate });
+  const lang = getLanguageFromRequest(req);
+
   const dateTimeFrom = new Date(from);
   const dateTimeTo = new Date(to);
-  console.log({ dateTimeFrom, dateTimeTo });
   if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "The time format is invalid",
+      message: t("OWNER_EVENT_TIME_FORMAT_INVALID", lang),
     });
   }
 
   if (dateTimeFrom > dateTimeTo) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Invalid time selection",
+      message: t("OWNER_EVENT_TIME_SELECTION_INVALID", lang),
     });
   }
 
@@ -401,12 +1011,18 @@ module.exports.createEvent = async (req) => {
     eventName,
     ownerId,
     entityId: req.entityId,
+    $or: [
+      {
+        from: { $lte: dateTimeTo },
+        to: { $gte: dateTimeFrom },
+      },
+    ],
   });
 
   if (existingEvent) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "An event with the same details already exists",
+      message: t("OWNER_EVENT_DUPLICATE_TIME_ERROR", lang),
     });
   }
   let repetitiveDaysArr = [];
@@ -418,7 +1034,7 @@ module.exports.createEvent = async (req) => {
       console.error("Error parsing repetitiveDays:", error);
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid repetitiveDays format",
+        message: t("OWNER_EVENT_REPETITIVE_DAYS_INVALID", lang),
       });
     }
   }
@@ -437,32 +1053,34 @@ module.exports.createEvent = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
-        message: "File upload failed",
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
 
   const newEvent = new Event({
     eventName,
+    serialType,
     isRepetitive,
     repetitiveDays: repetitiveDaysArr,
-    startingDate: new Date(startingDate),
-    endDate: new Date(endDate),
+    // startingDate: new Date(startingDate),
+    // endDate: new Date(endDate),
     from: dateTimeFrom,
     to: dateTimeTo,
-    ageLimit,
+    // ageLimit,
     ownerId,
     userId,
     counterIds,
     entityId: req.entityId,
     image: fileName,
     location,
+    isAllDay,
   });
 
   const savedEvent = await newEvent.save();
@@ -474,23 +1092,169 @@ module.exports.createEvent = async (req) => {
   return savedEvent;
 };
 
+module.exports.deleteEvent = async (req) => {
+  const { eventId } = req.body;
+  const lang = getLanguageFromRequest(req);
+  const event = await Event.findById(eventId);
+  if (!event) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_EVENT_NOT_FOUND", lang),
+    });
+  }
+  await Event.deleteOne({ _id: eventId });
+};
+
+// module.exports.getUpcomingEvents = async (req) => {
+//   const currentDateTime = new Date();
+//   const {
+//     ownerId,
+//     entityId,
+//     query: { filterBy },
+//   } = req;
+
+//   let startDate = currentDateTime;
+//   let endDate = null;
+
+//   if (filterBy === "week") {
+//     const dayOfWeek = currentDateTime.getDay();
+//     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+//     startDate = new Date(currentDateTime);
+//     startDate.setDate(currentDateTime.getDate() + diffToMonday);
+//     startDate.setHours(0, 0, 0, 0);
+
+//     endDate = new Date(startDate);
+//     endDate.setDate(startDate.getDate() + 6);
+//     endDate.setHours(23, 59, 59, 999);
+//   } else if (filterBy === "month") {
+//     startDate = new Date(
+//       currentDateTime.getFullYear(),
+//       currentDateTime.getMonth(),
+//       1
+//     );
+//     endDate = new Date(
+//       currentDateTime.getFullYear(),
+//       currentDateTime.getMonth() + 1,
+//       0
+//     );
+//     endDate.setHours(23, 59, 59, 999);
+//   }
+
+//   const dateFilter = endDate
+//     ? { $gte: startDate, $lte: endDate }
+//     : { $gte: startDate };
+
+//   console.log({ dateFilter });
+
+//   const upcomingEvents = await Event.find({
+//     ownerId,
+//     entityId,
+//     from: dateFilter,
+//   }).sort({ createdAt: -1 });
+
+//   upcomingEvents.forEach((event) => {
+//     if (event.image) {
+//       event.image = generatePresignedUrl(event.image);
+//     }
+//   });
+//   console.log({ sssss: upcomingEvents });
+
+//   return upcomingEvents;
+// };
+
 module.exports.getUpcomingEvents = async (req) => {
   const currentDateTime = new Date();
-  const { ownerId, entityId } = req;
+  const {
+    ownerId,
+    entityId,
+    query: { filterBy, year, month },
+  } = req;
+
+  let startDate = new Date(currentDateTime);
+  startDate.setHours(0, 0, 0, 0);
+  let endDate = null;
+
+  if (year && month) {
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
+
+    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      throw new Error("Invalid year or month format.");
+    }
+
+    const firstDayOfMonth = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
+    const lastDayOfMonth = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+
+    startDate =
+      yearNum === currentDateTime.getFullYear() &&
+      monthNum === currentDateTime.getMonth() + 1
+        ? currentDateTime
+        : firstDayOfMonth;
+
+    endDate = lastDayOfMonth;
+  } else if (filterBy === "week") {
+    const diffToNextDay = 1;
+    const startFromTomorrow = new Date(currentDateTime);
+    startFromTomorrow.setDate(currentDateTime.getDate() + diffToNextDay);
+    startFromTomorrow.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(currentDateTime);
+    endOfWeek.setDate(
+      currentDateTime.getDate() + (7 - currentDateTime.getDay()) - 1
+    );
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    startDate = startFromTomorrow;
+    endDate = endOfWeek;
+  } else if (filterBy === "month") {
+    const currentYear = currentDateTime.getFullYear();
+    const currentMonth = currentDateTime.getMonth();
+
+    const startFromTomorrow = new Date(currentDateTime);
+    startFromTomorrow.setDate(currentDateTime.getDate() + 1);
+    startFromTomorrow.setHours(0, 0, 0, 0);
+
+    const endOfMonth = new Date(
+      currentYear,
+      currentMonth + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
+    startDate = startFromTomorrow;
+    endDate = endOfMonth;
+  }
+
+  const dateFilter = { $gte: startDate };
+  if (endDate) {
+    dateFilter.$lte = endDate;
+  }
 
   const upcomingEvents = await Event.find({
     ownerId,
     entityId,
-    from: { $gte: currentDateTime },
-  }).sort({ createdAt: -1 });
+    from: dateFilter,
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ from: 1 })
+    .lean();
 
-  upcomingEvents.map((logo) => {
-    if (!logo.image) {
-      return logo;
+  upcomingEvents.forEach((event) => {
+    if (event.image) {
+      event.image = generatePresignedUrl(event.image);
     }
-
-    logo.image = generatePresignedUrl(logo.image);
-    return logo;
+    event.counters = event.counterIds.map((counter) => ({
+      counterId: counter._id,
+      counterName: counter.counterName,
+    }));
+    delete event.counterIds;
   });
 
   return upcomingEvents;
@@ -606,8 +1370,10 @@ module.exports.getDistinctYears = async (req) => {
 
 module.exports.getOngoingEventDetails = async (req) => {
   const currentTime = new Date();
+  let currentUTCday = currentTime.getUTCDay();
 
-  // Fetch ongoing events
+  currentUTCday = currentUTCday === 0 ? 6 : currentUTCday - 1;
+
   const events = await Event.find(
     {
       from: { $lte: currentTime },
@@ -615,37 +1381,65 @@ module.exports.getOngoingEventDetails = async (req) => {
       entityId: req.entityId,
     },
     null,
-    { sort: { from: -1 }, lean: true }
-  );
-
-  console.log({ events });
+    { sort: { from: -1 } }
+  )
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .lean();
 
   const eventDetailsMap = new Map();
 
-  const ongoingEvents = events?.filter((event) => {
+  const ongoingEvents = events.filter((event) => {
     if (event.isRepetitive) {
-      const day = currentTime.getDay();
-      if (!event.repetitiveDays || !event.repetitiveDays[day]) {
+      if (
+        !Array.isArray(event.repetitiveDays) ||
+        event.repetitiveDays.length !== 7
+      ) {
+        console.log(
+          `Treating non-repetitive event (invalid repetitiveDays): ${event.eventName}`
+        );
+        return true;
+      }
+
+      if (event.repetitiveDays[currentUTCday] !== 1) {
+        console.log(
+          `Skipping event as it doesn't repeat today: ${event.eventName}`
+        );
         return false;
       }
     }
 
     eventDetailsMap.set(event._id.toString(), {
-      eventId: event._id,
+      _id: event._id,
       from: event.from,
       to: event.to,
+      isAllDay: event.isAllDay,
       eventName: event.eventName,
+      serialType: event.serialType,
+      location: event.location,
+      isRepetitive: event.isRepetitive,
+      repetitiveDays: event.repetitiveDays,
       activeUsers: event.activeUsers || 0,
       ageLimit: event.ageLimit,
       image: generatePresignedUrl(event.image),
       totalOrders: 0,
+      counters: event.counterIds.map((counter) => ({
+        counterId: counter._id,
+        counterName: counter.counterName,
+      })),
     });
 
     return true;
   });
 
+  if (!eventDetailsMap.size) return [];
+
   const orders = await Order.find({
     eventId: { $in: Array.from(eventDetailsMap.keys()) },
+    status: { $nin: [globalConstants.ORDER_STATUS.WAITING] },
   });
 
   orders.forEach((order) => {
@@ -687,8 +1481,6 @@ module.exports.getDistinctMonthsOfYear = async (req) => {
       },
     },
   ]);
-
-  console.log({ distinctMonthsAndYears: distinctMonthsAndYears[0]._id });
 
   return distinctMonthsAndYears.map((doc) => ({
     year: doc._id.year,
@@ -767,37 +1559,165 @@ module.exports.getMonthlyEventDetails = async (req) => {
   };
 };
 
-module.exports.getEventsByMonthAndYear = async (req) => {
+module.exports.getEventsByMonthAndYear = async (req, res) => {
   const {
     entityId,
     query: { month, year },
   } = req;
+  const lang = getLanguageFromRequest(req);
+
   if (!month || !year) {
     return res
       .status(STATUS_CODES.BAD_REQUEST)
-      .json({ message: "Month and year are required" });
+      .json({ message: t("OWNER_EVENTS_MONTH_YEAR_REQUIRED", lang) });
   }
 
-  const currentDateTime = new Date();
+  const monthNum = parseInt(month, 10);
+  const yearNum = parseInt(year, 10);
+
+  if (isNaN(monthNum) || isNaN(yearNum)) {
+    return res
+      .status(STATUS_CODES.BAD_REQUEST)
+      .json({ message: t("OWNER_EVENTS_MONTH_YEAR_INVALID", lang) });
+  }
+
+  const startDate = new Date(yearNum, monthNum - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+
+  const currentDate = new Date();
 
   const events = await Event.find({
     entityId,
-    to: {
-      $lt: currentDateTime,
-    },
-  }).sort({ date: 1 });
+    from: { $gte: startDate, $lte: endDate },
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .sort({ from: -1 });
 
-  return events;
+  events.map((event) => {
+    if (!event.image) {
+      return event;
+    }
+    event.image = generatePresignedUrl(event.image);
+    return event;
+  });
+
+  const pastEvents = events.filter((event) => new Date(event.to) < currentDate);
+
+  const eventsWithOrders = await Promise.all(
+    pastEvents.map(async (event) => {
+      const totalOrders = await Order.countDocuments({ eventId: event._id });
+      return { ...event.toObject(), totalOrders };
+    })
+  );
+
+  return eventsWithOrders;
+};
+
+module.exports.getCounterAndCategory = async (req) => {
+  const { userId, entityId } = req;
+  const menuCategories = await MenuCategory.find(
+    { entityId: req.entityId },
+    { entityId: 0, createdAt: 0, updatedAt: 0 },
+    { sort: { _id: -1 }, lean: true }
+  ).populate({
+    path: "counterId",
+    select: "counterName status",
+    model: "Counter",
+  });
+
+  const filteredCategories = menuCategories.filter(
+    (category) => category.counterId?.status === STATUS.ACTIVE
+  );
+
+  const query = { ownerId: userId, entityId };
+
+  query.status = STATUS.ACTIVE;
+  const counters = await Counter.find(query, {
+    counterName: 1,
+    // isSelfPickUp: 1,
+    // isTableService: 1,
+    // tableCount: 1,
+    status: 1,
+    // tableSectionName: 1,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return { filteredCategories, counters };
 };
 
 module.exports.getMenuCategory = async (req) => {
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
-    { entityId: 0, createdAt: 0, updatedAt: 0 },
-    { sort: { _id: -1 }, lean: true }
-  );
+    { entityId: 0, createdAt: 0, updatedAt: 0 }
+  )
+    .sort({ _id: -1 })
+    .lean()
+    .populate({
+      path: "counterId",
+      select: "counterName status",
+      model: "Counter",
+    });
 
-  return menuCategories;
+  const categoryNames = {};
+
+  const filteredCategories = menuCategories.filter((category) => {
+    if (
+      category.counterId?.status === STATUS.ACTIVE &&
+      !categoryNames[category.categoryName]
+    ) {
+      categoryNames[category.categoryName] = true;
+      return true;
+    }
+    return false;
+  });
+
+  return filteredCategories;
+};
+
+module.exports.editCategory = async (req) => {
+  const { action, categoryName, newCategoryName, nutritionType } = req.body;
+  const lang = getLanguageFromRequest(req);
+  let message = "";
+
+  if (!action || !categoryName) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_CATEGORY_ACTION_REQUIRED", lang),
+    });
+  }
+
+  const categories = await MenuCategory.find({ categoryName });
+
+  if (!categories.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_CATEGORY_NOT_FOUND_BY_NAME", lang),
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT) {
+    for (const category of categories) {
+      if (newCategoryName) category.categoryName = newCategoryName;
+      if (nutritionType) category.nutritionType = nutritionType;
+      await category.save();
+    }
+    message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
+  } else if (action === EDIT_ACTION.DELETE) {
+    await MenuCategory.deleteMany({ categoryName });
+    message = t("OWNER_CATEGORIES_DELETE_SUCCESS", lang);
+  } else {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_CATEGORY_INVALID_ACTION", lang),
+    });
+  }
+
+  return message;
 };
 
 module.exports.getMenuCategoryItems = async (req) => {
@@ -841,12 +1761,10 @@ module.exports.getOrderDetailsOfEvents = async (req) => {
     if (order.items && Array.isArray(order.items)) {
       for (const item of order.items) {
         if (!orderGrouped[item.itemId]) {
-          console.log({ itemId: item.itemId });
           const itemDetails = await MenuItem.findById(item.itemId, {
             price: 1,
             itemName: 1,
           }).lean();
-          console.log({ itemDetails });
 
           orderGrouped[item.itemId] = {
             totalAmount: 0,
@@ -871,15 +1789,15 @@ module.exports.getOrderDetailsOfEvents = async (req) => {
 
 module.exports.getCounterMenuQuantites = async (req) => {
   const { itemId } = req.query;
+  const lang = getLanguageFromRequest(req);
   const itemDetails = await ItemDetails.find(
     { entityId: req.entityId, itemId },
-    { counterId: 1, availableQuantity: 1 },
+    { counterId: 1, quantity: 1 },
     { lean: 1 }
   );
-  console.log({ itemDetails });
   if (!itemDetails.length) {
     throwError({
-      message: "This item does not belong to this entity",
+      message: t("OWNER_ITEM_NOT_IN_ENTITY", lang),
       status: 404,
     });
   }
@@ -896,7 +1814,8 @@ module.exports.getCounterMenuQuantites = async (req) => {
         if (itemDetail.counterId.toString() === id) {
           acc.push({
             counterName: counterDetails.counterName,
-            availableQuantity: itemDetail.availableQuantity,
+            quantity: itemDetail.quantity,
+            // availableQuantity: itemDetail.availableQuantity,
             _id: counterDetails._id,
           });
           return;
@@ -905,7 +1824,8 @@ module.exports.getCounterMenuQuantites = async (req) => {
       if (length == acc.length) {
         acc.push({
           counterName: counterDetails.counterName,
-          availableQuantity: 0,
+          quantity: 0,
+          // availableQuantity: 0,
           _id: counterDetails._id,
         });
       }
@@ -917,16 +1837,236 @@ module.exports.getCounterMenuQuantites = async (req) => {
 };
 
 module.exports.updateCounterSettings = async (req) => {
-  const { isTableService, isSelfPickUp, counterId, totalTables } = req.body;
+  const {
+    isTableService,
+    isSelfPickUp,
+    counterId,
+    action,
+    counterName,
+    status,
+    tableSectionName,
+    tableFrom,
+    tableTo,
+  } = req.body;
 
-  const counter = await Counter.updateOne(
-    { _id: counterId },
-    { $set: { isTableService, isSelfPickUp, totalTables } }
-  );
-  if (counter.matchedCount == 0) {
-    throwError({ message: "No Such counter exists", status: 404 });
+  const lang = getLanguageFromRequest(req);
+
+  const counter = await Counter.findOne({ _id: counterId });
+  if (!counter) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_COUNTER_NOT_FOUND", lang),
+    });
   }
-  return counter;
+
+  if (action === EDIT_ACTION.EDIT) {
+    if (counterName) {
+      const duplicate = await Counter.findOne({
+        _id: { $ne: counterId },
+        entityId: req.entityId,
+        counterName: { $regex: `^${counterName}$`, $options: "i" },
+        status: { $ne: STATUS.DELETED },
+      });
+
+      if (duplicate) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_COUNTER_NAME_ALREADY_EXISTS", lang),
+        });
+      }
+    }
+
+    // Update basic fields
+    if (isTableService !== undefined) counter.isTableService = isTableService;
+    if (isSelfPickUp !== undefined) counter.isSelfPickUp = isSelfPickUp;
+    if (counterName !== undefined) counter.counterName = counterName;
+    if (status !== undefined) counter.status = status;
+
+    // Table section validation
+    if (
+      counter.isTableService &&
+      counter.tableSectionName === tableSectionName
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_TABLE_NAME_EXISTS", lang),
+      });
+    }
+
+    if (tableSectionName !== undefined) {
+      counter.tableSectionName = tableSectionName;
+    }
+
+    // Numeric conversion and validation
+    let newFrom, newTo;
+    try {
+      const currentFrom =
+        counter.tableCount?.length > 0
+          ? parseInt(counter.tableCount[0], 10)
+          : 0;
+
+      const currentTo =
+        counter.tableCount?.length > 0
+          ? parseInt(counter.tableCount[counter.tableCount.length - 1], 10)
+          : 0;
+
+      newFrom =
+        tableFrom !== undefined ? parseInt(String(tableFrom), 10) : currentFrom;
+
+      newTo = tableTo !== undefined ? parseInt(String(tableTo), 10) : currentTo;
+
+      if (isNaN(newFrom) || isNaN(newTo)) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_TABLE_NUMBER_INVALID", lang),
+        });
+      }
+
+      if (newFrom < 0 || newTo < 0) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_TABLE_NUMBER_NEGATIVE", lang),
+        });
+      }
+
+      if (counter.isTableService) {
+        if (newFrom >= newTo) {
+          throwError({
+            status: STATUS_CODES.BAD_REQUEST,
+            message: t("OWNER_TABLE_RANGE_INVALID_COMPARISON", lang, {
+              from: newFrom,
+              to: newTo,
+            }),
+          });
+        }
+
+        if (newTo - newFrom < 0) {
+          throwError({
+            status: STATUS_CODES.BAD_REQUEST,
+            message: t("OWNER_TABLE_RANGE_MINIMUM", lang),
+          });
+        }
+      }
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_TABLE_NUMBER_FORMAT_INVALID", lang),
+      });
+    }
+
+    // Update table numbers
+    if (tableFrom !== undefined || tableTo !== undefined) {
+      const tableNumbers = [];
+      for (let i = newFrom; i <= newTo; i++) {
+        tableNumbers.push(i.toString());
+      }
+      counter.tableCount = tableNumbers;
+    }
+
+    await counter.save();
+    io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    sendFirebaseNotification({
+      topic: `entity_${counter.entityId}`,
+      showNotification: true,
+      title: "New Counter Added",
+      body: "You have a new counter added. Tap to view.",
+      data: {
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${counter.entityId}`,
+      },
+    });
+
+    if (
+      tableFrom !== undefined ||
+      tableTo !== undefined ||
+      tableSectionName !== undefined
+    ) {
+      const conflictingTables = await Tables.find({
+        counterIds: counter._id,
+        status: { $ne: STATUS.DELETED },
+      });
+
+      const isConflict = conflictingTables.some(
+        (table) => table.counterIds.length > 1
+      );
+
+      if (isConflict) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_TABLE_COUNTER_CONFLICT", lang),
+        });
+      }
+
+      const existingTable = await Tables.findOne({
+        counterIds: counter._id,
+        status: { $ne: STATUS.DELETED },
+      });
+
+      if (!existingTable) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_TABLE_FOR_COUNTER_NOT_FOUND", lang),
+        });
+      }
+
+      existingTable.tableCount = counter.tableCount;
+      if (tableSectionName !== undefined) {
+        existingTable.tableSectionName = tableSectionName;
+      }
+
+      await existingTable.save();
+    }
+
+    // return {
+    //   success: true,
+    //   message: "Counter settings updated successfully",
+    //   tableRange: counter.tableCount,
+    // };
+  } else if (action === EDIT_ACTION.DELETE) {
+    // Delete handling remains same
+    const activeOrders = await Order.findOne({
+      counterId,
+      status: {
+        $nin: [
+          globalConstants.ORDER_STATUS.COMPLETED,
+          globalConstants.ORDER_STATUS.CANCELLED,
+        ],
+      },
+    });
+
+    if (activeOrders) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTER_ACTIVE_ORDERS", lang),
+      });
+    }
+
+    await Counter.updateOne(
+      { _id: counterId },
+      { $set: { status: STATUS.DELETED } }
+    );
+
+    io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    sendFirebaseNotification({
+      topic: `entity_${counter.entityId}`,
+      showNotification: true,
+      title: "Counter Deleted",
+      body: "A counter has been removed",
+      data: {
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${counter.entityId}`,
+      },
+    });
+
+    return {
+      success: true,
+      message: t("OWNER_COUNTER_DELETE_SUCCESS", lang),
+    };
+  }
 };
 
 module.exports.getCounterSettings = async (req) => {
@@ -941,8 +2081,8 @@ module.exports.getCounterSettings = async (req) => {
 
 module.exports.createDiscountCoupon = async (req) => {
   const {
-    // entityId,
-    // userId,
+    entityId,
+    userId,
     body: {
       code,
       type,
@@ -952,8 +2092,8 @@ module.exports.createDiscountCoupon = async (req) => {
       usageLimit,
       startDate,
       endDate,
-      entityId,
-      userId,
+      // entityId,
+      // userId,
       description,
       colourTheme,
     },
@@ -1001,30 +2141,1664 @@ module.exports.getDiscountCoupon = async (req) => {
   return coupons;
 };
 
+// module.exports.editBusinessDetails = async (req) => {
+//   const {
+//     entityId,
+//     userId,
+//     file,
+//     body: {
+//       email,
+//       entityContactNumber,
+//       password,
+//       action,
+//       location,
+//       zipcode,
+//       floor,
+//       buildingName,
+//       landMark,
+//     },
+//   } = req;
+
+//   const entity = await EntityDetails.findOne({
+//     _id: entityId,
+//     userId,
+//   });
+
+//   const user = await User.findOne({ _id: userId });
+
+//   if (!entity) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Restaurant doesn't exists.",
+//     });
+//   }
+
+//   let fileName = "";
+
+//   if (action === EDIT_ACTION.EDIT && file) {
+//     // Handle image upload
+//     const fileBuffer = file.buffer;
+//     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+
+//     try {
+//       const data = await uploadBufferToS3(fileBuffer, fileName);
+//       if (!data.Location) {
+//         throwError({
+//           status: STATUS_CODES.BAD_REQUEST,
+//           message: "Error occurred while uploading the file",
+//         });
+//       }
+
+//       // Update entity image in DB
+//       await EntityDetails.updateOne(
+//         { _id: entityId },
+//         { $set: { image: fileName } }
+//       );
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   } else if (action === EDIT_ACTION.DELETE) {
+//     try {
+//       await EntityDetails.updateOne({ _id: entityId }, { $set: { image: "" } });
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Image deletion failed",
+//       });
+//     }
+//   }
+
+//   if (email) {
+//     user.email = email;
+//     await user.save();
+//   }
+//   if (entityContactNumber) {
+//     entity.entityContactNumber = entityContactNumber;
+//     await entity.save();
+//   }
+//   if (password) {
+//     const oldPass = await comparePassword(password, user.password);
+//     if (oldPass) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "We don't accept old password as new password.",
+//       });
+//     }
+//     const hashPassword = bcrypt.hashSync(password, 10);
+//     entity.password = hashPassword;
+//     await user.save();
+//   }
+//   if (location) {
+//     entity.location = location;
+//     await entity.save();
+//   }
+//   if (floor) {
+//     entity.floor = floor;
+//     await entity.save();
+//   }
+//   if (buildingName) {
+//     entity.buildingName = buildingName;
+//     await entity.save();
+//   }
+//   if (landMark) {
+//     entity.landMark = landMark;
+//     await entity.save();
+//   }
+//   if (zipcode) {
+//     entity.zipcode = zipcode;
+//     await entity.save();
+//   }
+// };
+
+// module.exports.editBusinessDetails = async (req) => {
+//   const {
+//     entityId,
+//     userId,
+//     file,
+//     body: {
+//       email,
+//       entityContactNumber,
+//       password,
+//       action,
+//       location,
+//       zipcode,
+//       floor,
+//       buildingName,
+//       landmark,
+//       plotNo,
+//     },
+//   } = req;
+
+//   const [entity, user] = await Promise.all([
+//     EntityDetails.findOne({ _id: entityId, userId }),
+//     User.findById(userId),
+//   ]);
+
+//   if (!entity) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "Restaurant doesn't exist.",
+//     });
+//   }
+
+//   const updateEntityFields = {};
+//   const updateUserFields = {};
+
+//   if (action === EDIT_ACTION.EDIT && file) {
+//     const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
+//       / /g,
+//       "_"
+//     )}`;
+//     try {
+//       const { Location } = await uploadBufferToS3(file.buffer, fileName);
+//       if (!Location) throw new Error("File upload failed");
+//       updateEntityFields.image = fileName;
+//     } catch (error) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "File upload failed",
+//       });
+//     }
+//   } else if (action === EDIT_ACTION.DELETE) {
+//     updateEntityFields.image = "";
+//   }
+
+//   if (password) {
+//     const isSamePassword = await comparePassword(password, user.password);
+//     if (isSamePassword) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "We don't accept old password as new password.",
+//       });
+//     }
+//     updateUserFields.password = bcrypt.hashSync(password, 10);
+//   }
+
+//   if (email) {
+//     updateEntityFields.email = email;
+//     updateUserFields.email = email;
+//   }
+
+//   if (entityContactNumber) {
+//     updateEntityFields.entityContactNumber = entityContactNumber;
+//     updateUserFields.contactNumber = entityContactNumber;
+//   }
+
+//   if (location) updateEntityFields.location = location;
+//   if (floor) updateEntityFields.floor = floor;
+//   if (buildingName) updateEntityFields.buildingName = buildingName;
+//   if (landmark) updateEntityFields.landMark = landmark;
+//   if (zipcode) updateEntityFields.zipcode = zipcode;
+//   if (plotNo) updateEntityFields.plotNo = plotNo;
+
+//   await Promise.all([
+//     Object.keys(updateEntityFields).length > 0
+//       ? EntityDetails.updateOne({ _id: entityId }, { $set: updateEntityFields })
+//       : Promise.resolve(),
+//     Object.keys(updateUserFields).length > 0
+//       ? User.updateOne({ _id: userId }, { $set: updateUserFields })
+//       : Promise.resolve(),
+//   ]);
+// };
+
 module.exports.editBusinessDetails = async (req) => {
   const {
-    entityId,
     userId,
+    entityId,
     file,
-    body: { email, contactNumber, password },
+    body: {
+      email,
+      contactNumber,
+      newPassword,
+      enteredOtp,
+      entityContactNumber,
+      action,
+      location,
+      zipcode,
+      floor,
+      buildingName,
+      landmark,
+      plotNo,
+      country,
+    },
   } = req;
+
+  const lang = getLanguageFromRequest(req);
+
+  let message = "";
+  const updateEntityFields = {};
+
+  if (newPassword) {
+    const userPass = await User.findOne({ _id: userId });
+    if (!userPass) {
+      throwError({
+        status: STATUS_CODES.NOT_FOUND,
+        message: t("USER_NOT_FOUND", lang),
+      });
+    }
+
+    const passwordCompare = await comparePassword(
+      newPassword,
+      userPass.password
+    );
+    if (passwordCompare) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("PASSWORD_REUSE_ERROR", lang),
+      });
+    }
+
+    const passwordChange = bcrypt.hashSync(newPassword, 10);
+    userPass.password = passwordChange;
+    await userPass.save();
+
+    message = t("PASSWORD_UPDATE_SUCCESS", lang);
+    io.to(entityId.toString()).emit("passwordUpdated", { message });
+    sendFirebaseNotification({
+      topic: `entity_${entityId}`,
+      showNotification: true,
+      title: "New Profile Details Added",
+      body: "You have a new entity details added. Tap to view.",
+      data: {
+        action: "profile_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${entityId}`,
+      },
+    });
+    return { message };
+  }
 
   const entity = await EntityDetails.findOne({
     _id: entityId,
+    status: STATUS.ACTIVE,
+  }).lean();
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: t("ENTITY_NOT_FOUND", lang),
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT && file) {
+    const fileName = `${entityId}_${Date.now()}_${file.originalname.replace(
+      / /g,
+      "_"
+    )}`;
+    try {
+      const { Location } = await uploadBufferToS3(file.buffer, fileName);
+      if (!Location) throw new Error("File upload failed");
+      updateEntityFields.image = fileName;
+    } catch (error) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
+      });
+    }
+  } else if (action === EDIT_ACTION.DELETE) {
+    updateEntityFields.image = "";
+  }
+
+  if (location) updateEntityFields.location = location;
+  if (floor) updateEntityFields.floor = floor;
+  if (buildingName) updateEntityFields.buildingName = buildingName;
+  if (landmark) updateEntityFields.landMark = landmark;
+  if (zipcode) updateEntityFields.zipcode = zipcode;
+  if (plotNo) updateEntityFields.plotNo = plotNo;
+  if (country) updateEntityFields.country = country;
+
+  // await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+  if (Object.keys(updateEntityFields).length) {
+    await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
+    io.to(entityId.toString()).emit("entityDetailsUpdated", updateEntityFields);
+    sendFirebaseNotification({
+      topic: `entity_${entityId}`,
+      showNotification: true,
+      title: "New Profile Updated",
+      body: "You have a new entity details added. Tap to view.",
+      data: {
+        action: "entity_details_update",
+        screen: "entity_details_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${entityId}`,
+      },
+    });
+  }
+
+  const unifiedContactNumber = contactNumber || entityContactNumber;
+  if (unifiedContactNumber) {
+    if (!enteredOtp) {
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.findOneAndUpdate(
+        { contactNumber: unifiedContactNumber },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const msg = `Your OTP for updating contact number on Countr is: ${otp} (Valid for 5 minutes)`;
+
+      await sendSMS({ toPhoneNumber: unifiedContactNumber, message: msg });
+
+      await User.updateOne(
+        { _id: userId },
+        { contactNumber: unifiedContactNumber, contactOtpVerified: false }
+      );
+      message = t("OWNER_CONTACT_OTP_SENT", lang);
+      return { message, otp, otpSent: true };
+    } else {
+      const otpRecord = await Otp.findOne({
+        contactNumber: unifiedContactNumber,
+      });
+      if (
+        !otpRecord ||
+        otpRecord.otp != enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
+        });
+      }
+      await Otp.deleteOne({ contactNumber: unifiedContactNumber });
+      await User.updateOne(
+        { _id: userId },
+        { contactNumber: unifiedContactNumber, contactOtpVerified: true }
+      );
+
+      updateEntityFields.contactNumber = unifiedContactNumber;
+      updateEntityFields.entityContactNumber = unifiedContactNumber;
+
+      await EntityDetails.updateOne(
+        { _id: entityId },
+        { entityContactNumber: unifiedContactNumber, contactOtpVerified: true }
+      );
+
+      message = t("OWNER_CONTACT_UPDATE_SUCCESS", lang);
+      io.to(entityId.toString()).emit("contactNumberUpdated", {
+        contactNumber: unifiedContactNumber,
+      });
+
+      sendFirebaseNotification({
+        topic: `entity_${entityId}`,
+        showNotification: true,
+        title: "New Profile Updated",
+        body: "You have a new entity details added. Tap to view.",
+        data: {
+          action: "entity_details_update",
+          screen: "entity_details_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${entityId}`,
+        },
+      });
+
+      return { message, otpVerified: true };
+    }
+  }
+
+  if (email) {
+    if (!enteredOtp) {
+      const query = { status: STATUS.ACTIVE };
+      if (email) query.email = email;
+
+      const user = await User.findOne(query);
+      if (user) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("EMAIL_ALREADY_EXISTS", lang, { email }),
+        });
+      }
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.findOneAndUpdate(
+        { email },
+        { otp, userId, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      const mail_data = {
+        to: email,
+        subject: "COUNTR: OTP for Email Update",
+        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+      };
+      createMail(mail_data);
+      await User.updateOne({ _id: userId }, { emailOtpVerified: false });
+
+      return {
+        message: t("OTP_SENT_NEW_EMAIL", lang),
+        otp,
+        otpSent: true,
+      };
+    } else {
+      const otpRecord = await Otp.findOne({ email });
+      if (
+        !otpRecord ||
+        otpRecord.otp != enteredOtp ||
+        new Date() > otpRecord.expiresAt
+      ) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("INVALID_OR_EXPIRED_OTP", lang),
+        });
+      }
+      await Otp.deleteOne({ email });
+      await User.updateOne({ _id: userId }, { email, emailOtpVerified: true });
+      // return { message: "Email updated successfully.", otpVerified: true };
+
+      message = t("EMAIL_UPDATE_SUCCESS", lang);
+      io.to(entityId.toString()).emit("emailUpdated", { email });
+      sendFirebaseNotification({
+        topic: `entity_${entityId}`,
+        showNotification: true,
+        title: "New Profile Updated",
+        body: "You have a new entity details added. Tap to view.",
+        data: {
+          action: "entity_details_update",
+          screen: "entity_details_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `entity_${entityId}`,
+        },
+      });
+      return { message, otpVerified: true };
+    }
+  }
+
+  return { message: t("OWNER_BUSINESS_DETAILS_UPDATE_SUCCESS", lang) };
+};
+
+module.exports.getBusinessUserDetails = async (req) => {
+  const { entityId, userId } = req;
+  const entity = await EntityDetails.findOne(
+    {
+      _id: entityId,
+      userId,
+      status: STATUS.ACTIVE,
+    },
+    { owner: 0, userId: 0 }
+  ).lean();
+  const user = await User.findOne(
+    {
+      _id: userId,
+      status: STATUS.ACTIVE,
+    },
+    { fcmToken: 0 }
+  ).lean();
+
+  entity.image = generatePresignedUrl(entity.image);
+  user.password = "";
+
+  return { ...entity, ...user };
+};
+
+module.exports.addingTables = async (req) => {
+  const {
     userId,
-  }).populate({
-    path: "userId",
-    select: "email password",
-    model: "User",
-  });
+    entityId,
+    body: { tableFrom, tableTo, counterIds, tableSectionName },
+  } = req;
+
+  const lang = getLanguageFromRequest(req);
+
+  const entity = await EntityDetails.findById(entityId);
   if (!entity) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Restaurant doesn't exists.",
+      message: t("ENTITY_NOT_FOUND", lang),
     });
   }
-  let fileName = "";
 
+  if (!Array.isArray(counterIds) || counterIds.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_COUNTER_IDS_REQUIRED", lang),
+    });
+  }
+
+  const counters = await Counter.find({ _id: { $in: counterIds } });
+  if (counters.length !== counterIds.length) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_COUNTERS_NOT_FOUND", lang),
+    });
+  }
+
+  if (Number(tableFrom) >= Number(tableTo)) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_TABLE_RANGE_INVALID", lang),
+    });
+  }
+
+  const tableNumbers = Array.from(
+    { length: Number(tableTo) - Number(tableFrom) + 1 },
+    (_, i) => String(Number(tableFrom) + i)
+  );
+
+  const tablesExists = await Tables.find({
+    counterIds: { $in: counterIds },
+    status: { $ne: STATUS.DELETED },
+  });
+
+  if (tablesExists.length > 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_TABLE_SERVICE_ALREADY_EXISTS", lang),
+    });
+  }
+  const lastTable = await Tables.findOne(
+    { entityId },
+    { tableSetionNo: 1, tableSectionName: 1 }
+  ).sort({ createdAt: -1 });
+
+  const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+  if (lastTable?.tableSectionName === tableSectionName) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_TABLE_NAME_EXISTS", lang),
+    });
+  }
+
+  const tableObj = {
+    tableCount: tableNumbers,
+    userId,
+    entityId,
+    counterIds,
+    tableSetionNo: newTableSectionNo,
+    tableSectionName,
+    status: STATUS.ACTIVE,
+  };
+
+  const newTable = await Tables.create(tableObj);
+  io.to(newTable.entityId.toString()).emit("newTable", newTable);
+  sendFirebaseNotification({
+    topic: `entity_${newTable.entityId}`,
+    showNotification: true,
+    title: "New Profile Updated",
+    body: "You have a new table added. Tap to view.",
+    data: {
+      action: "table_update",
+      screen: "table_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${newTable.entityId}`,
+    },
+  });
+
+  await Counter.updateMany(
+    { _id: { $in: counterIds } },
+    {
+      $set: {
+        tableSectionName,
+        tableCount: tableNumbers,
+      },
+    }
+  );
+
+  return newTable;
+};
+
+module.exports.getCountersForTableManagement = async (req) => {
+  const { entityId } = req;
+
+  const tableManagement = await Tables.find({ entityId }).lean();
+
+  const counterIds = new Set();
+
+  tableManagement.forEach((table) => {
+    if (table.status == STATUS.DELETED) return;
+    table.counterIds.forEach((counterId) => {
+      counterIds.add(counterId);
+    });
+  });
+
+  const counterList = await Counter.find({
+    _id: { $nin: Array.from(counterIds) },
+    entityId: entityId,
+    status: STATUS.ACTIVE,
+  });
+
+  return counterList;
+};
+
+module.exports.getCountersForEvents = async (req) => {
+  const { eventId } = req.query;
+
+  const eventDetails = await Event.findById(eventId, { counterIds: 1 }).lean();
+
+  if (
+    !eventDetails ||
+    !eventDetails.counterIds ||
+    eventDetails.counterIds.length === 0
+  ) {
+    return [];
+  }
+
+  const counterList = await Counter.find({
+    _id: { $in: eventDetails.counterIds },
+  });
+
+  return counterList;
+};
+
+module.exports.getTables = async (req) => {
+  const { entityId, userId } = req;
+
+  const tables = await Tables.find({
+    userId,
+    entityId,
+    status: STATUS.ACTIVE,
+  })
+    .populate({
+      path: "counterIds",
+      select: "counterName",
+      model: "Counter",
+    })
+    .select("tableCount tableSectionName tableSetionNo counterIds")
+    .sort({ createdAt: -1 });
+
+  if (!tables) return [];
+
+  return tables;
+};
+
+module.exports.editTable = async (req) => {
+  const {
+    tableId,
+    action,
+    tableSectionName,
+    tableFrom,
+    tableTo,
+    counterIds,
+    status,
+  } = req.body;
+
+  const lang = getLanguageFromRequest(req);
+  let message = "";
+
+  const tableData = await Tables.findById(tableId);
+  if (!tableData) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_TABLE_NOT_FOUND", lang),
+    });
+  }
+
+  if (action === EDIT_ACTION.EDIT) {
+    if (tableData.tableSectionName === tableSectionName) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_TABLE_NAME_EXISTS", lang),
+      });
+    }
+    if (tableSectionName !== undefined) {
+      tableData.tableSectionName = tableSectionName;
+    }
+
+    if (counterIds !== undefined) {
+      if (!Array.isArray(counterIds) || counterIds.length === 0) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_COUNTER_IDS_REQUIRED", lang),
+        });
+      }
+      tableData.counterIds = counterIds;
+    }
+
+    const currentFrom =
+      Array.isArray(tableData.tableCount) && tableData.tableCount.length > 0
+        ? Number(tableData.tableCount[0])
+        : 0;
+
+    const currentTo =
+      Array.isArray(tableData.tableCount) && tableData.tableCount.length > 0
+        ? Number(tableData.tableCount[tableData.tableCount.length - 1])
+        : 0;
+
+    const newFrom = tableFrom !== undefined ? Number(tableFrom) : currentFrom;
+    const newTo = tableTo !== undefined ? Number(tableTo) : currentTo;
+
+    if (newFrom >= newTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_TABLE_RANGE_INVALID", lang),
+      });
+    }
+
+    let updatedTableCount;
+    if (tableFrom !== undefined || tableTo !== undefined) {
+      updatedTableCount = Array.from({ length: newTo - newFrom + 1 }, (_, i) =>
+        String(newFrom + i)
+      );
+      tableData.tableCount = updatedTableCount;
+    }
+
+    const counterUpdate = {};
+    if (tableSectionName !== undefined)
+      counterUpdate.tableSectionName = tableData.tableSectionName;
+    if (updatedTableCount !== undefined)
+      counterUpdate.tableCount = updatedTableCount;
+
+    if (Object.keys(counterUpdate).length > 0 && tableData.counterIds?.length) {
+      await Counter.updateMany(
+        { _id: { $in: tableData.counterIds } },
+        { $set: counterUpdate }
+      );
+    }
+    message = t("OWNER_TABLE_EDIT_SUCCESS", lang);
+    io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
+    sendFirebaseNotification({
+      topic: `entity_${tableData.entityId}`,
+      showNotification: true,
+      title: "New Profile Updated",
+      body: "You have a new table added. Tap to view.",
+      data: {
+        action: "table_update",
+        screen: "table_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${tableData.entityId}`,
+      },
+    });
+    await tableData.save();
+  } else if (action === EDIT_ACTION.DELETE) {
+    if (!Array.isArray(counterIds) || counterIds.length === 0) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTER_IDS_REQUIRED_FOR_DELETION", lang),
+      });
+    }
+
+    const counters = await Counter.find({ _id: { $in: counterIds } });
+
+    if (!counters.length) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTERS_NOT_FOUND", lang),
+      });
+    }
+
+    const anyTableService = counters.some((counter) => counter.isTableService);
+
+    if (anyTableService) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_TABLE_DELETE_COUNTERS_ACTIVE", lang),
+      });
+    }
+
+    tableData.status = status;
+
+    await tableData.save();
+    // await Counter.updateMany(
+    //   { _id: { $in: counterIds } },
+    //   { $set: { status } }
+    // );
+    message = t("OWNER_TABLE_DELETE_SUCCESS", lang);
+  }
+  return { message };
+};
+
+// module.exports.getUsersFeedback = async (req) => {
+//   const {
+//     entityId,
+//     query: { from, to },
+//   } = req;
+
+//   let fromDate = from ? new Date(from) : null;
+//   let toDate = to ? new Date(to) : null;
+//   if (toDate) toDate.setHours(23, 59, 59, 999);
+
+//   const dateFilter = {};
+//   if (fromDate instanceof Date && !isNaN(fromDate)) {
+//     dateFilter.$gte = fromDate;
+//   }
+//   if (toDate instanceof Date && !isNaN(toDate)) {
+//     dateFilter.$lte = toDate;
+//   }
+
+//   const query = { entityId };
+//   if (Object.keys(dateFilter).length) {
+//     query.createdAt = dateFilter;
+//   }
+
+//   const feedbacks = await Feedbacks.find(query)
+//     .populate({
+//       path: "answers.questionId",
+//       select: "question answerType",
+//     })
+//     .sort({ createdAt: -1 });
+
+//   const feedbackStats = {};
+
+//   const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
+//   const feedbackValues = globalConstants.ANSWER_TYPES.FEEDBACK.map((v) =>
+//     v.toUpperCase()
+//   );
+//   const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
+//     v.toUpperCase()
+//   );
+
+//   for (const fb of feedbacks) {
+//     for (const answer of fb.answers) {
+//       const { value, questionId } = answer;
+//       if (!value || !questionId) continue;
+
+//       const valueStr =
+//         typeof value === "string"
+//           ? value.trim().toUpperCase()
+//           : String(value).trim().toUpperCase();
+
+//       const questionStats = feedbackStats[questionId._id] || {
+//         question: questionId.question,
+//         RATING: { total: 0, count: 0, values: {} },
+//         FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
+//         BOOLEAN: { TRUE: 0, FALSE: 0, NEUTRAL: 0 },
+//       };
+
+//       if (ratingValues.includes(valueStr)) {
+//         const ratingValue = parseInt(valueStr, 10);
+//         if (!isNaN(ratingValue) && ratingValue >= 1 && ratingValue <= 10) {
+//           questionStats.RATING.total += ratingValue;
+//           questionStats.RATING.count += 1;
+//           questionStats.RATING.values[ratingValue] =
+//             (questionStats.RATING.values[ratingValue] || 0) + 1;
+//         }
+//       } else if (feedbackValues.includes(valueStr)) {
+//         questionStats.FEEDBACK[valueStr] += 1;
+//       } else if (booleanValues.includes(valueStr)) {
+//         questionStats.BOOLEAN[valueStr] += 1;
+//       }
+
+//       feedbackStats[questionId._id] = questionStats;
+//     }
+//   }
+
+//   const finalStats = {};
+//   for (const questionId in feedbackStats) {
+//     const stats = feedbackStats[questionId];
+
+//     const totalAnswers =
+//       stats.RATING.count +
+//       stats.FEEDBACK.GOOD +
+//       stats.FEEDBACK.DECENT +
+//       stats.FEEDBACK.BAD +
+//       stats.BOOLEAN.TRUE +
+//       stats.BOOLEAN.FALSE +
+//       stats.BOOLEAN.NEUTRAL;
+
+//     if (totalAnswers === 0) continue;
+
+//     const avgRating =
+//       stats.RATING.count > 0
+//         ? (stats.RATING.total / stats.RATING.count).toFixed(2)
+//         : 0;
+
+//     const distribution = {};
+//     for (let i = 1; i <= 10; i++) {
+//       const valCount = stats.RATING.values[i] || 0;
+//       distribution[i] = stats.RATING.count
+//         ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
+//         : "0%";
+//     }
+
+//     const totalFeedbacks =
+//       stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
+//     const feedbackStatsPercentage = {
+//       GOOD: totalFeedbacks
+//         ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//       DECENT: totalFeedbacks
+//         ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//       BAD: totalFeedbacks
+//         ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+//         : "0%",
+//     };
+
+//     const totalBooleans =
+//       stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
+//     const booleanStatsPercentage = {
+//       TRUE: totalBooleans
+//         ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//       FALSE: totalBooleans
+//         ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//       NEUTRAL: totalBooleans
+//         ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+//         : "0%",
+//     };
+
+//     const type =
+//       stats.RATING.count > 0
+//         ? "RATING"
+//         : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
+//         ? "FEEDBACK"
+//         : "BOOLEAN";
+
+//     finalStats[questionId] = {
+//       question: stats.question,
+//       type,
+//       RATING: {
+//         average: avgRating,
+//         distribution,
+//       },
+//       FEEDBACK: feedbackStatsPercentage,
+//       BOOLEAN: booleanStatsPercentage,
+//     };
+//   }
+
+//   return {
+//     feedbacks,
+//     feedbackStats: finalStats,
+//   };
+// };
+
+module.exports.getUsersFeedback = async (req) => {
+  const {
+    entityId,
+    query: { from, to, year, month },
+  } = req;
+
+  let fromDate = from ? new Date(from) : null;
+  let toDate = to ? new Date(to) : null;
+  if (toDate) toDate.setHours(23, 59, 59, 999);
+
+  const dateFilter = {};
+  if (fromDate instanceof Date && !isNaN(fromDate)) {
+    dateFilter.$gte = fromDate;
+  }
+  if (toDate instanceof Date && !isNaN(toDate)) {
+    dateFilter.$lte = toDate;
+  }
+
+  const query = { entityId };
+
+  if (year && month) {
+    const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    startOfMonth.setHours(0, 0, 0, 0);
+    endOfMonth.setHours(23, 59, 59);
+    dateFilter.$gte = startOfMonth;
+    dateFilter.$lte = endOfMonth;
+  }
+
+  if (Object.keys(dateFilter).length) {
+    query.createdAt = dateFilter;
+  }
+
+  const feedbacks = await Feedbacks.find(query)
+    .populate({
+      path: "answers.questionId",
+      select: "question answerType createdAt",
+    })
+    .sort({ createdAt: -1 });
+
+  const totalReviews = feedbacks.length;
+
+  const feedbackStats = {};
+
+  const ratingValues = globalConstants.ANSWER_TYPES.RATING.map(String);
+  const feedbackValues = globalConstants.ANSWER_TYPES.FEEDBACK.map((v) =>
+    v.toUpperCase()
+  );
+  const booleanValues = globalConstants.ANSWER_TYPES.BOOLEAN.map((v) =>
+    v.toUpperCase()
+  );
+  let yearMonth;
+
+  for (const fb of feedbacks) {
+    yearMonth = `${fb.createdAt.getFullYear()}-${fb.createdAt.getMonth() + 1}`;
+    for (const answer of fb.answers) {
+      const { value, questionId } = answer;
+      if (!value || !questionId) continue;
+
+      const valueStr =
+        typeof value === "string"
+          ? value.trim().toUpperCase()
+          : String(value).trim().toUpperCase();
+
+      if (!feedbackStats[yearMonth]) {
+        feedbackStats[yearMonth] = {};
+      }
+
+      const questionStats = feedbackStats[yearMonth][questionId._id] || {
+        question: questionId.question,
+        createdAt: questionId.createdAt,
+        RATING: { total: 0, count: 0, values: {} },
+        FEEDBACK: { GOOD: 0, DECENT: 0, BAD: 0 },
+        BOOLEAN: { TRUE: 0, FALSE: 0, NEUTRAL: 0 },
+      };
+
+      if (ratingValues.includes(valueStr)) {
+        const ratingValue = parseInt(valueStr, 10);
+        if (!isNaN(ratingValue) && ratingValue >= 1 && ratingValue <= 10) {
+          questionStats.RATING.total += ratingValue;
+          questionStats.RATING.count += 1;
+          questionStats.RATING.values[ratingValue] =
+            (questionStats.RATING.values[ratingValue] || 0) + 1;
+        }
+      } else if (feedbackValues.includes(valueStr)) {
+        questionStats.FEEDBACK[valueStr] += 1;
+      } else if (booleanValues.includes(valueStr)) {
+        questionStats.BOOLEAN[valueStr] += 1;
+      }
+
+      feedbackStats[yearMonth][questionId._id] = questionStats;
+    }
+  }
+
+  let finalStats = {};
+
+  for (const yearMonth in feedbackStats) {
+    const statsByMonth = feedbackStats[yearMonth];
+    finalStats[yearMonth] = {};
+
+    for (const questionId in statsByMonth) {
+      const stats = statsByMonth[questionId];
+
+      const totalAnswers =
+        stats.RATING.count +
+        stats.FEEDBACK.GOOD +
+        stats.FEEDBACK.DECENT +
+        stats.FEEDBACK.BAD +
+        stats.BOOLEAN.TRUE +
+        stats.BOOLEAN.FALSE +
+        stats.BOOLEAN.NEUTRAL;
+
+      if (totalAnswers === 0) continue;
+
+      const avgRating =
+        stats.RATING.count > 0
+          ? (stats.RATING.total / stats.RATING.count).toFixed(2)
+          : 0;
+
+      const distribution = {};
+      for (let i = 1; i <= 10; i++) {
+        const valCount = stats.RATING.values[i] || 0;
+        distribution[i] = stats.RATING.count
+          ? ((valCount / stats.RATING.count) * 100).toFixed(2) + "%"
+          : "0%";
+      }
+
+      const totalFeedbacks =
+        stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD;
+      const feedbackStatsPercentage = {
+        GOOD: totalFeedbacks
+          ? ((stats.FEEDBACK.GOOD / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+        DECENT: totalFeedbacks
+          ? ((stats.FEEDBACK.DECENT / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+        BAD: totalFeedbacks
+          ? ((stats.FEEDBACK.BAD / totalFeedbacks) * 100).toFixed(2) + "%"
+          : "0%",
+      };
+
+      const totalBooleans =
+        stats.BOOLEAN.TRUE + stats.BOOLEAN.FALSE + stats.BOOLEAN.NEUTRAL;
+      const booleanStatsPercentage = {
+        TRUE: totalBooleans
+          ? ((stats.BOOLEAN.TRUE / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+        FALSE: totalBooleans
+          ? ((stats.BOOLEAN.FALSE / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+        NEUTRAL: totalBooleans
+          ? ((stats.BOOLEAN.NEUTRAL / totalBooleans) * 100).toFixed(2) + "%"
+          : "0%",
+      };
+
+      const type =
+        stats.RATING.count > 0
+          ? "RATING"
+          : stats.FEEDBACK.GOOD + stats.FEEDBACK.DECENT + stats.FEEDBACK.BAD > 0
+          ? "FEEDBACK"
+          : "BOOLEAN";
+      finalStats[yearMonth][questionId] = {
+        question: stats.question,
+        type,
+        createdAt: stats.createdAt,
+        RATING: {
+          average: avgRating,
+          distribution,
+        },
+        FEEDBACK: feedbackStatsPercentage,
+        BOOLEAN: booleanStatsPercentage,
+      };
+    }
+  }
+
+  const feedbackQuestions = await FeedbackQuestions.find({
+    entityId: req.entityId,
+  });
+
+  if (feedbackQuestions.length) {
+    let firstMonthKey;
+    let monthStats;
+
+    if (Object.keys(finalStats).length === 0) {
+      // You need to define yearMonth (maybe from req.query or current month)
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${now.getMonth() + 1}`; // e.g., "2025-4"
+
+      firstMonthKey = yearMonth;
+      finalStats = {
+        [firstMonthKey]: {},
+      };
+      monthStats = finalStats[firstMonthKey];
+    } else {
+      [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+    }
+
+    feedbackQuestions.forEach((feedbackQuestion) => {
+      if (!monthStats[feedbackQuestion._id]) {
+        monthStats[feedbackQuestion._id] = {
+          question: feedbackQuestion.question,
+          type: "NO_DATA",
+          createdAt: feedbackQuestion.createdAt,
+          RATING: {
+            average: 0,
+            distribution: {
+              1: "0%",
+              2: "0%",
+              3: "0%",
+              4: "0%",
+              5: "0%",
+              6: "0%",
+              7: "0%",
+              8: "0%",
+              9: "0%",
+              10: "0%",
+            },
+          },
+          FEEDBACK: {
+            GOOD: "0%",
+            DECENT: "0%",
+            BAD: "0%",
+          },
+          BOOLEAN: {
+            TRUE: "0%",
+            FALSE: "0%",
+            NEUTRAL: "0%",
+          },
+        };
+      }
+    });
+  }
+
+  // console.log({ finalStats });
+  // if (finalStats && finalStats[0]) {
+  //   const [firstMonthKey, monthStats] = Object.entries(finalStats)[0];
+  //   console.log({ mm: monthStats, firstMonthKey });
+  //   feedbackQuestions.forEach((feedbackQuestion) => {
+  //     if (!monthStats[feedbackQuestion._id]) {
+  //       // finalStats[firstMonthKey]
+  //       finalStats[firstMonthKey][feedbackQuestion._id] = {
+  //         question: feedbackQuestion.question,
+  //         type: "NO_DATA",
+  //         createdAt: feedbackQuestion.createdAt,
+  //         RATING: {
+  //           average: 0,
+  //           distribution: {
+  //             1: "0%",
+  //             2: "0%",
+  //             3: "0%",
+  //             4: "0%",
+  //             5: "0%",
+  //             6: "0%",
+  //             7: "0%",
+  //             8: "0%",
+  //             9: "0%",
+  //             10: "0%",
+  //           },
+  //         },
+  //         FEEDBACK: {
+  //           GOOD: "0%",
+  //           DECENT: "0%",
+  //           BAD: "0%",
+  //         },
+  //         BOOLEAN: {
+  //           TRUE: "0%",
+  //           FALSE: "0%",
+  //           NEUTRAL: "0%",
+  //         },
+  //       };
+  //     }
+  //   });
+  // }
+
+  return {
+    // feedbacks,
+    feedbackStats: finalStats,
+    totalReviews,
+  };
+};
+
+module.exports.addFeedbackQuestions = async (req) => {
+  const { entityId, userId, body } = req;
+  const lang = getLanguageFromRequest(req);
+
+  if (!body) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_BODY_REQUIRED", lang),
+    });
+  }
+
+  const { question, answerType, comment } = body;
+
+  if (!ALL_ANSWER_TYPES || !Array.isArray(ALL_ANSWER_TYPES)) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_ANSWER_TYPES_UNAVAILABLE", lang),
+    });
+  }
+
+  if (!Array.isArray(answerType)) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_INVALID_ANSWER_TYPE", lang),
+    });
+  }
+
+  const invalidAnswers = answerType.filter(
+    (ans) => !ALL_ANSWER_TYPES.includes(ans)
+  );
+  if (invalidAnswers.length > 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_INVALID_ANSWER_VALUES", lang, {
+        values: invalidAnswers.join(", "),
+        allowedValues: ALL_ANSWER_TYPES.join(", "),
+      }),
+    });
+  }
+
+  const existingQuestion = await FeedbackQuestions.findOne({
+    entityId,
+    question: question.trim(),
+  });
+  if (existingQuestion) {
+    throwError({
+      status: STATUS_CODES.CONFLICT,
+      message: t("OWNER_FEEDBACK_QUESTION_EXISTS", lang),
+    });
+  }
+
+  const questionCount = await FeedbackQuestions.countDocuments({ entityId });
+  if (questionCount >= 5) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_MAX_LIMIT", lang),
+    });
+  }
+
+  const feedback = FeedbackQuestions.create({
+    userId,
+    entityId,
+    question: question.trim(),
+    answerType,
+    comment,
+  });
+  io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
+  sendFirebaseNotification({
+    topic: `entity_${entityId}`,
+    showNotification: true,
+    title: "New Profile Updated",
+    body: "You have a new feedback added. Tap to view.",
+    data: {
+      action: "feedback_update",
+      screen: "feedback_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${entityId}`,
+    },
+  });
+  return feedback;
+};
+
+// module.exports.deleteFeedbackQuestions = async (req) => {
+//   const { questionId, feedbackId } = req.body;
+
+//   if (questionId) {
+//     const question = await FeedbackQuestions.findOne({ _id: questionId });
+//     if (!question) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Question not found.",
+//       });
+//     }
+
+//     await FeedbackQuestions.deleteOne({ _id: questionId });
+//   }
+
+//   if (feedbackId) {
+//     const feedback = await Feedbacks.findOne({ _id: feedbackId });
+//     if (!feedback) {
+//       throwError({
+//         status: STATUS_CODES.BAD_REQUEST,
+//         message: "Feedback not found.",
+//       });
+//     }
+
+//     await Feedbacks.deleteOne({ _id: feedbackId });
+//   }
+
+//   if (!questionId && !feedbackId) {
+//     throwError({
+//       status: STATUS_CODES.BAD_REQUEST,
+//       message: "At least one of questionId or feedbackId is required.",
+//     });
+//   }
+// };
+
+module.exports.deleteFeedbackQuestions = async (req) => {
+  const { questionId } = req.body;
+  const lang = getLanguageFromRequest(req);
+
+  if (!questionId) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_QUESTION_ID_REQUIRED", lang),
+    });
+  }
+
+  const question = await FeedbackQuestions.findOne({ _id: questionId });
+  if (!question) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_FEEDBACK_QUESTION_NOT_FOUND", lang),
+    });
+  }
+
+  await FeedbackQuestions.deleteOne({ _id: questionId });
+
+  await Feedbacks.updateMany(
+    { "answers.questionId": questionId },
+    { $pull: { answers: { questionId } } }
+  );
+};
+
+module.exports.restaurantOpen = async (req) => {
+  const {
+    entityId,
+    body: { isOpen },
+  } = req;
+  const lang = getLanguageFromRequest(req);
+  const restaurant = await EntityDetails.findById(entityId);
+  if (!restaurant) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ENTITY_NOT_FOUND", lang),
+    });
+  }
+  if (!isOpen) {
+    const activeOrders = await Order.countDocuments({
+      entityId,
+      status: {
+        $nin: [
+          globalConstants.ORDER_STATUS.COMPLETED,
+          globalConstants.ORDER_STATUS.CANCELLED,
+        ],
+      },
+    });
+
+    if (activeOrders > 0) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_RESTAURANT_CLOSE_ACTIVE_ORDERS", lang),
+      });
+    }
+  }
+  await EntityDetails.updateOne({ _id: entityId }, { $set: { isOpen } });
+};
+
+module.exports.emailExist = async (req) => {
+  const { email, contactNumber, countrTag } = req.body;
+
+  const query = {
+    status: STATUS.ACTIVE,
+  };
+
+  if (email) {
+    query.email = email;
+    const users = await User.find(query).lean();
+
+    const emailExist = users.some(
+      (u) => u.role === globalConstants.ROLES.STORE_OWNER
+    );
+
+    return {
+      emailExist,
+    };
+  }
+
+  if (contactNumber) {
+    query.contactNumber = contactNumber;
+    const users = await User.find(query).lean();
+    const phoneExist = users.some(
+      (u) => u.role === globalConstants.ROLES.STORE_OWNER
+    );
+
+    return {
+      phoneExist,
+    };
+  }
+
+  if (countrTag) {
+    query.countrTag = countrTag;
+    query.role = globalConstants.ROLES.CUSTOMER;
+    const exists = await User.exists(query);
+    return { countrTagExists: !!exists };
+  }
+
+  return {};
+};
+
+module.exports.deleteEntityAccount = async (req) => {
+  const { entityId, userId } = req;
+  const lang = getLanguageFromRequest(req);
+
+  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
+  if (!entity) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_ENTITY_NOT_ASSOCIATED", lang),
+    });
+  }
+
+  await Promise.all([
+    EntityDetails.updateOne(
+      { _id: entityId },
+      { $set: { status: STATUS.DELETED } }
+    ),
+    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+  ]);
+};
+
+module.exports.createItemSearchLogs = async (req) => {
+  const {
+    entityId,
+    body: { itemId },
+  } = req;
+
+  const existingLog = await ItemSearchLogs.findOne({ itemId });
+
+  if (existingLog) {
+    return ItemSearchLogs.updateOne(
+      { _id: existingLog._id },
+      { $set: { createdAt: new Date(), isRemoved: false } }
+    );
+  }
+
+  return ItemSearchLogs.create({ itemId, entityId });
+};
+
+module.exports.getItemsSearchLogs = async (req) => {
+  const { entityId } = req;
+  const logs = await ItemSearchLogs.find({ entityId, isRemoved: false })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: "itemId",
+      select: "itemName image menuCategoryId",
+      model: "ItemDetails",
+      populate: {
+        path: "menuCategoryId",
+        select: "categoryName",
+        model: "CounterMenuCategory",
+      },
+    });
+
+  logs.map((items) => {
+    if (!items.itemId || !items.itemId.image) {
+      return items;
+    }
+    items.itemId.image = generatePresignedUrl(items.itemId.image);
+    return items;
+  });
+
+  return logs;
+};
+
+exports.removeSearchLogs = async (req) => {
+  const {
+    entityId,
+    body: { itemId, isRemoved },
+  } = req;
+  const lang = getLanguageFromRequest(req);
+
+  const logs = await ItemSearchLogs.findOne({
+    itemId,
+    entityId,
+    isRemoved: false,
+  });
+  if (!logs) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("LOGS_NOT_FOUND", lang),
+    });
+  }
+  if (isRemoved) logs.isRemoved = isRemoved;
+
+  return logs.save();
+};
+
+module.exports.restaurantCancelOrder = async (req) => {
+  const { orderId } = req.body;
+  const lang = getLanguageFromRequest(req);
+
+  const order = await Order.findOne({
+    _id: orderId,
+    status: { $in: [globalConstants.ORDER_STATUS.WAITING] },
+  });
+
+  if (!order) {
+    throwError({
+      status: STATUS_CODES.NOT_ACCEPTABLE,
+      message: t("ORDER_NOT_FOUND", lang),
+    });
+  }
+
+  if (
+    [
+      globalConstants.ORDER_STATUS.IN_PROGRESS,
+      globalConstants.ORDER_STATUS.READY,
+      globalConstants.ORDER_STATUS.COMPLETED,
+      globalConstants.ORDER_STATUS.CANCELLED,
+    ].includes(order.status)
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ORDER_CANNOT_CANCEL", lang),
+    });
+  }
+
+  await Order.updateOne(
+    { _id: orderId },
+    { $set: { status: globalConstants.ORDER_STATUS.CANCELLED } }
+  );
+
+  io.to(order.entityId.toString()).emit("cancelOrder", {
+    orderId: order._id,
+    status: globalConstants.ORDER_STATUS.CANCELLED,
+  });
+  sendFirebaseNotification({
+    topic: `entity_${order.entityId}`,
+    showNotification: true,
+    title: "New Cancel Order",
+    body: "You have a new cancel added. Tap to view.",
+    data: {
+      action: "cancel_update",
+      screen: "cancel_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${order.entityId}`,
+    },
+  });
+};
+
+module.exports.getSalesReportHistory = async (req) => {
+  const { userId } = req;
+
+  const history = await SalesReport.find({ userId }).sort({ createdAt: -1 });
+
+  if (!history || history.length === 0) return [];
+
+  const enrichedHistory = history.map((item) => {
+    const url = generatePresignedUrl(`reports/${userId}/${item.filename}`);
+    return {
+      ...item.toObject(),
+      url,
+    };
+  });
+
+  return enrichedHistory;
+};
+
+module.exports.downloadSalesReport = async (req, res) => {
+  try {
+    const { key } = req.query;
+    const url = generatePresignedUrl(key);
+    return { url };
+  } catch (error) {
+    throw new Error("Failed to generate presigned URL");
+  }
+};
+
+module.exports.editEvent = async (req) => {
+  const {
+    file,
+    body: {
+      eventId,
+      eventName,
+      serialType,
+      isRepetitive,
+      repetitiveDays,
+      from,
+      to,
+      counterIds,
+      location,
+      isAllDay,
+    },
+  } = req;
+
+  const lang = getLanguageFromRequest(req);
+
+  const event = await Event.findOne({ _id: eventId });
+  if (!event) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  // Handle file upload if provided (same as createEvent)
+  let fileName = "";
   if (file) {
     const fileBuffer = file.buffer;
     fileName = `${req.entityId}_${Date.now()}_${file.originalname.replace(
@@ -1037,40 +3811,69 @@ module.exports.editBusinessDetails = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
-      entity.image = fileName;
+      event.image = fileName;
     } catch (error) {
       throwError({
-        status: STATUS_CODES.INTERNAL_SERVER_ERROR,
-        message: "File upload failed",
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
-  if (email) entity.email = email;
-  if (contactNumber) entity.businessContactNumber = contactNumber;
-  if (password) {
-    const oldPass = await comparePassword(password, entity.password);
-    if (oldPass) {
+
+  // Parse repetitiveDays if provided (same as createEvent)
+  if (isRepetitive && repetitiveDays) {
+    try {
+      const repetitiveDaysArr = JSON.parse(repetitiveDays);
+      event.repetitiveDays = repetitiveDaysArr;
+    } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "We don't accept old password as new password.",
+        message: t("OWNER_EVENT_REPETITIVE_DAYS_INVALID", lang),
       });
     }
-    const hashPassword = bcrypt.hashSync(password, 10);
-    entity.password = hashPassword;
-    await entity.save();
   }
-  return entity.save();
-};
 
-module.exports.getBusinessUserDetails = async (req) => {
-  const { entityId, userId } = req;
-  const entity = await EntityDetails.findOne({ _id: entityId, userId }).lean();
-  const user = await User.findOne({ _id: userId }).lean();
+  // Convert and validate date/time if provided (same as createEvent)
+  if (from || to) {
+    const dateTimeFrom = from ? new Date(from) : event.from;
+    const dateTimeTo = to ? new Date(to) : event.to;
 
-  entity.image = generatePresignedUrl(entity.image);
+    if (isNaN(dateTimeFrom.getTime()) || isNaN(dateTimeTo.getTime())) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_FORMAT_INVALID", lang),
+      });
+    }
 
-  return { ...entity, ...user };
+    if (dateTimeFrom > dateTimeTo) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_EVENT_TIME_SELECTION_INVALID", lang),
+      });
+    }
+
+    if (from) event.from = dateTimeFrom;
+    if (to) event.to = dateTimeTo;
+  }
+
+  // Update other fields
+  if (eventName) event.eventName = eventName;
+  if (serialType) event.serialType = serialType;
+  if (isRepetitive !== undefined) event.isRepetitive = isRepetitive;
+  if (counterIds) event.counterIds = counterIds;
+  if (location !== undefined) event.location = location;
+  if (isAllDay !== undefined) event.isAllDay = isAllDay;
+
+  try {
+    await event.save();
+    return { message: t("EVENT_UPDATE_SUCCESS", lang) };
+  } catch (error) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EVENT_UPDATE_ERROR", lang),
+    });
+  }
 };

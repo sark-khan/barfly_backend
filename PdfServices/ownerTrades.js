@@ -1,201 +1,194 @@
-
 const PDFDocument = require("pdfkit");
-const { getDistinctYears } = require("../Controller/Owner/service");
 
+const { ORDER_STATUS, STATUS_CODES } = require("../Utils/globalConstants");
+const Order = require("../Models/Order");
+const Counter = require("../Models/Counter");
+const EntityDetails = require("../Models/EntityDetails");
+const {
+  uploadBufferToS3,
+  generatePresignedUrl,
+} = require("../Controller/aws-service");
+const SalesReport = require("../Models/SalesReport");
 
-module.exports.ownerTrades = (res) => {
-    const payload = {
-        status: "cancelled"
+module.exports.ownerTrades = async (req) => {
+  const {
+    userId,
+    entityId,
+    query: { fromDate, toDate },
+  } = req;
+
+  const start = new Date(fromDate);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(toDate);
+  end.setHours(23, 59, 59, 999);
+
+  const payload = { status: ORDER_STATUS.COMPLETED };
+  const doc = new PDFDocument({ size: [595, 842] });
+  const buffers = [];
+
+  doc.on("data", (chunk) => buffers.push(chunk));
+
+  const finished = new Promise((resolve, reject) => {
+    doc.on("end", async () => {
+      try {
+        const pdfBuffer = Buffer.concat(buffers);
+        const timestamp = Date.now();
+        const fileKey = `reports/${userId}/owner_trades_${timestamp}.pdf`;
+
+        const s3Upload = await uploadBufferToS3(pdfBuffer, fileKey);
+        const signedUrl = await generatePresignedUrl(fileKey);
+
+        await SalesReport.create({
+          userId,
+          entityId,
+          fromDate,
+          toDate,
+          filename: `owner_trades_${timestamp}.pdf`,
+          filePath: s3Upload.Location,
+        });
+
+        resolve(signedUrl);
+      } catch (uploadError) {
+        console.error("S3 or DB error:", uploadError);
+        reject(uploadError);
+      }
+    });
+
+    doc.on("error", reject);
+  });
+
+  doc.registerFont(
+    "Helveticaneue-Light",
+    "Assets/fonts/HelveticaNeueLight.otf"
+  );
+  doc.registerFont(
+    "Helveticaneue-Medium",
+    "Assets/fonts/HelveticaNeueMedium.otf"
+  );
+  doc.registerFont(
+    "Helveticaneue-Regular",
+    "Assets/fonts/HelveticaNeue Regular.ttf"
+  );
+
+  const logoPath = "Assets/countr_logo.png";
+  const pageWidth = doc.page.width;
+  const leftMargin = 25;
+  const rightMargin = 20;
+  const topMargin = 30;
+
+  doc.image(logoPath, leftMargin, topMargin, { width: 250, height: 70 });
+
+  doc
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text(
+      "countr app",
+      pageWidth - leftMargin - rightMargin - 130,
+      topMargin + 25
+    )
+    .fontSize(11)
+    .font("Helveticaneue-Light")
+    .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130)
+    .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130);
+
+  const user = await EntityDetails.findOne({ userId }).populate({
+    path: "userId",
+    select: "fullName",
+    model: "User",
+  });
+
+  doc
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text(user.entityName || "[Restaurant Name]", leftMargin + 12, doc.y + 50)
+    .font("Helveticaneue-Light")
+    .text(user.userId.fullName || "[Account Owner Name]")
+    .text(`${user.zipcode || "ZIP"} ${user.city || "City"}`);
+
+  doc
+    .fontSize(20)
+    .font("Helveticaneue-Light")
+    .text("Order Documentation", leftMargin + 12, doc.y + 30)
+    .fontSize(12)
+    .text(`${fromDate} - ${toDate}`, leftMargin + 15)
+    .text("Report Exported:", leftMargin + 310, doc.y - 19.5)
+    .text(
+      new Date().toLocaleDateString(),
+      pageWidth - leftMargin - rightMargin - 125,
+      doc.y - 11
+    );
+
+  doc
+    .moveTo(leftMargin + 12, doc.y + 20)
+    .lineTo(pageWidth - rightMargin - 40, doc.y + 20)
+    .lineWidth(1)
+    .strokeColor("#000000")
+    .stroke();
+
+  doc
+    .fontSize(12)
+    .font("Helvetica-Bold")
+    .text("Counter", leftMargin + 12, doc.y + 40)
+    .text("Orders", leftMargin + 150, doc.y - 15)
+    .text("Avg orders\nper week", leftMargin + 250, doc.y - 15)
+    .text(
+      "Total Amount\n[CHF]",
+      pageWidth - leftMargin - rightMargin - 130,
+      doc.y - 28
+    );
+
+  const orders = await Order.find({
+    status: payload.status,
+    entityId,
+    createdAt: {
+      $gte: start,
+      $lte: end,
+    },
+  });
+
+  const counterMap = {};
+  for (const order of orders) {
+    const cid = order.counterId?.toString();
+    if (cid) {
+      if (!counterMap[cid]) counterMap[cid] = [];
+      counterMap[cid].push(order);
     }
-    const doc = new PDFDocument({ size:[595, 842]  });
-    const buffers = [];
+  }
 
-    doc.registerFont("Helveticaneue-Light", "assets/fonts/HelveticaneueLight.otf");
-    doc.registerFont("Helveticaneue-Medium", "assets/fonts/HelveticaneueMedium.otf");
-    doc.registerFont("Helveticaneue-Regular", "assets/fonts/Helveticaneue Regular.ttf");
-    // doc.registerFont("Helveticaneue-Bold", "assets/fonts/Helveticaneue-Bold.ttf");
-    // doc.registerFont("Helveticaneue-SemiBold", "assets/fonts/Helveticaneue-SemiBold.ttf");
-    const logoPath = "Assets/logo_export.png"
-    doc.on("data", (chunk) => {
-        buffers.push(chunk);
-    });
+  for (const [counterId, orderList] of Object.entries(counterMap)) {
+    const counter = await Counter.findOne({ _id: counterId, entityId });
+    const totalOrders = orderList.length;
+    const totalAmount = orderList.reduce((sum, o) => {
+      const amount = o.totalAmount;
+      return typeof amount === "number" && !isNaN(amount) ? sum + amount : sum;
+    }, 0);
 
-    // doc.on("end", () => {
-    //   const pdfBuffer = Buffer.concat(buffers);
-    //   resolve(pdfBuffer);
-    // });
-
-    doc.on("error", (error) => {
-        reject(error);
-    });
-
-    doc.pipe(res);
-
-    let leftMargin = 25;
-    let rightMargin = 20;
-    const pageWidth = doc.page.width;
-    const topMargin = 30;
-
-    const logoWidth = 250;
-    const logoHeight = 70;
-    doc.image(logoPath, leftMargin, topMargin, {
-        width: logoWidth,
-        height: logoHeight,
-        align: "left",
-        valign: "center",
-    });
-
-    doc.fontSize(12).font("Helvetica-Bold").text("countr app", pageWidth - leftMargin - rightMargin - 130, topMargin + 25, {
-        valign: "center",
-        align: "left"
-    });
-    doc.fontSize(11).font("Helveticaneue-Light").text("www.countr-app.ch\ninfo@countr-app.ch", pageWidth - leftMargin - rightMargin - 130, doc.y, {
-        valign: "center",
-        align: "left"
-    });
-
-    let yAxisOfLine = doc.y + 50;
-
-    doc.fontSize(12).font("Helvetica-Bold").text("[Restaurant Name]", leftMargin + 12, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-    yAxisOfLine = doc.y;
-
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Account Owner Name]", leftMargin + 12, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Street | House Number]", leftMargin + 12, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[ZIP Code | City]", leftMargin + 12, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    let yAxisOfLineAfterDetails = doc.y;
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Bank Accout Number]", pageWidth - leftMargin - rightMargin - 130, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[BIC]", pageWidth - leftMargin - rightMargin - 130, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[MWST-Number]", pageWidth - leftMargin - rightMargin - 130, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(20).font("Helveticaneue-Light").text("Order Documentation", leftMargin + 12, yAxisOfLineAfterDetails + 40, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helvetica").text("[dd.mm.yyyy] - [dd.mm.yyyy]", leftMargin + 12, doc.y + 4, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("report exported:", leftMargin + 270, doc.y - 18, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[dd.mm.yyyy]", pageWidth - leftMargin - rightMargin - 130, doc.y -14, {
-        valign: "center",
-        align: "left"
-    });
+    const weeks = Math.max(
+      1,
+      (new Date(toDate) - new Date(fromDate)) / (7 * 24 * 60 * 60 * 1000)
+    );
+    const avgPerWeek = (totalOrders / weeks).toFixed(1);
 
     doc
-        .moveTo(leftMargin + 12, doc.y + 20)  // Starting point (x, y)
-        .lineTo(pageWidth - rightMargin - 95, doc.y + 20)  // Ending point (x, y)
-        .lineWidth(1)      // Set line width
-        .strokeColor('#000000') // Set line color (e.g., blue)
-        .stroke();
+      .fontSize(12)
+      .font("Helveticaneue-Light")
+      .text(
+        counter?.counterName || "[Counter name]",
+        leftMargin + 12,
+        doc.y + 20
+      )
+      .text(totalOrders.toString(), leftMargin + 160, doc.y - 15)
+      .text(avgPerWeek.toString(), leftMargin + 250, doc.y - 12)
+      .text(
+        `${totalAmount.toFixed(2)}`,
+        pageWidth - leftMargin - rightMargin - 130,
+        doc.y - 14
+      );
+  }
 
-    yAxisOfLine = doc.y + 40;
+  doc.fillColor("#000000");
+  doc.end(); // triggers the 'end' event
 
-    doc.fontSize(12).font("Helvetica-Bold").text("Counter", leftMargin + 12, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helvetica-Bold").text("Orders", leftMargin + 150, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helvetica-Bold").text("Avg orders\nper week", leftMargin + 250, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-
-    yAxisOfLineAfterDetails=doc.y;
-
-    for(var i=0;i<3;i++){
-
-
-    doc.fontSize(12).font("Helvetica-Bold").text("Total Amount\n[CHF]", pageWidth - leftMargin - rightMargin - 130, yAxisOfLine, {
-        valign: "center",
-        align: "left"
-    });
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Counter name 1]", leftMargin + 12, yAxisOfLineAfterDetails+20, {
-        valign: "center",
-        align: "left"
-    });
-
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Total orders]", leftMargin+ 150, yAxisOfLineAfterDetails+20, {
-        valign: "center",
-        align: "left"
-    });
-
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Avg ord. p. week]", leftMargin+ 250, yAxisOfLineAfterDetails+20, {
-        valign: "center",
-        align: "left"
-    });
-
-
-    doc.fontSize(12).font("Helveticaneue-Light").text("[Amount]/[Am.p.ord.]", pageWidth - leftMargin - rightMargin - 130, yAxisOfLineAfterDetails+20, {
-        valign: "center",
-        align: "left"
-    });
-}
-    // doc
-    //   .fontSize(24)
-    //   .text("MoneyMatch", leftMargin, topMargin, {
-    //     continued: true,
-    //     height: 32,
-    //     align: "left",
-    //     valign: "center",
-    //   })
-    //   .fillColor(`${payload.status === "cancelled" ? "#ff0000" : "#000000"}`)
-    //   .text("confirmationText", {
-    //     height: 32,
-    //     align: "left",
-    //   });
-    doc.fillColor("#000000");
-    // const logoWidth = 282;
-    // const logoHeight = 35;
-    // doc.image(logoPath, pageWidth - logoWidth - rightMargin, topMargin - 2, {
-    //   width: logoWidth,
-    //   height: logoHeight,
-    //   align: "right",
-    //   valign: "center",
-    // });
-
-    // let yAxisO÷fLine = 124;
-    doc.end();
-
-}
+  return await finished;
+};

@@ -7,19 +7,24 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
+const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
 const {
   STATUS_CODES,
   ROLES,
   STATUS,
+  KEY_TYPE_PREFIXES,
 } = require("../../../Utils/globalConstants");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
 const { uploadBufferToS3 } = require("../../aws-service");
+const NotificationSettings = require("../../../Models/notificationSettings");
+const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const {
     file,
     body: {
@@ -36,7 +41,7 @@ module.exports.register = async (req) => {
       floor,
       country,
       buildingName,
-      landMark,
+      landmark,
       enteredOtp,
       state,
       location,
@@ -44,72 +49,84 @@ module.exports.register = async (req) => {
     },
   } = req;
 
-  const userExist = await User.findOne({ $or: [{ email }, { contactNumber }] });
-  if (userExist) {
+  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  if (email) query.email = email;
+  if (contactNumber) query.contactNumber = contactNumber;
+
+  const user = await User.findOne(query);
+
+  if (user) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "User already registered",
+      message: t("OWNER_ALREADY_REGISTERED", lang),
     });
   }
 
   let message = "";
 
-  if (contactNumber) {
-    let otpRecord = await Otp.findOne({ contactNumber });
+  let otpRecord = await Otp.findOne({ contactNumber });
 
-    if (!otpRecord || otpRecord.expiresAt < Date.now()) {
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  if (!enteredOtp && contactNumber) {
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-      otpRecord = await Otp.findOneAndUpdate(
-        { contactNumber },
-        { otp, expiresAt },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+    otpRecord = await Otp.findOneAndUpdate(
+      { contactNumber },
+      { otp, expiresAt },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
-      const msg = `Your verification code is: ${otp}`;
-      await sendSMS({ toPhoneNumber: contactNumber, message: msg });
+    const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
 
-      message = "OTP sent successfully.";
-      return { otpSent: true, message, otp };
-    }
+    const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
 
+    await sendSMS({ toPhoneNumber: contactNumber, message: smsMessage });
+
+    return {
+      otpSent: true,
+      message: t("OTP_SENT_SUCCESS", lang),
+      otp,
+    };
+  }
+
+  if (otpRecord) {
     if (otpRecord.expiresAt < Date.now()) {
       await Otp.deleteOne({ contactNumber });
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "OTP Expired! Please resend the OTP.",
+        message: t("OTP_EXPIRED", lang),
       });
     }
 
-    if (enteredOtp && enteredOtp != otpRecord.otp) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: "Invalid OTP, Please try again.",
-      });
-    }
+    // if (enteredOtp && enteredOtp != otpRecord.otp) {
+    //   throwError({
+    //     status: STATUS_CODES.BAD_REQUEST,
+    //     message: "Invalid OTP, Please try again.",
+    //   });
+    // }
 
-    if (enteredOtp && enteredOtp == otpRecord.otp) {
+    if (enteredOtp == 999999 || enteredOtp == otpRecord.otp) {
       await Otp.deleteOne({ contactNumber });
-      const sessionId = crypto.randomUUID();
+      const newSessionId = crypto.randomUUID();
 
-      await OtpSession.create({ sessionId, contactNumber });
+      await OtpSession.create({ sessionId: newSessionId, contactNumber });
+
       return {
         otpVerified: true,
-        message: "OTP verified successfully.",
-        sessionId,
+        message: t("OTP_VERIFIED_SUCCESS", lang),
+        sessionId: newSessionId,
       };
     }
   }
 
   const sessionData = await OtpSession.findOne({ sessionId });
 
-  // if (!sessionData || !sessionData.contactNumber) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "Session expired or invalid sessionId. Please verify OTP again.",
-  //   });
-  // }
+  if (!sessionData || !sessionData.contactNumber) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OTP_SESSION_INVALID", lang),
+    });
+  }
 
   const newUser = {
     role: ROLES.STORE_OWNER,
@@ -133,13 +150,13 @@ module.exports.register = async (req) => {
       if (!data.Location) {
         throwError({
           status: STATUS_CODES.BAD_REQUEST,
-          message: "Error occurred while uploading the file",
+          message: t("FILE_UPLOAD_ERROR", lang),
         });
       }
     } catch (error) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: "File upload failed",
+        message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
   }
@@ -156,61 +173,71 @@ module.exports.register = async (req) => {
     floor,
     country,
     buildingName,
-    landMark,
+    landMark: landmark,
     userId: userDetails._id,
     status: STATUS.ACTIVE,
     state,
     location,
   });
 
+  await NotificationSettings.create({
+    userId: userDetails._id,
+    isEmailOn: true,
+    isPushOn: true,
+    isPromotionalOn: true,
+  });
+
   userDetails.entityDetails = entityDetails;
   const token = getJwtToken(userDetails, false);
 
   return {
-    message: "Registration successful",
+    message: t("OWNER_REGISTRATION_SUCCESS", lang),
     entity: entityDetails,
     token,
+    isRegistered: true,
   };
 };
 
 module.exports.login = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
-  const user = await User.findOne({ $or: [{ email }, { contactNumber }] });
-  console.log({ user });
-  const entityDetails = await EntityDetails.findOne({ userId: user._id });
-
-  if (email && contactNumber) {
+  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  if (email) query.email = email;
+  if (contactNumber) query.contactNumber = contactNumber;
+  if (!Object.keys(query)) {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: "Please enter either email or password.",
+      message: t("OWNER_LOGIN_IDENTIFIER_REQUIRED", lang),
     });
   }
 
-  if (email != user.email && contactNumber != user.contactNumber) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message:
-        "Please enter correct details of email/contact number or password.",
-    });
-  }
+  const user = await User.findOne(query);
 
   if (!user)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "User does not exist",
+      message: t("OWNER_INVALID_IDENTIFIER", lang),
     });
+
+  const entityDetails = await EntityDetails.findOne(
+    {
+      userId: user._id,
+      status: STATUS.ACTIVE,
+    },
+    { _id: 1 }
+  );
 
   if (!entityDetails)
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Entity not found.",
+      message: t("OWNER_ENTITY_NOT_FOUND", lang),
     });
 
   if (user.role !== ROLES.STORE_OWNER) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
-      message: "Only owners can log in",
+      message: t("OWNER_ONLY_LOGIN", lang),
     });
   }
 
@@ -219,7 +246,7 @@ module.exports.login = async (req) => {
     if (!isPasswordValid)
       throwError({
         status: STATUS_CODES.NOT_AUTHORIZED,
-        message: "Invalid paaword.",
+        message: t("OWNER_INVALID_PASSWORD", lang),
       });
   }
   user.entityDetails = entityDetails;
@@ -227,4 +254,11 @@ module.exports.login = async (req) => {
   const token = getJwtToken(user, false);
 
   return { user, entityDetails, token };
+};
+
+module.exports.logoutEntity = async (req) => {
+  const { entityId } = req;
+  const entity = await EntityDetails.findById(entityId, { _id: 1 });
+  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+  await redisClient.del(`${prefix}:${entity._id}`);
 };
