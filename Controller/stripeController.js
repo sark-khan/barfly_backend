@@ -20,13 +20,27 @@ const { t, getLanguageFromRequest } = require("../Utils/translator");
 router.post("/create-payment", async (req, res) => {
   const lang = getLanguageFromRequest(req);
   try {
-    const paymentIntent = await createPaymentIntent(req);
-    return res
-      .status(STATUS_CODES.OK)
-      .json({ clientSecret: paymentIntent.client_secret });
+    const result = await createPaymentIntent(req);
+    
+    // Handle Checkout Session (for TWINT)
+    if (result.type === "checkout_session") {
+      return res.status(STATUS_CODES.OK).json({
+        type: "checkout_session",
+        url: result.url,
+        id: result.id,
+      });
+    }
+    
+    // Handle Payment Intent (for other payment methods)
+    // Return clientSecret directly for backward compatibility with ClientSecretModel
+    return res.status(STATUS_CODES.OK).json({
+      clientSecret: result.client_secret,
+      type: "payment_intent", // Optional: frontend can check this
+      id: result.id, // Optional: frontend can check this
+    });
   } catch (error) {
     console.error("Error while creating intent: ", error);
-    res.status(STATUS_CODES.SERVER_ERROR).json({
+    res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("STRIPE_CREATE_PAYMENT_ERROR", lang),
     });
   }
