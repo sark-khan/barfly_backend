@@ -45,6 +45,11 @@ const SalesReport = require("../../Models/SalesReport");
 const { t, getLanguageFromRequest } = require("../../Utils/translator");
 
 const ALL_ANSWER_TYPES = globalConstants.ALL_ANSWER_TYPES;
+const APP_FEEDBACK_QUESTIONS = globalConstants.APP_FEEDBACK_QUESTIONS;
+const OWNER_APP_FEEDBACK_QUESTIONS =
+  globalConstants.OWNER_APP_FEEDBACK_QUESTIONS;
+const ANSWER_TYPES = globalConstants.ANSWER_TYPES;
+const OwnerAppFeedback = require("../../Models/OwnerAppFeedback");
 
 module.exports.createCounter = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -240,11 +245,14 @@ module.exports.createCounterMenuCategory = async (req) => {
     });
   }
 
-  const counters = await Counter.find({ entityId: req.entityId }).select("_id");
+  const counters = await Counter.find({
+    entityId: req.entityId,
+    status: { $ne: STATUS.DELETED },
+  }).select("_id");
   const counterIds = counters.map((counter) => counter._id.toString());
 
   for (const category of categories) {
-    const { categoryName, nutritionType } = category;
+    const { categoryName } = category;
     if (
       !categoryName ||
       !Array.isArray(counterIds) ||
@@ -276,7 +284,6 @@ module.exports.createCounterMenuCategory = async (req) => {
     ({ categoryName, nutritionType }) =>
       counterIds.map((counterId) => ({
         categoryName,
-        nutritionType,
         counterId,
         entityId,
       }))
@@ -513,6 +520,7 @@ module.exports.createMenuItem = async (req) => {
       nutritionType,
       counterIds,
       categoryName,
+      isAlcohol,
     },
   } = req;
 
@@ -595,6 +603,7 @@ module.exports.createMenuItem = async (req) => {
         counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
         image: fileName,
         isVegan,
+        isAlcohol,
         unit,
         description,
         nutritionType,
@@ -686,6 +695,8 @@ module.exports.updateMenuItem = async (req) => {
       counterIds,
       unit,
       isCounterRemove,
+      isAlcohol,
+      isVegan,
     },
   } = req;
 
@@ -735,6 +746,8 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
+      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
@@ -782,6 +795,8 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
+      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
@@ -1680,7 +1695,7 @@ module.exports.getMenuCategory = async (req) => {
 };
 
 module.exports.editCategory = async (req) => {
-  const { action, categoryName, newCategoryName, nutritionType } = req.body;
+  const { action, categoryName, newCategoryName } = req.body;
   const lang = getLanguageFromRequest(req);
   let message = "";
 
@@ -1703,7 +1718,6 @@ module.exports.editCategory = async (req) => {
   if (action === EDIT_ACTION.EDIT) {
     for (const category of categories) {
       if (newCategoryName) category.categoryName = newCategoryName;
-      if (nutritionType) category.nutritionType = nutritionType;
       await category.save();
     }
     message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
@@ -2047,6 +2061,8 @@ module.exports.updateCounterSettings = async (req) => {
       { _id: counterId },
       { $set: { status: STATUS.DELETED } }
     );
+
+    //category find then delete that category
 
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
     sendFirebaseNotification({
@@ -3876,4 +3892,174 @@ module.exports.editEvent = async (req) => {
       message: t("EVENT_UPDATE_ERROR", lang),
     });
   }
+};
+module.exports.ownerAppFeedback = async (req) => {
+  const userId = req.userId || req.id;
+  const { answers } = req.body;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("USER_DOES_NOT_EXIST", lang),
+    });
+  }
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("FEEDBACK_ANSWERS_REQUIRED", lang),
+    });
+  }
+
+  for (const answer of answers) {
+    if (!answer.questionId || answer.answer === undefined) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER", lang),
+      });
+    }
+    // Validate questionId exists in hardcoded questions (check both arrays since IDs are the same)
+    const question =
+      OWNER_APP_FEEDBACK_QUESTIONS.find((q) => q.id === answer.questionId) ||
+      APP_FEEDBACK_QUESTIONS.find((q) => q.id === answer.questionId);
+    if (!question) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_QUESTION_NOT_FOUND", lang),
+      });
+    }
+    // Validate answer type (must be number or string)
+    if (
+      typeof answer.answer !== "number" &&
+      typeof answer.answer !== "string"
+    ) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("FEEDBACK_INVALID_ANSWER_TYPE", lang),
+      });
+    }
+  }
+
+  const feedbackObj = {
+    userId,
+    answers,
+  };
+
+  const feedbackFromUser = await OwnerAppFeedback.create(feedbackObj);
+  return feedbackFromUser;
+};
+
+module.exports.getFeedbackAppQuestions = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Return translated questions based on user's language (using owner-specific order)
+  const translatedQuestions = OWNER_APP_FEEDBACK_QUESTIONS.map((question) => {
+    const translationKey = `app_feedback_q${question.id.replace(
+      "appFeedback",
+      ""
+    )}`;
+
+    const result = {
+      id: question.id,
+      question: t(translationKey, lang),
+      answerType: question.answerType,
+    };
+
+    // Add translated options for FRIENDLY answer type
+    if (question.answerType === "FRIENDLY" && ANSWER_TYPES.FRIENDLY) {
+      result.options = ANSWER_TYPES.FRIENDLY.map((option) => {
+        const translatedValue = t(option, lang);
+        return {
+          value: translatedValue, // Use translated value for submission
+          label: translatedValue, // Use translated value for display
+        };
+      });
+    }
+
+    return result;
+  });
+
+  return translatedQuestions;
+};
+
+module.exports.getOwnerAppFeedbackAnswers = async (req) => {
+  const userId = req.userId || req.id;
+  const lang = getLanguageFromRequest(req);
+
+  if (!userId) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("USER_NOT_AUTHENTICATED", lang),
+    });
+  }
+
+  // Find the most recent feedback submission from this owner
+  const ownerFeedback = await OwnerAppFeedback.findOne({ userId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!ownerFeedback) {
+    return null;
+  }
+
+  // Translate answers to current user language
+  const translatedAnswers = ownerFeedback.answers.map((answer) => {
+    const question =
+      OWNER_APP_FEEDBACK_QUESTIONS.find((q) => q.id === answer.questionId) ||
+      APP_FEEDBACK_QUESTIONS.find((q) => q.id === answer.questionId);
+
+    // For FRIENDLY type answers, check if the answer is a translatable option
+    if (question && question.answerType === "FRIENDLY") {
+      // Check if answer exists in any language's FRIENDLY options
+      const isTranslatableOption = ANSWER_TYPES.FRIENDLY.some(
+        (option) =>
+          t(option, "en") === answer.answer || t(option, "de") === answer.answer
+      );
+
+      if (isTranslatableOption) {
+        // Find the original English key
+        let originalKey = answer.answer;
+        for (const option of ANSWER_TYPES.FRIENDLY) {
+          if (
+            t(option, "en") === answer.answer ||
+            t(option, "de") === answer.answer
+          ) {
+            originalKey = option;
+            break;
+          }
+        }
+        // Translate to current language
+        return {
+          questionId: answer.questionId,
+          answer: t(originalKey, lang),
+        };
+      }
+    }
+
+    // Return as-is for other types or non-translatable strings
+    return answer;
+  });
+
+  return {
+    feedbackId: ownerFeedback._id,
+    submittedAt: ownerFeedback.createdAt,
+    answers: translatedAnswers,
+  };
 };

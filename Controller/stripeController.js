@@ -21,7 +21,7 @@ router.post("/create-payment", async (req, res) => {
   const lang = getLanguageFromRequest(req);
   try {
     const result = await createPaymentIntent(req);
-    
+
     // Handle Checkout Session (for TWINT)
     if (result.type === "checkout_session") {
       return res.status(STATUS_CODES.OK).json({
@@ -30,7 +30,7 @@ router.post("/create-payment", async (req, res) => {
         id: result.id,
       });
     }
-    
+
     // Handle Payment Intent (for other payment methods)
     // Return clientSecret directly for backward compatibility with ClientSecretModel
     return res.status(STATUS_CODES.OK).json({
