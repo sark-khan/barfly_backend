@@ -343,6 +343,30 @@ const APP_FEEDBACK_QUESTIONS = [
   },
 ];
 
+// Owner-specific feedback questions with swapped order (question 2 and 3 swapped)
+const OWNER_APP_FEEDBACK_QUESTIONS = [
+  {
+    id: "appFeedback1",
+    question: "How would you rate your overall experience with countr?",
+    answerType: "RATING_FIVE",
+  },
+  {
+    id: "appFeedback3",
+    question: "How likely is it that you would recommend countr to others?",
+    answerType: "FRIENDLY",
+  },
+  {
+    id: "appFeedback2",
+    question: "How user-friendly do you find countr?",
+    answerType: "RATING",
+  },
+  {
+    id: "appFeedback4",
+    question: "Is there anything else you would like to share?",
+    answerType: "TEXT",
+  },
+];
+
 const SERIAL_TYPE = {
   WORKDAYS: "Workdays",
   ONE_DAY: "One Day",
@@ -372,5 +396,6 @@ module.exports = {
   ANSWER_TYPES,
   ALL_ANSWER_TYPES,
   APP_FEEDBACK_QUESTIONS,
+  OWNER_APP_FEEDBACK_QUESTIONS,
   SERIAL_TYPE,
 };
