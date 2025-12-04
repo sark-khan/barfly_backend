@@ -49,6 +49,10 @@ const {
   editCategory,
   deleteEvent,
   editEvent,
+  getDateWiseEventDetails,
+  ownerAppFeedback,
+  getFeedbackAppQuestions,
+  getOwnerAppFeedbackAnswers,
 } = require("./service");
 const verifyToken = require("../../Utils/verifyToken");
 const Counter = require("../../Models/Counter");
@@ -960,6 +964,55 @@ router.get("/download-sales-report", async (req, res) => {
     console.error("Error while downloading the sales report", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("OWNER_SALES_REPORT_DOWNLOAD_ERROR", lang),
+    });
+  }
+});
+router.post("/owner-app-feedback", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    await ownerAppFeedback(req);
+    res
+      .status(STATUS_CODES.OK)
+      .json({ message: t("USER_FEEDBACK_SUBMIT_SUCCESS", lang) });
+  } catch (error) {
+    console.error("Error while submitting the feedabck: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("USER_FEEDBACK_SUBMIT_ERROR", lang),
+    });
+  }
+});
+
+router.get("/get-feedback-app-questions", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const data = await getFeedbackAppQuestions(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: t("FEEDBACK_QUESTIONS_FETCH_SUCCESS", lang),
+      data,
+    });
+  } catch (error) {
+    console.error("Error occured while getting feedback questions: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("FEEDBACK_QUESTIONS_FETCH_ERROR", lang),
+    });
+  }
+});
+
+router.get("/get-user-app-feedback-answers", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const data = await getOwnerAppFeedbackAnswers(req);
+    return res.status(STATUS_CODES.OK).json({
+      message: t("USER_FEEDBACK_FETCH_SUCCESS", lang),
+      data,
+    });
+  } catch (error) {
+    console.error(
+      "Error occured while getting owner feedback answers: ",
+      error
+    );
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("USER_FEEDBACK_FETCH_ERROR", lang),
     });
   }
 });
