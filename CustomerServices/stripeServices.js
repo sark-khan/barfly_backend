@@ -132,6 +132,7 @@ const createPaymentIntent = async (req) => {
           },
         ],
         mode: "payment",
+        company_name: "Countr Customer",
         payment_intent_data: {
           application_fee_amount: feeInCents,
           transfer_data: {
