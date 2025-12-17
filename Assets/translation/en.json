@@ -331,6 +331,8 @@
   "OWNER_INSIDER_FETCH_ERROR": "Failed to fetch insider elements.",
   "OWNER_MENU_ITEM_DUPLICATE_CATEGORY": "Same item exists in one of the selected menu categories.",
   "OWNER_ITEM_NOT_FOUND": "Item not found.",
+  "OWNER_ITEM_CANNOT_EDIT_CATEGORY_COUNTER_ACTIVE_ORDER": "Cannot edit item category or counters when it has active orders.",
+  "OWNER_MENU_CATEGORY_NOT_FOUND": "Menu category not found.",
   "OWNER_EVENT_TIME_FORMAT_INVALID": "The time format is invalid.",
   "OWNER_EVENT_TIME_SELECTION_INVALID": "Invalid time selection.",
   "OWNER_EVENT_DUPLICATE_TIME_ERROR": "An event with the same name and overlapping time already exists.",

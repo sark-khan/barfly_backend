@@ -329,12 +329,12 @@ const APP_FEEDBACK_QUESTIONS = [
   {
     id: "appFeedback2",
     question: "How user-friendly do you find countr?",
-    answerType: "RATING",
+    answerType: "FRIENDLY",
   },
   {
     id: "appFeedback3",
     question: "How likely is it that you would recommend countr to others?",
-    answerType: "FRIENDLY",
+    answerType: "RATING",
   },
   {
     id: "appFeedback4",

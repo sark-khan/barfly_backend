@@ -273,12 +273,13 @@ const updateStatusOfOrder = async (req) => {
   // });
 
   const userId = updatedOrder?.userId?._id;
+  const orderNo = updatedOrder?.tokenNumber || order?.tokenNumber;
 
   sendFirebaseNotification({
     topic: `user_${userId}`,
     showNotification: true,
     title: "Order Status Updated",
-    body: "Order Status is Updated",
+    body: `Order No.: ${orderNo} is ${status}`,
     data: {
       orderId: orderId,
       status: status,
