@@ -24,7 +24,7 @@
   "STRIPE_CHECKOUT_SESSION_ERROR": "Error while creating checkout session.",
   "STRIPE_PAYMENT_INTENT_ERROR": "Error while creating payment intent.",
   "STRIPE_TEST_LIVE_MODE_MISMATCH": "Stripe account mode mismatch. The connected account was created in test mode, but a live mode key is being used. Please ensure both the Stripe secret key and connected account are in the same mode (test or live).",
- 
+
   "CARD_ADD_ERROR": "Error occured while adding card details.",
   "CARD_ADDED_SUCCESS": " Card added successfully.",
   "CARD_DELETE_SUCCESS": "Card deleted successfully.",
@@ -382,6 +382,9 @@
   "app_feedback_q1": "How would you rate your overall experience with countr?",
   "app_feedback_q2": "How user-friendly do you find countr?",
   "app_feedback_q3": "How likely is it that you would recommend countr to others?",
+  "app_feedback_owner_q1": "How would you rate your overall experience with countr plus?",
+  "app_feedback_owner_q2": "How user-friendly do you find countr plus?",
+  "app_feedback_owner_q3": "How likely is it that you would recommend countr plus to others?",
   "app_feedback_q4": "Is there anything else you would like to share?",
   "USER_FEEDBACK_FETCH_SUCCESS": "User feedback fetched successfully.",
   "USER_FEEDBACK_FETCH_ERROR": "Error while fetching user feedback.",

@@ -279,7 +279,7 @@ const updateStatusOfOrder = async (req) => {
     topic: `user_${userId}`,
     showNotification: true,
     title: "Order Status Updated",
-    body: `Order No.: ${orderNo} is ${status}`,
+    body: `Order No: ${orderNo} is ${status}!`,
     data: {
       orderId: orderId,
       status: status,
