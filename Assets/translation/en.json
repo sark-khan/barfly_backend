@@ -387,5 +387,13 @@
   "User-friendly": "User-friendly",
   "Neutral": "Neutral",
   "Less user friendly": "Less user friendly",
-  "Difficult to understand": "Difficult to understand"
+  "Difficult to understand": "Difficult to understand",
+  "WALLEE_MISSING_REQUIRED_FIELDS": "Missing required fields: amount, currency, or eventId.",
+  "WALLEE_CONFIG_MISSING": "Wallee payment configuration is missing. Please contact support.",
+  "WALLEE_TRANSACTION_CREATE_ERROR": "Error while creating payment transaction.",
+  "WALLEE_CREATE_PAYMENT_ERROR": "Error while creating payment.",
+  "WALLEE_TRANSACTION_ID_REQUIRED": "Transaction ID is required.",
+  "WALLEE_TRANSACTION_STATUS_ERROR": "Error while fetching payment status.",
+  "WALLEE_PAYMENT_STATUS_ERROR": "Error while getting payment status.",
+  "WALLEE_WEBHOOK_ERROR": "Error processing payment webhook."
 }

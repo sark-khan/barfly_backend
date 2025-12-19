@@ -31,6 +31,7 @@
     "socket.io": "^4.8.1",
     "stripe": "^17.7.0",
     "svg-to-pdfkit": "^0.1.8",
-    "twilio": "^5.4.3"
+    "twilio": "^5.4.3",
+    "wallee": "^5.4.0"
   }
 }

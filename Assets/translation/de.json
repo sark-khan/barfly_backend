@@ -15,7 +15,7 @@
     "STRIPE_ACCOUNT_NOT_FOUND": "Konto nicht gefunden",
     "STRIPE_ACCOUNT_NOT_FOUND_FOR_ENTITY": "Kein Stripe-Konto für diesen Eintrag gefunden",
     "STRIPE_BALANCE_FETCH_FAILED": "Fehler beim Abrufen deines Stripe-Guthabens",
-    "STRIPE_TRANSFERS_NOT_ENABLED": "Das verbundene Stripe-Konto hat die Transfers-Funktion nicht aktiviert. Bitte schließen Sie den Onboarding-Prozess ab, um Transfers zu aktivieren.",
+    "STRIPE_TRANSFERS_NOT_ENABLED": "Das verbundene Stripe-Konto hat die Transfers-Funktion nicht aktiviert. Bitte schließe den Onboarding-Prozess ab, um Transfers zu aktivieren.",
     "STRIPE_TWINT_CURRENCY_ERROR": "TWINT wird nur für CHF-Währung unterstützt.",
     "STRIPE_NO_PAYMENT_METHOD": "Mindestens eine gültige Zahlungsmethode ist erforderlich.",
     "STRIPE_MISSING_ENTITY_ID": "Fehlende entityId",
@@ -23,7 +23,7 @@
     "STRIPE_MISSING_REQUIRED_FIELDS": "Fehlende erforderliche Felder: Betrag, Währung oder eventId.",
     "STRIPE_CHECKOUT_SESSION_ERROR": "Fehler beim Erstellen der Checkout-Sitzung.",
     "STRIPE_PAYMENT_INTENT_ERROR": "Fehler beim Erstellen der Zahlungsabsicht.",
-    "STRIPE_TEST_LIVE_MODE_MISMATCH": "Stripe-Kontomodus stimmt nicht überein. Das verbundene Konto wurde im Testmodus erstellt, aber es wird ein Live-Modus-Schlüssel verwendet. Bitte stellen Sie sicher, dass sowohl der Stripe-Geheimschlüssel als auch das verbundene Konto im gleichen Modus (Test oder Live) sind.",
+    "STRIPE_TEST_LIVE_MODE_MISMATCH": "Stripe-Kontomodus stimmt nicht überein. Das verbundene Konto wurde im Testmodus erstellt, aber es wird ein Live-Modus-Schlüssel verwendet. Bitte stelle sicher, dass sowohl der Stripe-Geheimschlüssel als auch das verbundene Konto im gleichen Modus (Test oder Live) sind.",
     "CARD_ADD_ERROR": "Fehler beim Hinzufügen deiner Kartendetails",
     "CARD_ADDED_SUCCESS": "Karte erfolgreich hinzugefügt",
     "CARD_DELETE_SUCCESS": "Karte erfolgreich gelöscht",
@@ -386,5 +386,13 @@
     "User-friendly": "Benutzerfreundlich",
     "Neutral": "Teils",
     "Less user friendly": "Weniger benutzerfreundlich",
-    "Difficult to understand": "Schwer zu verstehen"
+    "Difficult to understand": "Schwer zu verstehen",
+    "WALLEE_MISSING_REQUIRED_FIELDS": "Fehlende erforderliche Felder: Betrag, Währung oder eventId.",
+    "WALLEE_CONFIG_MISSING": "Wallee-Zahlungskonfiguration fehlt. Bitte wende dich an den Support.",
+    "WALLEE_TRANSACTION_CREATE_ERROR": "Fehler beim Erstellen der Zahlungstransaktion.",
+    "WALLEE_CREATE_PAYMENT_ERROR": "Fehler beim Erstellen der Zahlung.",
+    "WALLEE_TRANSACTION_ID_REQUIRED": "Transaktions-ID ist erforderlich.",
+    "WALLEE_TRANSACTION_STATUS_ERROR": "Fehler beim Abrufen des Zahlungsstatus.",
+    "WALLEE_PAYMENT_STATUS_ERROR": "Fehler beim Abrufen des Zahlungsstatus.",
+    "WALLEE_WEBHOOK_ERROR": "Fehler bei der Verarbeitung des Zahlungs-Webhooks."
 }
