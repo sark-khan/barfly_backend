@@ -3,6 +3,7 @@ const {
   comparePassword,
   getJwtToken,
   generateOTP,
+  sendFirebaseNotification,
 } = require("../../../Utils/commonFunction");
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
@@ -185,6 +186,23 @@ module.exports.register = async (req) => {
     isEmailOn: true,
     isPushOn: true,
     isPromotionalOn: true,
+  });
+
+  // Send Firebase notification to customer_entity topic for new entity
+  sendFirebaseNotification({
+    topic: "customer_entity",
+    showNotification: false,
+    title: "New Entity Added",
+    body: `A new entity "${entityName}" has been added.`,
+    data: {
+      action: "entity_create",
+      screen: "entity_screen",
+      entityId: entityDetails._id.toString(),
+      entityName: entityName,
+      entityType: entityType,
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: "customer_entity",
+    },
   });
 
   userDetails.entityDetails = entityDetails;

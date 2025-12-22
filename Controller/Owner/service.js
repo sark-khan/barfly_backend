@@ -51,6 +51,20 @@ const OWNER_APP_FEEDBACK_QUESTIONS =
   globalConstants.OWNER_APP_FEEDBACK_QUESTIONS;
 const ANSWER_TYPES = globalConstants.ANSWER_TYPES;
 const OwnerAppFeedback = require("../../Models/OwnerAppFeedback");
+const OfflineOrder = require("../../Models/OfflineOrder");
+const notificationSettings = require("../../Models/notificationSettings");
+const Cards = require("../../Models/Cards");
+const Location = require("../../Models/Location");
+const FavouriteEntity = require("../../Models/FavouriteEntity");
+const FavouriteItem = require("../../Models/FavouriteItem");
+const CountRTags = require("../../Models/CountRTags");
+const CustomerOrderReport = require("../../Models/CustomerOrderReport");
+const UserAppFeedback = require("../../Models/UserAppFeedback");
+const FeedbackAppQuestion = require("../../Models/FeedbackAppQuestion");
+const searchLogs = require("../../Models/searchLogs");
+const StripePayment = require("../../Models/Stripe");
+const redisClient = require("../../redis");
+const { KEY_TYPE_PREFIXES } = require("../../Utils/globalConstants");
 
 module.exports.createCounter = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -134,6 +148,13 @@ module.exports.createCounter = async (req) => {
   }
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${newCounter.entityId}`).emit("counterUpdate", {
+    action: "create",
+    counter: newCounter,
+    entityId: newCounter.entityId.toString(),
+  });
 
   if (isTableService) {
     const lastTable = await Tables.findOne(
@@ -298,6 +319,13 @@ module.exports.createCounterMenuCategory = async (req) => {
     "newCategory",
     createdCategories
   );
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${createdCategories[0].entityId}`).emit("categoryUpdate", {
+    action: "create",
+    categories: createdCategories,
+    entityId: createdCategories[0].entityId.toString(),
+  });
 
   sendFirebaseNotification({
     topic: `entity_${createdCategories[0].entityId}`,
@@ -614,8 +642,16 @@ module.exports.createMenuItem = async (req) => {
     })
   );
 
-  // Emit socket event to entity room
+  // Emit socket event to entity room (for owner)
   io.to(req.entityId.toString()).emit("newItem", createdItems);
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${req.entityId}`).emit("itemUpdate", {
+    action: "create",
+    items: createdItems,
+    entityId: req.entityId.toString(),
+    categoryName: categoryName,
+  });
 
   sendFirebaseNotification({
     topic: `entity_${req.entityId}`,
@@ -627,24 +663,9 @@ module.exports.createMenuItem = async (req) => {
       screen: "item_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `entity_${req.entityId}`,
-      // categoryName: categoryName,
-      // counter: category.counterId,
-      // category: category._id,
       entityId: req.entityId,
     },
   });
-
-  // Send Firebase notification
-  // sendFirebaseNotification({
-  //   titleText: "New item added",
-  //   body: "New Item Added in the menu list",
-  //   data: {
-  //     action: "item created",
-  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //   },
-  //   token: "",
-  //   showNotification: false,
-  // });
 
   return createdItems;
 };
@@ -830,6 +851,12 @@ module.exports.updateMenuItem = async (req) => {
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${item.entityId}`).emit("itemUpdate", {
+        action: "edit",
+        item: item,
+        entityId: item.entityId.toString(),
+      });
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
@@ -843,12 +870,20 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
+      const deletedItemId = item._id;
+      const entityId = item.entityId;
       await ItemDetails.deleteOne({ _id: item._id });
-      io.to(item.entityId.toString()).emit("menuItemUpdated", {
-        itemId: item._id,
+      io.to(entityId.toString()).emit("menuItemUpdated", {
+        itemId: deletedItemId,
+      });
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${entityId}`).emit("itemUpdate", {
+        action: "delete",
+        itemId: deletedItemId.toString(),
+        entityId: entityId.toString(),
       });
       sendFirebaseNotification({
-        topic: `entity_${item.entityId}`,
+        topic: `entity_${entityId}`,
         showNotification: true,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
@@ -856,7 +891,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${item.entityId}`,
+          topic: `entity_${entityId}`,
         },
       });
     }
@@ -880,6 +915,12 @@ module.exports.updateMenuItem = async (req) => {
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${item.entityId}`).emit("itemUpdate", {
+        action: "edit",
+        item: item,
+        entityId: item.entityId.toString(),
+      });
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
@@ -893,12 +934,20 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
+      const deletedItemId = item._id;
+      const entityId = item.entityId;
       await ItemDetails.deleteOne({ _id: item._id });
-      io.to(item.entityId.toString()).emit("menuItemUpdated", {
-        itemId: item._id,
+      io.to(entityId.toString()).emit("menuItemUpdated", {
+        itemId: deletedItemId,
+      });
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${entityId}`).emit("itemUpdate", {
+        action: "delete",
+        itemId: deletedItemId.toString(),
+        entityId: entityId.toString(),
       });
       sendFirebaseNotification({
-        topic: `entity_${item.entityId}`,
+        topic: `entity_${entityId}`,
         showNotification: true,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
@@ -906,7 +955,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${item.entityId}`,
+          topic: `entity_${entityId}`,
         },
       });
     }
@@ -1184,6 +1233,29 @@ module.exports.createEvent = async (req) => {
     { $inc: { activeUsers: 1 } }
   );
 
+  // Emit socket event to customer_entity topic for new event
+  io.to("customer_entity").emit("eventUpdate", {
+    action: "create",
+    event: savedEvent,
+    entityId: req.entityId.toString(),
+  });
+
+  // Send Firebase notification to customer_entity topic for new event
+  sendFirebaseNotification({
+    topic: "customer_entity",
+    showNotification: false,
+    title: "New Event Added",
+    body: `A new event "${eventName}" has been added.`,
+    data: {
+      action: "event_create",
+      screen: "event_screen",
+      eventId: savedEvent._id.toString(),
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: "customer_entity",
+    },
+  });
+
   return savedEvent;
 };
 
@@ -1197,7 +1269,32 @@ module.exports.deleteEvent = async (req) => {
       message: t("OWNER_EVENT_NOT_FOUND", lang),
     });
   }
+  const entityId = event.entityId;
+  const eventName = event.eventName;
   await Event.deleteOne({ _id: eventId });
+
+  // Emit socket event to customer_entity topic for deleted event
+  io.to("customer_entity").emit("eventUpdate", {
+    action: "delete",
+    eventId: eventId,
+    entityId: entityId.toString(),
+  });
+
+  // Send Firebase notification to customer_entity topic for deleted event
+  sendFirebaseNotification({
+    topic: "customer_entity",
+    showNotification: false,
+    title: "Event Deleted",
+    body: `The event "${eventName}" has been removed.`,
+    data: {
+      action: "event_delete",
+      screen: "event_screen",
+      eventId: eventId.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: "customer_entity",
+    },
+  });
 };
 
 // module.exports.getUpcomingEvents = async (req) => {
@@ -2060,12 +2157,57 @@ module.exports.editCategory = async (req) => {
       if (newCategoryName) category.categoryName = newCategoryName;
       await category.save();
     }
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
+      action: "edit",
+      categories: categories,
+      oldCategoryName: categoryName,
+      newCategoryName: newCategoryName,
+      entityId: req.entityId.toString(),
+    });
+    // Send Firebase notification to entity_{entityId} topic for category edit
+    sendFirebaseNotification({
+      topic: `entity_${req.entityId}`,
+      showNotification: false,
+      title: "Category Updated",
+      body: `Category "${categoryName}" has been updated.`,
+      data: {
+        action: "category_edit",
+        screen: "category_screen",
+        oldCategoryName: categoryName,
+        newCategoryName: newCategoryName || categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${req.entityId}`,
+      },
+    });
     message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
   } else if (action === EDIT_ACTION.DELETE) {
     // Delete all categories with this name for this entity (all counters)
     await MenuCategory.deleteMany({
       categoryName,
       entityId: req.entityId,
+    });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
+      action: "delete",
+      categoryName: categoryName,
+      entityId: req.entityId.toString(),
+    });
+    // Send Firebase notification to entity_{entityId} topic for category delete
+    sendFirebaseNotification({
+      topic: `entity_${req.entityId}`,
+      showNotification: false,
+      title: "Category Deleted",
+      body: `Category "${categoryName}" has been removed.`,
+      data: {
+        action: "category_delete",
+        screen: "category_screen",
+        categoryName: categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${req.entityId}`,
+      },
     });
     message = t("OWNER_CATEGORIES_DELETE_SUCCESS", lang);
   } else {
@@ -2323,11 +2465,18 @@ module.exports.updateCounterSettings = async (req) => {
 
     await counter.save();
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${counter.entityId}`).emit("counterUpdate", {
+      action: "edit",
+      counter: counter,
+      counterId: counterId,
+      entityId: counter.entityId.toString(),
+    });
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
-      title: "New Counter Added",
-      body: "You have a new counter added. Tap to view.",
+      title: "Counter Updated",
+      body: "A counter has been updated. Tap to view.",
       data: {
         action: "counter_update",
         screen: "counter_screen",
@@ -2416,6 +2565,12 @@ module.exports.updateCounterSettings = async (req) => {
     );
 
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${counter.entityId}`).emit("counterUpdate", {
+      action: "delete",
+      counterId: counterId,
+      entityId: counter.entityId.toString(),
+    });
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
@@ -2731,7 +2886,7 @@ module.exports.editBusinessDetails = async (req) => {
       floor,
       buildingName,
       landmark,
-      plotNo,
+      // plotNo,
       country,
     },
   } = req;
@@ -2817,7 +2972,7 @@ module.exports.editBusinessDetails = async (req) => {
   if (buildingName) updateEntityFields.buildingName = buildingName;
   if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
-  if (plotNo) updateEntityFields.plotNo = plotNo;
+  // if (plotNo) updateEntityFields.plotNo = plotNo;
   if (country) updateEntityFields.country = country;
 
   // await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
@@ -3980,12 +4135,76 @@ module.exports.deleteEntityAccount = async (req) => {
     });
   }
 
+  // Generate unique deleted email to avoid conflicts if email has unique constraint
+  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
+
+  // Delete all owner/entity-related data and clear personal information in parallel
   await Promise.all([
+    // Update user: set status to DELETED, clear all personal information
+    User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          status: STATUS.DELETED,
+          email: deletedEmail,
+          contactNumber: null,
+          countrTag: null,
+          firstName: null,
+          lastName: null,
+          fullName: null,
+          password: null,
+          fcmToken: [],
+          socketId: null,
+        },
+      }
+    ),
+    // Update entity: set status to DELETED, clear sensitive information
     EntityDetails.updateOne(
       { _id: entityId },
-      { $set: { status: STATUS.DELETED } }
+      {
+        $set: {
+          status: STATUS.DELETED,
+          entityName: null,
+          entityEmail: null,
+          contactNumber: null,
+          stripeAccountId: null,
+          bankLinkUrl: null,
+        },
+      }
     ),
-    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+    // Delete entity-related operational data
+    Counter.deleteMany({ entityId }),
+    MenuCategory.deleteMany({ entityId }),
+    MenuItem.deleteMany({ entityId }),
+    ItemDetails.deleteMany({ entityId }),
+    Tables.deleteMany({ entityId }),
+    Event.deleteMany({ entityId }),
+    Discount.deleteMany({ entityId }),
+    // Delete feedback and survey data
+    FeedbackQuestions.deleteMany({ entityId }),
+    Feedbacks.deleteMany({ entityId }),
+    OwnerAppFeedback.deleteMany({ userId }),
+    FeedbackAppQuestion.deleteMany({ userId }),
+    // Delete order and reporting data
+    Order.deleteMany({ entityId }),
+    OfflineOrder.deleteMany({ entityId }),
+    SalesReport.deleteMany({ entityId }),
+    CustomerOrderReport.deleteMany({ entityId }),
+    // Delete search logs
+    ItemSearchLogs.deleteMany({ entityId }),
+    searchLogs.deleteMany({ entityId }),
+    // Delete user-related data
+    notificationSettings.deleteMany({ userId }),
+    Cards.deleteMany({ userId }),
+    Location.deleteMany({ userId }),
+    FavouriteEntity.deleteMany({ userId }),
+    FavouriteItem.deleteMany({ userId }),
+    CountRTags.deleteMany({ userId }),
+    UserAppFeedback.deleteMany({ userId }),
+    Otp.deleteMany({ userId }),
+    StripePayment.deleteMany({ userId }),
+    // Clear Redis token if exists
+    redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
   ]);
 };
 
@@ -4236,6 +4455,30 @@ module.exports.editEvent = async (req) => {
 
   try {
     await event.save();
+
+    // Emit socket event to customer_entity topic for updated event
+    io.to("customer_entity").emit("eventUpdate", {
+      action: "edit",
+      event: event,
+      entityId: event.entityId.toString(),
+    });
+
+    // Send Firebase notification to customer_entity topic for updated event
+    sendFirebaseNotification({
+      topic: "customer_entity",
+      showNotification: false,
+      title: "Event Updated",
+      body: `The event "${event.eventName}" has been updated.`,
+      data: {
+        action: "event_edit",
+        screen: "event_screen",
+        eventId: event._id.toString(),
+        entityId: event.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: "customer_entity",
+      },
+    });
+
     return { message: t("EVENT_UPDATE_SUCCESS", lang) };
   } catch (error) {
     throwError({
@@ -4322,10 +4565,13 @@ module.exports.getFeedbackAppQuestions = async (req) => {
 
   // Return translated questions based on user's language (using owner-specific order)
   const translatedQuestions = OWNER_APP_FEEDBACK_QUESTIONS.map((question) => {
-    const translationKey = `app_feedback_q${question.id.replace(
-      "appFeedback",
-      ""
-    )}`;
+    const questionNumber = question.id.replace("appFeedback", "");
+    // Use owner-specific translation keys (app_feedback_owner_q1, etc.) for questions 1-3
+    // Question 4 is shared between customer and owner
+    const translationKey =
+      questionNumber === "4"
+        ? `app_feedback_q${questionNumber}`
+        : `app_feedback_owner_q${questionNumber}`;
 
     const result = {
       id: question.id,

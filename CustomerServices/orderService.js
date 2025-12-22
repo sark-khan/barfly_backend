@@ -140,18 +140,35 @@ const createOrder = async (req, session) => {
   const topic = `entity_${entityDetails._id}`; // always prefix with a letter to avoid numeric-only topic names
   console.log({ topic });
 
+  // sendFirebaseNotification({
+  //   topic: topic,
+  //   title: "Order received",
+  //   body: "You have a new order. Tap to view.",
+  //   data: {
+  //     orderId: `${createdOrder[0]._id}`,
+  //     data: JSON.stringify(createdOrder[0]),
+  //     screen: "landing_home",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //     topic: topic,
+  //   },
+  // });
+
+  // Send Firebase notification to owner_entity_{entityId} topic for new order
   sendFirebaseNotification({
-    topic: topic,
-    title: "Order received",
-    body: "You have a new order. Tap to view.",
+    topic: `owner_entity_${entityDetails._id}`,
+    showNotification: true,
+    title: "New Order Created",
+    body: "A new order has been placed.",
     data: {
-      orderId: `${createdOrder[0]._id}`,
-      data: JSON.stringify(createdOrder[0]),
-      screen: "landing_home",
+      action: "order_create",
+      screen: "order_screen",
+      orderId: createdOrder[0]._id.toString(),
+      entityId: entityDetails._id.toString(),
       click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: topic,
+      topic: `owner_entity_${entityDetails._id}`,
     },
   });
+
   genrateCustomerOrderReport({
     userId: req.userId,
     entityId: entityId,
@@ -283,8 +300,9 @@ const updateStatusOfOrder = async (req) => {
     data: {
       orderId: orderId,
       status: status,
-      action: "status_update",
-      screen: "status",
+      action: "order_status_update",
+      screen: "order_status",
+      orderNo: orderNo?.toString() || "",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `user_${userId}`,
     },
@@ -662,18 +680,26 @@ const updateOfflineOrders = async (req) => {
     { new: true }
   ).populate("userId");
 
+  // Emit socket event for offline order status update
+  io.to(entityId.toString()).emit("orderStatusUpdate", {
+    orderId: orderId,
+    status,
+    isOffline: true,
+  });
+
   const userId = updatedOrder?.userId?._id;
 
   sendFirebaseNotification({
     topic: `user_${userId}`,
     showNotification: true,
     title: "Order Status Updated",
-    body: "Order Status is Updated",
+    body: `Order Status is ${status}`,
     data: {
       orderId: orderId,
       status: status,
-      action: "status_update",
-      screen: "status",
+      action: "order_status_update",
+      screen: "order_status",
+      isOffline: "true",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `user_${userId}`,
     },
