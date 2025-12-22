@@ -17,6 +17,13 @@ const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
 const notificationSettings = require("../../../Models/notificationSettings");
+const FavouriteEntity = require("../../../Models/FavouriteEntity");
+const FavouriteItem = require("../../../Models/FavouriteItem");
+const Cards = require("../../../Models/Cards");
+const Location = require("../../../Models/Location");
+const CustomerOrderReport = require("../../../Models/CustomerOrderReport");
+const UserFeedback = require("../../../Models/UserFeedback");
+const UserAppFeedback = require("../../../Models/UserAppFeedback");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
@@ -187,11 +194,42 @@ module.exports.deleteAccount = async (req) => {
       message: t("CUSTOMER_DOES_NOT_EXIST", lang),
     });
   }
+
+  // Generate unique deleted email to avoid conflicts if email has unique constraint
+  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
+
+  // Delete all user-related data and clear personal information in parallel for optimization
   await Promise.all([
+    // Update user: set status to DELETED, clear all personal information
     User.updateOne(
       { _id: userId },
-      { $set: { status: STATUS.DELETED, countrTag: null } }
+      {
+        $set: {
+          status: STATUS.DELETED,
+          email: deletedEmail,
+          contactNumber: null,
+          countrTag: null,
+          firstName: null,
+          lastName: null,
+          fullName: null,
+          password: null, // Clear password for security
+          fcmToken: [],
+          socketId: null,
+        },
+      }
     ),
+    // Delete all user-related data in parallel (optimized)
     CountRTags.deleteMany({ userId }),
+    FavouriteEntity.deleteMany({ userId }),
+    FavouriteItem.deleteMany({ userId }),
+    notificationSettings.deleteMany({ userId }),
+    Cards.deleteMany({ userId }),
+    Location.deleteMany({ userId }),
+    CustomerOrderReport.deleteMany({ userId }),
+    UserFeedback.deleteMany({ userId }),
+    UserAppFeedback.deleteMany({ userId }),
+    Otp.deleteMany({ userId }),
+    // Clear Redis token if exists
+    redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
   ]);
 };

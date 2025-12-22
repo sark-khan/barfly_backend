@@ -323,7 +323,8 @@ const sendFirebaseNotification = async ({
       return;
     }
 
-    const topicName = topic.startsWith("entity_") ? topic : `entity_${topic}`;
+    // Keep user_ and entity_ topics as-is, only prefix others with entity_
+    // const topicName = topic.startsWith("entity_") || topic.startsWith("user_") ? topic : `entity_${topic}`;
 
     const payload = {
       notification: showNotification
@@ -362,12 +363,12 @@ const sendFirebaseNotification = async ({
           },
         },
       },
-      topic: topicName,
+      topic: topic,
     };
 
     await messagingPlus.send(payload);
     await messaging.send(payload);
-    console.info(`✅ Notification sent to topic: ${topicName}`);
+    console.info(`✅ Notification sent to topic: ${topic}`);
   } catch (err) {
     console.error("❌ Push Notification Error:", err.message);
   }
