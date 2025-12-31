@@ -1031,6 +1031,11 @@ module.exports.getMenuItems = async (req) => {
 module.exports.getRecommendedItems = async (req) => {
   const { entityId, counterId, searchTerm } = req.query;
 
+  // Return empty array if counterId is not provided or invalid
+  if (!counterId || counterId.trim() === "") {
+    return [];
+  }
+
   const query = { entityId, counterIds: counterId };
 
   if (searchTerm) {
