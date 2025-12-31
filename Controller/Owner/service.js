@@ -549,7 +549,8 @@ module.exports.createMenuItem = async (req) => {
       nutritionType,
       counterIds,
       categoryName,
-      isAlcohol,
+      isAlcohol18,
+      isAlcohol16,
     },
   } = req;
 
@@ -632,7 +633,8 @@ module.exports.createMenuItem = async (req) => {
         counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
         image: fileName,
         isVegan,
-        isAlcohol,
+        isAlcohol18,
+        isAlcohol16,
         unit,
         description,
         nutritionType,
@@ -718,7 +720,8 @@ module.exports.updateMenuItem = async (req) => {
       categoryName,
       unit,
       isCounterRemove,
-      isAlcohol,
+      isAlcohol18,
+      isAlcohol16,
       isVegan,
     },
   } = req;
@@ -846,7 +849,8 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
-      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
+      if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();
@@ -910,7 +914,8 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
-      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
+      if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();

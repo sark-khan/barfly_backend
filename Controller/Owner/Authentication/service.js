@@ -188,22 +188,26 @@ module.exports.register = async (req) => {
     isPromotionalOn: true,
   });
 
-  // Send Firebase notification to customer_entity topic for new entity
-  sendFirebaseNotification({
-    topic: "customer_entity",
-    showNotification: false,
-    title: "New Entity Added",
-    body: `A new entity "${entityName}" has been added.`,
-    data: {
-      action: "entity_create",
-      screen: "entity_screen",
-      entityId: entityDetails._id.toString(),
-      entityName: entityName,
-      entityType: entityType,
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
+  // Send Firebase notification to customer_entity topic for new entity (non-blocking)
+  try {
+    sendFirebaseNotification({
       topic: "customer_entity",
-    },
-  });
+      showNotification: false,
+      title: "New Entity Added",
+      body: `A new entity "${entityName}" has been added.`,
+      data: {
+        action: "entity_create",
+        screen: "entity_screen",
+        entityId: entityDetails._id.toString(),
+        entityName: entityName,
+        entityType: entityType,
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: "customer_entity",
+      },
+    });
+  } catch (err) {
+    console.error("Firebase notification error:", err.message);
+  }
 
   userDetails.entityDetails = entityDetails;
   const token = getJwtToken(userDetails, false);
