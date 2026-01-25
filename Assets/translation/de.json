@@ -394,5 +394,16 @@
     "WALLEE_TRANSACTION_ID_REQUIRED": "Transaktions-ID ist erforderlich.",
     "WALLEE_TRANSACTION_STATUS_ERROR": "Fehler beim Abrufen des Zahlungsstatus.",
     "WALLEE_PAYMENT_STATUS_ERROR": "Fehler beim Abrufen des Zahlungsstatus.",
-    "WALLEE_WEBHOOK_ERROR": "Fehler bei der Verarbeitung des Zahlungs-Webhooks."
+    "WALLEE_WEBHOOK_ERROR": "Fehler bei der Verarbeitung des Zahlungs-Webhooks.",
+    "WALLEE_MISSING_ENTITY_OR_EMAIL": "Fehlende erforderliche Felder: entityId oder E-Mail.",
+    "WALLEE_ONBOARDING_LINK_SUCCESS": "Händler-Onboarding-Link erfolgreich erstellt.",
+    "WALLEE_ONBOARDING_LINK_ERROR": "Fehler beim Erstellen des Händler-Onboarding-Links.",
+    "WALLEE_MISSING_ENTITY_ID": "Entity-ID ist erforderlich.",
+    "WALLEE_SPACE_NOT_FOUND_FOR_ENTITY": "Wallee-Space für diese Entity nicht gefunden.",
+    "WALLEE_ONBOARDING_CONTINUE_ERROR": "Fehler beim Fortsetzen des Händler-Onboardings.",
+    "WALLEE_SPACE_NOT_ASSOCIATED": "Kein Wallee-Space mit dieser Entity verknüpft.",
+    "WALLEE_ACCOUNT_CHECK_COMPLETE": "Wallee-Kontenprüfung abgeschlossen.",
+    "WALLEE_SPACE_INACCESSIBLE": "Wallee-Space ist nicht zugänglich.",
+    "WALLEE_ACCOUNT_CHECK_FAILED": "Fehler beim Prüfen des Wallee-Kontostatus.",
+    "WALLEE_ACCOUNT_CHECK_ERROR": "Fehler beim Prüfen des Kontostatus."
 }

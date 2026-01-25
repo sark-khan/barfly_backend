@@ -17,41 +17,37 @@ app.use(cors());
 
 // IMPORTANT: Wallee webhook must be registered BEFORE bodyParser.json()
 // because it needs the raw body (Buffer) for signature verification
-const { handleWalleeWebhook } = require("./CustomerServices/walleeServices");
+// const { handleWalleeWebhook } = require("./CustomerServices/walleeServices");
 
-// Log ALL requests to /api/wallee/webhook for debugging
-app.use("/api/wallee/webhook", (req, res, next) => {
-  console.log(">>> /api/wallee/webhook middleware hit!");
-  console.log(">>> Method:", req.method);
-  console.log(">>> Content-Type:", req.headers["content-type"]);
-  next();
-});
+// // Log ALL requests to /api/wallee/webhook for debugging
+// app.use("/api/wallee/webhook", (req, res, next) => {
+//   next();
+// });
 
-app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  try {
-    console.log(">>> Wallee webhook POST handler hit!");
-    const result = await handleWalleeWebhook(req);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return res.status(error.status || 500).json({ message: error.message });
-  }
-});
+// app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+//   try {
+//     const result = await handleWalleeWebhook(req);
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Webhook error:", error);
+//     return res.status(error.status || 500).json({ message: error.message });
+//   }
+// });
 
 // Fallback handler for webhook if express.raw() doesn't match
-app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {
-  try {
-    console.log(">>> Wallee webhook FALLBACK handler hit!");
-    console.log(">>> Body:", JSON.stringify(req.body));
-    // Convert JSON body back to string for processing
-    req.body = Buffer.from(JSON.stringify(req.body));
-    const result = await handleWalleeWebhook(req);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error("Webhook fallback error:", error);
-    return res.status(error.status || 500).json({ message: error.message });
-  }
-});
+// app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {
+//   try {
+//     console.log(">>> Wallee webhook FALLBACK handler hit!");
+//     console.log(">>> Body:", JSON.stringify(req.body));
+//     // Convert JSON body back to string for processing
+//     req.body = Buffer.from(JSON.stringify(req.body));
+//     const result = await handleWalleeWebhook(req);
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Webhook fallback error:", error);
+//     return res.status(error.status || 500).json({ message: error.message });
+//   }
+// });
 
 // Stripe webhook - Commented out, using Wallee instead
 // app.post(

@@ -395,5 +395,16 @@
   "WALLEE_TRANSACTION_ID_REQUIRED": "Transaction ID is required.",
   "WALLEE_TRANSACTION_STATUS_ERROR": "Error while fetching payment status.",
   "WALLEE_PAYMENT_STATUS_ERROR": "Error while getting payment status.",
-  "WALLEE_WEBHOOK_ERROR": "Error processing payment webhook."
+  "WALLEE_WEBHOOK_ERROR": "Error processing payment webhook.",
+  "WALLEE_MISSING_ENTITY_OR_EMAIL": "Missing required fields: entityId or email.",
+  "WALLEE_ONBOARDING_LINK_SUCCESS": "Merchant onboarding link created successfully.",
+  "WALLEE_ONBOARDING_LINK_ERROR": "Error while creating merchant onboarding link.",
+  "WALLEE_MISSING_ENTITY_ID": "Entity ID is required.",
+  "WALLEE_SPACE_NOT_FOUND_FOR_ENTITY": "Wallee space not found for this entity.",
+  "WALLEE_ONBOARDING_CONTINUE_ERROR": "Error while continuing merchant onboarding.",
+  "WALLEE_SPACE_NOT_ASSOCIATED": "No Wallee space associated with this entity.",
+  "WALLEE_ACCOUNT_CHECK_COMPLETE": "Wallee account check complete.",
+  "WALLEE_SPACE_INACCESSIBLE": "Wallee space is inaccessible.",
+  "WALLEE_ACCOUNT_CHECK_FAILED": "Failed to check Wallee account status.",
+  "WALLEE_ACCOUNT_CHECK_ERROR": "Error while checking account status."
 }
