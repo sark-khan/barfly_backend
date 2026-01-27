@@ -1363,7 +1363,7 @@ module.exports.updateUserDetails = async (req) => {
   if (email) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
         { email },
@@ -1376,7 +1376,7 @@ module.exports.updateUserDetails = async (req) => {
       const mail_data = {
         to: email,
         subject: "COUNTR: OTP for Email Update",
-        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 2 minutes)`,
       };
 
       createMail(mail_data);

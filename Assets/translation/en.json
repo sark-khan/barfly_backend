@@ -154,6 +154,18 @@
   "OTP_SENT_SUCCESS": "OTP sent successfully.",
   "OTP_SESSION_INVALID": "Session expired or invalid sessionId. Please verify OTP again.",
   "OTP_VERIFIED_SUCCESS": "OTP verified successfully.",
+  "OTP_INVALID": "Invalid OTP. Please try again.",
+  "OTP_NOT_VERIFIED": "OTP not verified. Please verify OTP first.",
+  "OTP_SENT_EMAIL_SUCCESS": "OTP sent to your email successfully.",
+  "EMAIL_REQUIRED": "Email is required.",
+  "EMAIL_SEND_ERROR": "Failed to send email. Please try again.",
+  "PASSWORD_RESET_SUCCESS": "Password reset successfully.",
+  "PASSWORD_RESET_ERROR": "Error while resetting password.",
+  "EMAIL_AND_PASSWORD_REQUIRED": "Email and new password are required.",
+  "EMAIL_TOKEN_PASSWORD_REQUIRED": "Email, reset token, and new password are required.",
+  "INVALID_RESET_TOKEN": "Invalid or expired reset token. Please verify OTP again.",
+  "RESET_TOKEN_REQUIRED": "You are not authorized to reset password due to security policies of our app.",
+  "EMAIL_OTP_ERROR": "Error while sending email OTP.",
   "EMAIL_ALREADY_EXISTS": "Email {{email}} already exists.",
   "EMAIL_UPDATE_SUCCESS": "Email updated successfully.",
   "ENTITY_NOT_FOUND": "Entity doesn't exist.",
@@ -392,5 +404,7 @@
   "User-friendly": "User-friendly",
   "Neutral": "Neutral",
   "Less user friendly": "Less user friendly",
-  "Difficult to understand": "Difficult to understand"
+  "Difficult to understand": "Difficult to understand",
+  "DEFAULT_CATEGORY_FOOD": "Food",
+  "DEFAULT_CATEGORY_SOFT_DRINKS": "Soft Drinks"
 }

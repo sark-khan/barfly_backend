@@ -358,7 +358,7 @@ const OWNER_APP_FEEDBACK_QUESTIONS = [
     id: "appFeedback3",
     question:
       "How likely is it that you would recommend countr plus to others?",
-    answerType: "RATING",
+    answerType: "RATING_FIVE",
   },
   {
     id: "appFeedback4",
