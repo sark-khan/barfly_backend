@@ -14,7 +14,7 @@ const entityDetailsSchema = new Schema(
     owner: { type: mongoose.Types.ObjectId, ref: "User" },
     image: { type: String },
     entityContactNumber: { type: String },
-    plotNo: { type: String },
+    // plotNo: { type: String },
     floor: { type: String },
     country: { type: String },
     buildingName: { type: String },

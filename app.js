@@ -17,22 +17,24 @@ app.use(cors());
 
 // IMPORTANT: Wallee webhook must be registered BEFORE bodyParser.json()
 // because it needs the raw body (Buffer) for signature verification
-// const { handleWalleeWebhook } = require("./CustomerServices/walleeServices");
+const { handleWalleeWebhook } = require("./CustomerServices/walleeServices");
 
-// // Log ALL requests to /api/wallee/webhook for debugging
-// app.use("/api/wallee/webhook", (req, res, next) => {
-//   next();
-// });
+// Log ALL requests to /api/wallee/webhook for debugging
+app.use("/api/wallee/webhook", (req, res, next) => {
+  console.log("📥 Webhook request received at:", new Date().toISOString());
+  next();
+});
 
-// app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-//   try {
-//     const result = await handleWalleeWebhook(req);
-//     return res.status(200).json(result);
-//   } catch (error) {
-//     console.error("Webhook error:", error);
-//     return res.status(error.status || 500).json({ message: error.message });
-//   }
-// });
+// Wallee webhook endpoint - must use express.raw() to preserve raw body for signature verification
+app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  try {
+    const result = await handleWalleeWebhook(req);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+});
 
 // Fallback handler for webhook if express.raw() doesn't match
 // app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {

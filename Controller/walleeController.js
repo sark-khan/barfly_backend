@@ -8,6 +8,7 @@ const {
   createWalleeOnboardingLink,
   continueWalleeOnboarding,
   checkWalleeAccountStatus,
+  getWalleeSpace,
 } = require("../CustomerServices/walleeServices");
 const { STATUS_CODES } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
@@ -36,10 +37,12 @@ router.post("/create-payment", async (req, res) => {
   try {
     const result = await createWalleeTransaction(req);
 
+    // Match frontend expected response format
     return res.status(STATUS_CODES.OK).json({
-      type: result.type,
-      url: result.url,
+      paymentPageUrl: result.url, // Frontend expects 'paymentPageUrl' not 'url'
       transactionId: result.transactionId,
+      // Include additional fields for backward compatibility
+      type: result.type,
       state: result.state,
     });
   } catch (error) {
@@ -68,11 +71,46 @@ router.post("/create-payment", async (req, res) => {
  *   failureReason: object
  * }
  */
+/**
+ * Get payment transaction status
+ * GET /api/wallee/get-payment-status?transactionId=123&entityId=xxx
+ *
+ * Query params:
+ * - transactionId: Wallee transaction ID (REQUIRED)
+ * - entityId: Entity ID (OPTIONAL - helps find merchant space)
+ *
+ * Response (matches frontend expectation):
+ * {
+ *   data: {
+ *     state: "FULFILL" | "AUTHORIZED" | "PENDING" | "FAILED" | "COMPLETED" | ...
+ *     transactionId: number,
+ *     currency: string,
+ *     authorizationAmount: number,
+ *     completedOn: date,
+ *     failedOn: date,
+ *     failureReason: object
+ *   }
+ * }
+ */
 router.get("/get-payment-status", async (req, res) => {
   const lang = getLanguageFromRequest(req);
   try {
     const transactionStatus = await getWalleeTransactionStatus(req);
-    return res.status(STATUS_CODES.OK).json({ data: transactionStatus });
+    
+    // Ensure response matches frontend expectation: { data: { state: ... } }
+    // Frontend checks data.state for "FULFILL" or "AUTHORIZED"
+    return res.status(STATUS_CODES.OK).json({ 
+      data: {
+        state: transactionStatus.state, // Frontend checks this field
+        transactionId: transactionStatus.transactionId,
+        currency: transactionStatus.currency,
+        authorizationAmount: transactionStatus.authorizationAmount,
+        completedOn: transactionStatus.completedOn,
+        failedOn: transactionStatus.failedOn,
+        failureReason: transactionStatus.failureReason,
+        spaceId: transactionStatus.spaceId, // Include space ID if available
+      }
+    });
   } catch (error) {
     console.error("Error while getting Wallee payment status:", error);
     res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
@@ -92,22 +130,24 @@ router.post("/webhook", async (req, res) => {
 });
 
 /**
- * Create merchant onboarding link
+ * Store merchant's Wallee Space ID
  * POST /api/wallee/account-link
+ *
+ * In this model, merchants create their own Wallee space on Wallee dashboard
+ * and provide the Space ID to the platform for storage.
  *
  * Request body:
  * {
- *   email: string,        // Merchant email address
- *   platform: string,     // "app" or "web"
- *   entityName: string    // Optional: Merchant/entity name
+ *   spaceId: number      // REQUIRED - Wallee Space ID provided by merchant
  * }
  *
  * Response:
  * {
  *   success: true,
- *   url: string,          // Onboarding URL to redirect merchant to
- *   spaceId: number,     // Wallee space ID
- *   applicationUserId: number  // Wallee application user ID
+ *   message: string,
+ *   spaceId: number,     // Stored Wallee space ID
+ *   spaceName: string,   // Space name from Wallee
+ *   spaceState: string   // Space state (e.g., "ACTIVE")
  * }
  */
 router.post("/account-link", async (req, res) => {
@@ -139,18 +179,6 @@ router.post("/account-link", async (req, res) => {
  *   spaceId: number      // Wallee space ID
  * }
  */
-router.post("/create-onboarding-link-again", async (req, res) => {
-  const lang = getLanguageFromRequest(req);
-  try {
-    const response = await continueWalleeOnboarding(req);
-    return res.status(STATUS_CODES.OK).json(response);
-  } catch (error) {
-    console.error("Error while generating Wallee onboarding link:", error);
-    res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
-      message: error.message || t("WALLEE_ONBOARDING_LINK_ERROR", lang),
-    });
-  }
-});
 
 /**
  * Check merchant account status
@@ -177,6 +205,55 @@ router.get("/check-account-status", async (req, res) => {
     console.error("Error while checking Wallee account status:", error);
     res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("WALLEE_ACCOUNT_CHECK_ERROR", lang),
+    });
+  }
+});
+
+/**
+ * Get Wallee Space details
+ * GET /api/wallee/get-wallee-space?spaceId=12345
+ *
+ * Query params:
+ * - spaceId: number (REQUIRED) - Wallee Space ID
+ *
+ * Response:
+ * {
+ *   message: string,
+ *   response: {
+ *     space: {
+ *       id: number,
+ *       name: string,
+ *       state: string,
+ *       primaryCurrency: string,
+ *       administratorEmail: string,
+ *       postalAddress: object,
+ *       ...
+ *     },
+ *     paymentMethodConfigurations: array,
+ *     bankAccounts: array
+ *   }
+ * }
+ */
+router.get("/get-wallee-space", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const response = await getWalleeSpace(req);
+    
+    // If there's an error in the response, return error
+    if (response.error) {
+      return res.status(STATUS_CODES.NOT_FOUND).json({
+        message: response.error,
+      });
+    }
+
+    return res.status(STATUS_CODES.OK).json({
+      message: t("WALLEE_SPACE_FETCH_SUCCESS", lang),
+      response: response,
+    });
+  } catch (error) {
+    console.error("Error while fetching Wallee space:", error);
+    res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("WALLEE_SPACE_FETCH_ERROR", lang),
     });
   }
 });

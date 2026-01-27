@@ -9,6 +9,7 @@ const {
   INSIDER_TYPE,
   EDIT_ACTION,
   STATUS,
+  ORDER_STATUS,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 
@@ -50,6 +51,20 @@ const OWNER_APP_FEEDBACK_QUESTIONS =
   globalConstants.OWNER_APP_FEEDBACK_QUESTIONS;
 const ANSWER_TYPES = globalConstants.ANSWER_TYPES;
 const OwnerAppFeedback = require("../../Models/OwnerAppFeedback");
+const OfflineOrder = require("../../Models/OfflineOrder");
+const notificationSettings = require("../../Models/notificationSettings");
+const Cards = require("../../Models/Cards");
+const Location = require("../../Models/Location");
+const FavouriteEntity = require("../../Models/FavouriteEntity");
+const FavouriteItem = require("../../Models/FavouriteItem");
+const CountRTags = require("../../Models/CountRTags");
+const CustomerOrderReport = require("../../Models/CustomerOrderReport");
+const UserAppFeedback = require("../../Models/UserAppFeedback");
+const FeedbackAppQuestion = require("../../Models/FeedbackAppQuestion");
+const searchLogs = require("../../Models/searchLogs");
+const StripePayment = require("../../Models/Stripe");
+const redisClient = require("../../redis");
+const { KEY_TYPE_PREFIXES } = require("../../Utils/globalConstants");
 
 module.exports.createCounter = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -133,6 +148,13 @@ module.exports.createCounter = async (req) => {
   }
 
   io.to(newCounter.entityId.toString()).emit("newCounter", newCounter);
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${newCounter.entityId}`).emit("counterUpdate", {
+    action: "create",
+    counter: newCounter,
+    entityId: newCounter.entityId.toString(),
+  });
 
   if (isTableService) {
     const lastTable = await Tables.findOne(
@@ -297,6 +319,13 @@ module.exports.createCounterMenuCategory = async (req) => {
     "newCategory",
     createdCategories
   );
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${createdCategories[0].entityId}`).emit("categoryUpdate", {
+    action: "create",
+    categories: createdCategories,
+    entityId: createdCategories[0].entityId.toString(),
+  });
 
   sendFirebaseNotification({
     topic: `entity_${createdCategories[0].entityId}`,
@@ -520,7 +549,8 @@ module.exports.createMenuItem = async (req) => {
       nutritionType,
       counterIds,
       categoryName,
-      isAlcohol,
+      isAlcohol18,
+      isAlcohol16,
     },
   } = req;
 
@@ -603,7 +633,8 @@ module.exports.createMenuItem = async (req) => {
         counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
         image: fileName,
         isVegan,
-        isAlcohol,
+        isAlcohol18,
+        isAlcohol16,
         unit,
         description,
         nutritionType,
@@ -613,8 +644,16 @@ module.exports.createMenuItem = async (req) => {
     })
   );
 
-  // Emit socket event to entity room
+  // Emit socket event to entity room (for owner)
   io.to(req.entityId.toString()).emit("newItem", createdItems);
+
+  // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+  io.to(`entity_${req.entityId}`).emit("itemUpdate", {
+    action: "create",
+    items: createdItems,
+    entityId: req.entityId.toString(),
+    categoryName: categoryName,
+  });
 
   sendFirebaseNotification({
     topic: `entity_${req.entityId}`,
@@ -626,24 +665,9 @@ module.exports.createMenuItem = async (req) => {
       screen: "item_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `entity_${req.entityId}`,
-      // categoryName: categoryName,
-      // counter: category.counterId,
-      // category: category._id,
       entityId: req.entityId,
     },
   });
-
-  // Send Firebase notification
-  // sendFirebaseNotification({
-  //   titleText: "New item added",
-  //   body: "New Item Added in the menu list",
-  //   data: {
-  //     action: "item created",
-  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //   },
-  //   token: "",
-  //   showNotification: false,
-  // });
 
   return createdItems;
 };
@@ -693,9 +717,11 @@ module.exports.updateMenuItem = async (req) => {
       action,
       inStock,
       counterIds,
+      categoryName,
       unit,
       isCounterRemove,
-      isAlcohol,
+      isAlcohol18,
+      isAlcohol16,
       isVegan,
     },
   } = req;
@@ -710,8 +736,84 @@ module.exports.updateMenuItem = async (req) => {
     });
   }
 
+  // Check if trying to change category or counters
+  const isChangingCategory =
+    categoryName !== undefined && categoryName !== null;
+  const isChangingCounters = counterIds !== undefined && counterIds !== null;
+
+  // Get reference item name to find all items with same name (since we update all of them)
   const referenceItemName = item.itemName;
-  const items = await ItemDetails.find({ itemName: referenceItemName });
+  const itemsWithSameName = await ItemDetails.find({
+    itemName: referenceItemName,
+  });
+  const allItemIds = itemsWithSameName.map((it) => it._id);
+
+  // If changing category or counters, check for active orders
+  if (isChangingCategory || isChangingCounters) {
+    // Check if any item with the same name is in any active orders (WAITING, IN_PROGRESS, READY)
+    const activeOrders = await Order.find({
+      "items.itemId": { $in: allItemIds },
+      status: {
+        $in: [
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.IN_PROGRESS,
+          ORDER_STATUS.READY,
+        ],
+      },
+    });
+
+    if (activeOrders.length > 0) {
+      return throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t(
+          "OWNER_ITEM_CANNOT_EDIT_CATEGORY_COUNTER_ACTIVE_ORDER",
+          lang
+        ),
+      });
+    }
+  }
+
+  // If changing category, find the new category
+  let newMenuCategoryId = item.menuCategoryId;
+  if (isChangingCategory) {
+    // Get counterIds to use (new ones if provided, otherwise existing ones)
+    const countersToUse =
+      counterIds && counterIds.length > 0 ? counterIds : item.counterIds;
+
+    if (!countersToUse || countersToUse.length === 0) {
+      return throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTER_IDS_REQUIRED", lang),
+      });
+    }
+
+    // Find categories matching the new categoryName and counterIds
+    const menuCategories = await MenuCategory.find({
+      categoryName: categoryName,
+      entityId: req.entityId,
+      counterId: { $in: countersToUse },
+    });
+
+    if (menuCategories.length === 0) {
+      return throwError({
+        status: STATUS_CODES.NOT_FOUND,
+        message: t("OWNER_MENU_CATEGORY_NOT_FOUND", lang),
+      });
+    }
+
+    // Use the first matching category (or you could match by counterId if needed)
+    // If multiple categories exist with same name but different counters,
+    // we'll use the one that matches the first counterId
+    const matchingCategory =
+      menuCategories.find((cat) =>
+        countersToUse.some((cid) => cid.toString() === cat.counterId.toString())
+      ) || menuCategories[0];
+
+    newMenuCategoryId = matchingCategory._id;
+  }
+
+  // itemsWithSameName already fetched above
+  const items = itemsWithSameName;
 
   const fileName = file
     ? `${req.entityId}_${Date.now()}_${file.originalname.replace(/ /g, "_")}`
@@ -743,14 +845,22 @@ module.exports.updateMenuItem = async (req) => {
       if (currency !== undefined) item.currency = currency;
       if (quantity !== undefined) item.quantity = quantity;
       if (counterIds !== undefined) item.counterIds = counterIds;
+      if (isChangingCategory) item.menuCategoryId = newMenuCategoryId;
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
-      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
+      if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${item.entityId}`).emit("itemUpdate", {
+        action: "edit",
+        item: item,
+        entityId: item.entityId.toString(),
+      });
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
@@ -764,12 +874,20 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
-      await ItemDetails.deleteOne({ _id: itemId });
-      io.to(item.entityId.toString()).emit("menuItemUpdated", {
-        itemId: item._id,
+      const deletedItemId = item._id;
+      const entityId = item.entityId;
+      await ItemDetails.deleteOne({ _id: item._id });
+      io.to(entityId.toString()).emit("menuItemUpdated", {
+        itemId: deletedItemId,
+      });
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${entityId}`).emit("itemUpdate", {
+        action: "delete",
+        itemId: deletedItemId.toString(),
+        entityId: entityId.toString(),
       });
       sendFirebaseNotification({
-        topic: `entity_${item.entityId}`,
+        topic: `entity_${entityId}`,
         showNotification: true,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
@@ -777,7 +895,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${item.entityId}`,
+          topic: `entity_${entityId}`,
         },
       });
     }
@@ -792,14 +910,22 @@ module.exports.updateMenuItem = async (req) => {
       if (currency !== undefined) item.currency = currency;
       if (quantity !== undefined) item.quantity = quantity;
       if (counterIds !== undefined) item.counterIds = counterIds;
+      if (isChangingCategory) item.menuCategoryId = newMenuCategoryId;
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
-      if (isAlcohol !== undefined) item.isAlcohol = isAlcohol;
+      if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
+      if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
 
       await item.save();
       io.to(item.entityId.toString()).emit("menuItemUpdated", item);
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${item.entityId}`).emit("itemUpdate", {
+        action: "edit",
+        item: item,
+        entityId: item.entityId.toString(),
+      });
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
@@ -813,12 +939,20 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     } else if (action === EDIT_ACTION.DELETE) {
+      const deletedItemId = item._id;
+      const entityId = item.entityId;
       await ItemDetails.deleteOne({ _id: item._id });
-      io.to(item.entityId.toString()).emit("menuItemUpdated", {
-        itemId: item._id,
+      io.to(entityId.toString()).emit("menuItemUpdated", {
+        itemId: deletedItemId,
+      });
+      // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+      io.to(`entity_${entityId}`).emit("itemUpdate", {
+        action: "delete",
+        itemId: deletedItemId.toString(),
+        entityId: entityId.toString(),
       });
       sendFirebaseNotification({
-        topic: `entity_${item.entityId}`,
+        topic: `entity_${entityId}`,
         showNotification: true,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
@@ -826,7 +960,7 @@ module.exports.updateMenuItem = async (req) => {
           action: "item_update",
           screen: "item_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${item.entityId}`,
+          topic: `entity_${entityId}`,
         },
       });
     }
@@ -1104,6 +1238,29 @@ module.exports.createEvent = async (req) => {
     { $inc: { activeUsers: 1 } }
   );
 
+  // Emit socket event to customer_entity topic for new event
+  io.to("customer_entity").emit("eventUpdate", {
+    action: "create",
+    event: savedEvent,
+    entityId: req.entityId.toString(),
+  });
+
+  // Send Firebase notification to customer_entity topic for new event
+  sendFirebaseNotification({
+    topic: "customer_entity",
+    showNotification: false,
+    title: "New Event Added",
+    body: `A new event "${eventName}" has been added.`,
+    data: {
+      action: "event_create",
+      screen: "event_screen",
+      eventId: savedEvent._id.toString(),
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: "customer_entity",
+    },
+  });
+
   return savedEvent;
 };
 
@@ -1117,7 +1274,32 @@ module.exports.deleteEvent = async (req) => {
       message: t("OWNER_EVENT_NOT_FOUND", lang),
     });
   }
+  const entityId = event.entityId;
+  const eventName = event.eventName;
   await Event.deleteOne({ _id: eventId });
+
+  // Emit socket event to customer_entity topic for deleted event
+  io.to("customer_entity").emit("eventUpdate", {
+    action: "delete",
+    eventId: eventId,
+    entityId: entityId.toString(),
+  });
+
+  // Send Firebase notification to customer_entity topic for deleted event
+  sendFirebaseNotification({
+    topic: "customer_entity",
+    showNotification: false,
+    title: "Event Deleted",
+    body: `The event "${eventName}" has been removed.`,
+    data: {
+      action: "event_delete",
+      screen: "event_screen",
+      eventId: eventId.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: "customer_entity",
+    },
+  });
 };
 
 // module.exports.getUpcomingEvents = async (req) => {
@@ -1243,16 +1425,35 @@ module.exports.getUpcomingEvents = async (req) => {
     endDate = endOfMonth;
   }
 
-  const dateFilter = { $gte: startDate };
-  if (endDate) {
-    dateFilter.$lte = endDate;
-  }
-
-  const upcomingEvents = await Event.find({
+  // Upcoming events logic:
+  // - Non-repetitive: Events that haven't ended (to >= now) and have future matching days
+  // - Repetitive: Events that haven't ended (to >= now) and have future occurrences
+  const query = {
     ownerId,
     entityId,
-    from: dateFilter,
-  })
+    $or: [
+      // Non-repetitive events that haven't ended (may have future matching days like weekends)
+      {
+        isRepetitive: false,
+        to: { $gte: currentDateTime },
+      },
+      // Repetitive events that haven't ended (they have future occurrences)
+      {
+        isRepetitive: true,
+        to: { $gte: currentDateTime },
+      },
+    ],
+  };
+
+  // Apply date filter for year/month/week filters
+  if (endDate) {
+    // For non-repetitive events, check if from date is within range
+    query.$or[0].from = { $lte: endDate };
+    // For repetitive events, check if from date is within range
+    query.$or[1].from = { $lte: endDate };
+  }
+
+  const allEvents = await Event.find(query)
     .populate({
       path: "counterIds",
       select: "counterName",
@@ -1260,6 +1461,106 @@ module.exports.getUpcomingEvents = async (req) => {
     })
     .sort({ from: 1 })
     .lean();
+
+  // Filter events to only include those with future occurrences
+  const upcomingEvents = allEvents.filter((event) => {
+    if (!event.isRepetitive) {
+      // For non-repetitive events, check if there are future matching days
+      // This handles cases like "Weekends" where from date may have passed
+      // but there are still future weekends within the to date
+      const eventTo = new Date(event.to);
+      const eventFrom = new Date(event.from);
+
+      if (currentDateTime > eventTo) {
+        return false; // Event has ended
+      }
+
+      // If event hasn't started yet, it should appear in upcoming
+      if (eventFrom > currentDateTime) {
+        return true;
+      }
+
+      // Check if event has repetitiveDays and needs day filtering
+      if (
+        Array.isArray(event.repetitiveDays) &&
+        event.repetitiveDays.length === 7
+      ) {
+        // Check if there are future days matching repetitive pattern
+        // Look ahead up to the event's end date (or 30 days, whichever is smaller)
+        const maxDaysToCheck = Math.min(
+          30,
+          Math.ceil(
+            (eventTo.getTime() - currentDateTime.getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        );
+
+        // Start from today (i = 0) to check if event is happening today and hasn't started
+        for (let i = 0; i <= maxDaysToCheck; i++) {
+          const futureDate = new Date(currentDateTime);
+          futureDate.setDate(futureDate.getDate() + i);
+
+          // Don't check beyond event end date
+          if (futureDate > eventTo) {
+            break;
+          }
+
+          // Use UTC day for repetitive day matching
+          let dayIndex = futureDate.getUTCDay();
+          dayIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Convert to array format (0=Mon, 6=Sun)
+
+          if (event.repetitiveDays[dayIndex] === 1) {
+            // For today (i === 0), also check if event hasn't started yet
+            if (i === 0 && eventFrom > currentDateTime) {
+              return true; // Event is today but hasn't started yet
+            }
+            // For future days, check if there's a future occurrence
+            if (i > 0) {
+              return true; // Found a future day that matches
+            }
+          }
+        }
+
+        return false; // No future days match
+      }
+
+      // If no repetitiveDays, check if from date is in the future
+      return eventFrom > currentDateTime;
+    }
+
+    // For repetitive events, check if there are future days matching the pattern
+    if (
+      !Array.isArray(event.repetitiveDays) ||
+      event.repetitiveDays.length !== 7
+    ) {
+      return false;
+    }
+
+    // Check if event hasn't ended
+    const eventTo = new Date(event.to);
+    if (currentDateTime > eventTo) {
+      return false;
+    }
+
+    // Check if there are future days matching repetitive pattern
+    // Look ahead up to 7 days to find matching days
+    for (let i = 1; i <= 7; i++) {
+      const futureDate = new Date(currentDateTime);
+      futureDate.setDate(futureDate.getDate() + i);
+
+      // Use UTC day for repetitive day matching
+      // Note: This assumes repetitiveDays array matches UTC days
+      // If frontend sends local timezone days, timezone should be stored with event
+      let dayIndex = futureDate.getUTCDay();
+      dayIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Convert to array format (0=Mon, 6=Sun)
+
+      if (event.repetitiveDays[dayIndex] === 1) {
+        return true; // Found a future day that matches
+      }
+    }
+
+    return false; // No future days match
+  });
 
   upcomingEvents.forEach((event) => {
     if (event.image) {
@@ -1388,6 +1689,7 @@ module.exports.getOngoingEventDetails = async (req) => {
   let currentUTCday = currentTime.getUTCDay();
 
   currentUTCday = currentUTCday === 0 ? 6 : currentUTCday - 1;
+  const nowUTC = new Date();
 
   const events = await Event.find(
     {
@@ -1419,12 +1721,147 @@ module.exports.getOngoingEventDetails = async (req) => {
         return true;
       }
 
-      if (event.repetitiveDays[currentUTCday] !== 1) {
-        console.log(
-          `Skipping event as it doesn't repeat today: ${event.eventName}`
-        );
+      // Simple 3-step check for repetitive events:
+      // 1. Overall date range
+      // 2. Daily time window
+      // 3. Day match
+
+      const eventFrom = new Date(event.from);
+      const eventTo = new Date(event.to);
+
+      // Step 1: Check overall date range
+      if (nowUTC < eventFrom || nowUTC > eventTo) {
         return false;
       }
+
+      // Step 2: Check daily time window
+      // Extract hours/minutes from event start/end
+      const startHour = eventFrom.getUTCHours();
+      const startMin = eventFrom.getUTCMinutes();
+      const endHour = eventTo.getUTCHours();
+      const endMin = eventTo.getUTCMinutes();
+
+      // Create today's window
+      const todayWindowStart = new Date(
+        Date.UTC(
+          nowUTC.getUTCFullYear(),
+          nowUTC.getUTCMonth(),
+          nowUTC.getUTCDate(),
+          startHour,
+          startMin
+        )
+      );
+      let todayWindowEnd = new Date(
+        Date.UTC(
+          nowUTC.getUTCFullYear(),
+          nowUTC.getUTCMonth(),
+          nowUTC.getUTCDate(),
+          endHour,
+          endMin
+        )
+      );
+
+      // Handle midnight-spanning events
+      if (todayWindowEnd <= todayWindowStart) {
+        todayWindowEnd.setUTCDate(todayWindowEnd.getUTCDate() + 1);
+      }
+
+      // Check today's window OR yesterday's window (if event started yesterday)
+      const inTodayWindow =
+        nowUTC >= todayWindowStart && nowUTC <= todayWindowEnd;
+      const inYesterdayWindow =
+        nowUTC >= eventFrom &&
+        nowUTC < todayWindowStart &&
+        nowUTC >= new Date(todayWindowStart.getTime() - 86400000) &&
+        nowUTC <= new Date(todayWindowEnd.getTime() - 86400000);
+
+      if (!inTodayWindow && !inYesterdayWindow) {
+        return false;
+      }
+
+      // Step 3: Check if today matches repetitive days
+      // Use UTC day for matching (repetitiveDays should match UTC days)
+      // Note: If frontend uses local timezone for repetitiveDays, timezone should be stored with event
+      let currentDay = nowUTC.getUTCDay();
+      currentDay = currentDay === 0 ? 6 : currentDay - 1; // Convert to array format (0=Mon, 6=Sun)
+
+      if (event.repetitiveDays[currentDay] !== 1) {
+        return false;
+      }
+    } else {
+      // For non-repetitive events (One Day, Workdays, Weekends, Custom):
+      // All should check repetitiveDays and only appear on matching days between from and to
+      if (
+        Array.isArray(event.repetitiveDays) &&
+        event.repetitiveDays.length === 7
+      ) {
+        // Check if today matches the repetitiveDays pattern
+        let currentDay = nowUTC.getUTCDay();
+        currentDay = currentDay === 0 ? 6 : currentDay - 1; // Convert to array format (0=Mon, 6=Sun)
+
+        if (event.repetitiveDays[currentDay] !== 1) {
+          return false;
+        }
+      }
+
+      // For non-repetitive events, also check UTC time window
+      if (!event.isAllDay) {
+        const fromHours = new Date(event.from).getUTCHours();
+        const fromMinutes = new Date(event.from).getUTCMinutes();
+        const toHours = new Date(event.to).getUTCHours();
+        const toMinutes = new Date(event.to).getUTCMinutes();
+        const eventStartToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            fromHours,
+            fromMinutes
+          )
+        );
+
+        let eventEndToday = new Date(
+          Date.UTC(
+            nowUTC.getUTCFullYear(),
+            nowUTC.getUTCMonth(),
+            nowUTC.getUTCDate(),
+            toHours,
+            toMinutes
+          )
+        );
+
+        // Handle events that span midnight
+        if (eventEndToday <= eventStartToday) {
+          eventEndToday.setUTCDate(eventEndToday.getUTCDate() + 1);
+        }
+
+        // Check if event spans multiple days - if so, use actual from/to dates
+        const eventFromDate = new Date(event.from);
+        const eventToDate = new Date(event.to);
+        const daysDiff = Math.floor(
+          (eventToDate.getTime() - eventFromDate.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
+        if (daysDiff > 0) {
+          // Multi-day event: check if current time is within the actual from/to range
+          if (!(nowUTC >= eventFromDate && nowUTC <= eventToDate)) {
+            console.log(
+              `Skipping multi-day event as current UTC time is not within event range: ${event.eventName}`
+            );
+            return false;
+          }
+        } else {
+          // Single day event: check UTC time window
+          if (!(nowUTC >= eventStartToday && nowUTC <= eventEndToday)) {
+            console.log(
+              `Skipping event as current UTC time is not within today's event window: ${event.eventName}`
+            );
+            return false;
+          }
+        }
+      }
+      // If isAllDay is true, skip time window check (event is active all day)
     }
 
     eventDetailsMap.set(event._id.toString(), {
@@ -1706,7 +2143,11 @@ module.exports.editCategory = async (req) => {
     });
   }
 
-  const categories = await MenuCategory.find({ categoryName });
+  // Find categories by name AND entityId (entity-based, not global)
+  const categories = await MenuCategory.find({
+    categoryName,
+    entityId: req.entityId,
+  });
 
   if (!categories.length) {
     throwError({
@@ -1716,13 +2157,63 @@ module.exports.editCategory = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    // Update all categories with this name for this entity (all counters)
     for (const category of categories) {
       if (newCategoryName) category.categoryName = newCategoryName;
       await category.save();
     }
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
+      action: "edit",
+      categories: categories,
+      oldCategoryName: categoryName,
+      newCategoryName: newCategoryName,
+      entityId: req.entityId.toString(),
+    });
+    // Send Firebase notification to entity_{entityId} topic for category edit
+    sendFirebaseNotification({
+      topic: `entity_${req.entityId}`,
+      showNotification: false,
+      title: "Category Updated",
+      body: `Category "${categoryName}" has been updated.`,
+      data: {
+        action: "category_edit",
+        screen: "category_screen",
+        oldCategoryName: categoryName,
+        newCategoryName: newCategoryName || categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${req.entityId}`,
+      },
+    });
     message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
   } else if (action === EDIT_ACTION.DELETE) {
-    await MenuCategory.deleteMany({ categoryName });
+    // Delete all categories with this name for this entity (all counters)
+    await MenuCategory.deleteMany({
+      categoryName,
+      entityId: req.entityId,
+    });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
+      action: "delete",
+      categoryName: categoryName,
+      entityId: req.entityId.toString(),
+    });
+    // Send Firebase notification to entity_{entityId} topic for category delete
+    sendFirebaseNotification({
+      topic: `entity_${req.entityId}`,
+      showNotification: false,
+      title: "Category Deleted",
+      body: `Category "${categoryName}" has been removed.`,
+      data: {
+        action: "category_delete",
+        screen: "category_screen",
+        categoryName: categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${req.entityId}`,
+      },
+    });
     message = t("OWNER_CATEGORIES_DELETE_SUCCESS", lang);
   } else {
     throwError({
@@ -1979,11 +2470,18 @@ module.exports.updateCounterSettings = async (req) => {
 
     await counter.save();
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${counter.entityId}`).emit("counterUpdate", {
+      action: "edit",
+      counter: counter,
+      counterId: counterId,
+      entityId: counter.entityId.toString(),
+    });
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
-      title: "New Counter Added",
-      body: "You have a new counter added. Tap to view.",
+      title: "Counter Updated",
+      body: "A counter has been updated. Tap to view.",
       data: {
         action: "counter_update",
         screen: "counter_screen",
@@ -2062,9 +2560,22 @@ module.exports.updateCounterSettings = async (req) => {
       { $set: { status: STATUS.DELETED } }
     );
 
-    //category find then delete that category
+    // Delete all categories associated with this counter
+    const deletedCategories = await MenuCategory.deleteMany({
+      counterId: counterId,
+    });
+
+    console.log(
+      `[updateCounterSettings] Deleted ${deletedCategories.deletedCount} categories for counter ${counterId}`
+    );
 
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
+    // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
+    io.to(`entity_${counter.entityId}`).emit("counterUpdate", {
+      action: "delete",
+      counterId: counterId,
+      entityId: counter.entityId.toString(),
+    });
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
@@ -2380,7 +2891,7 @@ module.exports.editBusinessDetails = async (req) => {
       floor,
       buildingName,
       landmark,
-      plotNo,
+      // plotNo,
       country,
     },
   } = req;
@@ -2466,7 +2977,7 @@ module.exports.editBusinessDetails = async (req) => {
   if (buildingName) updateEntityFields.buildingName = buildingName;
   if (landmark) updateEntityFields.landMark = landmark;
   if (zipcode) updateEntityFields.zipcode = zipcode;
-  if (plotNo) updateEntityFields.plotNo = plotNo;
+  // if (plotNo) updateEntityFields.plotNo = plotNo;
   if (country) updateEntityFields.country = country;
 
   // await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
@@ -3629,12 +4140,76 @@ module.exports.deleteEntityAccount = async (req) => {
     });
   }
 
+  // Generate unique deleted email to avoid conflicts if email has unique constraint
+  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
+
+  // Delete all owner/entity-related data and clear personal information in parallel
   await Promise.all([
+    // Update user: set status to DELETED, clear all personal information
+    User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          status: STATUS.DELETED,
+          email: deletedEmail,
+          contactNumber: null,
+          countrTag: null,
+          firstName: null,
+          lastName: null,
+          fullName: null,
+          password: null,
+          fcmToken: [],
+          socketId: null,
+        },
+      }
+    ),
+    // Update entity: set status to DELETED, clear sensitive information
     EntityDetails.updateOne(
       { _id: entityId },
-      { $set: { status: STATUS.DELETED } }
+      {
+        $set: {
+          status: STATUS.DELETED,
+          entityName: null,
+          entityEmail: null,
+          contactNumber: null,
+          stripeAccountId: null,
+          bankLinkUrl: null,
+        },
+      }
     ),
-    User.updateOne({ _id: userId }, { $set: { status: STATUS.DELETED } }),
+    // Delete entity-related operational data
+    Counter.deleteMany({ entityId }),
+    MenuCategory.deleteMany({ entityId }),
+    MenuItem.deleteMany({ entityId }),
+    ItemDetails.deleteMany({ entityId }),
+    Tables.deleteMany({ entityId }),
+    Event.deleteMany({ entityId }),
+    Discount.deleteMany({ entityId }),
+    // Delete feedback and survey data
+    FeedbackQuestions.deleteMany({ entityId }),
+    Feedbacks.deleteMany({ entityId }),
+    OwnerAppFeedback.deleteMany({ userId }),
+    FeedbackAppQuestion.deleteMany({ userId }),
+    // Delete order and reporting data
+    Order.deleteMany({ entityId }),
+    OfflineOrder.deleteMany({ entityId }),
+    SalesReport.deleteMany({ entityId }),
+    CustomerOrderReport.deleteMany({ entityId }),
+    // Delete search logs
+    ItemSearchLogs.deleteMany({ entityId }),
+    searchLogs.deleteMany({ entityId }),
+    // Delete user-related data
+    notificationSettings.deleteMany({ userId }),
+    Cards.deleteMany({ userId }),
+    Location.deleteMany({ userId }),
+    FavouriteEntity.deleteMany({ userId }),
+    FavouriteItem.deleteMany({ userId }),
+    CountRTags.deleteMany({ userId }),
+    UserAppFeedback.deleteMany({ userId }),
+    Otp.deleteMany({ userId }),
+    StripePayment.deleteMany({ userId }),
+    // Clear Redis token if exists
+    redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
   ]);
 };
 
@@ -3885,6 +4460,30 @@ module.exports.editEvent = async (req) => {
 
   try {
     await event.save();
+
+    // Emit socket event to customer_entity topic for updated event
+    io.to("customer_entity").emit("eventUpdate", {
+      action: "edit",
+      event: event,
+      entityId: event.entityId.toString(),
+    });
+
+    // Send Firebase notification to customer_entity topic for updated event
+    sendFirebaseNotification({
+      topic: "customer_entity",
+      showNotification: false,
+      title: "Event Updated",
+      body: `The event "${event.eventName}" has been updated.`,
+      data: {
+        action: "event_edit",
+        screen: "event_screen",
+        eventId: event._id.toString(),
+        entityId: event.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: "customer_entity",
+      },
+    });
+
     return { message: t("EVENT_UPDATE_SUCCESS", lang) };
   } catch (error) {
     throwError({
@@ -3971,10 +4570,13 @@ module.exports.getFeedbackAppQuestions = async (req) => {
 
   // Return translated questions based on user's language (using owner-specific order)
   const translatedQuestions = OWNER_APP_FEEDBACK_QUESTIONS.map((question) => {
-    const translationKey = `app_feedback_q${question.id.replace(
-      "appFeedback",
-      ""
-    )}`;
+    const questionNumber = question.id.replace("appFeedback", "");
+    // Use owner-specific translation keys (app_feedback_owner_q1, etc.) for questions 1-3
+    // Question 4 is shared between customer and owner
+    const translationKey =
+      questionNumber === "4"
+        ? `app_feedback_q${questionNumber}`
+        : `app_feedback_owner_q${questionNumber}`;
 
     const result = {
       id: question.id,
