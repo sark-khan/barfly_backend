@@ -4,12 +4,12 @@ const { STATUS_CODES } = require("../../../Utils/globalConstants");
 const {
   register,
   login,
-  sendOtp,
-  reSendOtp,
   countRTag,
   logoutUser,
   checkAndProvideCountRTag,
   deleteAccount,
+  sendEmailOtp,
+  resetPassword,
 } = require("./services");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
@@ -106,6 +106,32 @@ router.post("/delete-account", async (req, res) => {
     console.error("Error while deleting the account: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("CUSTOMER_DELETE_ACCOUNT_ERROR", lang),
+    });
+  }
+});
+
+router.post("/send-email-otp", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const response = await sendEmailOtp(req);
+    return res.status(STATUS_CODES.OK).json(response);
+  } catch (error) {
+    console.error("Error in send email OTP: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("EMAIL_OTP_ERROR", lang),
+    });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const response = await resetPassword(req);
+    return res.status(STATUS_CODES.OK).json(response);
+  } catch (error) {
+    console.error("Error in reset password: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("PASSWORD_RESET_ERROR", lang),
     });
   }
 });
