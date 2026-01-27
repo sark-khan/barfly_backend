@@ -249,6 +249,7 @@ router.get("/get-particular-live-order-details-customer", async (req, res) => {
   const lang = getLanguageFromRequest(req);
   try {
     const particularLiveOrder = await particularOrderDetailsCustomer(req);
+    console.log({ ...particularLiveOrder }, particularLiveOrder.itemId);
     return res.status(STATUS_CODES.OK).json({
       message: t("ORDER_FETCH_SUCCESS", lang),
       particularLiveOrder,
