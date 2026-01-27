@@ -11,66 +11,107 @@ const path = require("path");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
-app.post(
-  "/webhooks",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
 
-    try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-
-      // Handle event
-      const intent = event.data.object;
-      switch (event.type) {
-        case "payment_intent.created":
-          await StripeModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CREATED } }
-          );
-          break;
-        case "payment_intent.succeeded":
-          await StripeModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
-          );
-          break;
-        case "payment_intent.payment_failed":
-          await StripeModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
-          );
-          break;
-
-        case "payment_intent.canceled":
-          await StripeModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
-          );
-          break;
-
-        default:
-          console.log(`Unhandled event: ${event.type}`);
-      }
-
-      res.sendStatus(200);
-    } catch (err) {
-      console.error(`⚠️ Webhook error: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  }
-);
-
+// Enable CORS first (before any routes)
 app.use(cors());
+
+// IMPORTANT: Wallee webhook must be registered BEFORE bodyParser.json()
+// because it needs the raw body (Buffer) for signature verification
+const { handleWalleeWebhook } = require("./CustomerServices/walleeServices");
+
+// Log ALL requests to /api/wallee/webhook for debugging
+app.use("/api/wallee/webhook", (req, res, next) => {
+  console.log("📥 Webhook request received at:", new Date().toISOString());
+  next();
+});
+
+// Wallee webhook endpoint - must use express.raw() to preserve raw body for signature verification
+app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  try {
+    const result = await handleWalleeWebhook(req);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+});
+
+// Fallback handler for webhook if express.raw() doesn't match
+// app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {
+//   try {
+//     console.log(">>> Wallee webhook FALLBACK handler hit!");
+//     console.log(">>> Body:", JSON.stringify(req.body));
+//     // Convert JSON body back to string for processing
+//     req.body = Buffer.from(JSON.stringify(req.body));
+//     const result = await handleWalleeWebhook(req);
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Webhook fallback error:", error);
+//     return res.status(error.status || 500).json({ message: error.message });
+//   }
+// });
+
+// Stripe webhook - Commented out, using Wallee instead
+// app.post(
+//   "/webhooks",
+//   express.raw({ type: "application/json" }),
+//   async (req, res) => {
+//     const sig = req.headers["stripe-signature"];
+
+//     try {
+//       const event = stripe.webhooks.constructEvent(
+//         req.body,
+//         sig,
+//         process.env.STRIPE_WEBHOOK_SECRET
+//       );
+
+//       // Handle event
+//       const intent = event.data.object;
+//       switch (event.type) {
+//         case "payment_intent.created":
+//           await StripeModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CREATED } }
+//           );
+//           break;
+//         case "payment_intent.succeeded":
+//           await StripeModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.SUCCESSFUL } }
+//           );
+//           break;
+//         case "payment_intent.payment_failed":
+//           await StripeModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.FAILED } }
+//           );
+//           break;
+
+//         case "payment_intent.canceled":
+//           await StripeModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { paymentStatus: STRIPE_PAYMENT_STATUS.CANCELLED } }
+//           );
+//           break;
+
+//         default:
+//           console.log(`Unhandled event: ${event.type}`);
+//       }
+
+//       res.sendStatus(200);
+//     } catch (err) {
+//       console.error(`⚠️ Webhook error: ${err.message}`);
+//       return res.status(400).send(`Webhook Error: ${err.message}`);
+//     }
+//   }
+// );
+
+// Note: cors() is already applied at the top before the webhook route
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 const { setIo } = require("./Utils/socket");
-const stripe = require("stripe");
-const StripeModel = require("./Models/Stripe");
+// const stripe = require("stripe"); // Commented out - using Wallee instead
+// const StripeModel = require("./Models/Stripe"); // Commented out - using Wallee instead
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -90,7 +131,8 @@ setIo(io);
 module.exports = { io };
 
 const orderController = require("./Controller/orderController");
-const StripeController = require("./Controller/stripeController");
+// const StripeController = require("./Controller/stripeController"); // Commented out - using Wallee instead
+const WalleeController = require("./Controller/walleeController");
 const Counter = require("./Models/Counter");
 const adminController = require("./Admin/controller");
 const multer = require("multer");
@@ -149,8 +191,9 @@ const unProtectedApis = {
   "/api/admins/reset-password": true,
   // "/api/admins/add-admin": true,
 
-  "/api/stripe/get-stripe-accounts": true,
-  "/webhooks": true,
+  // "/api/stripe/get-stripe-accounts": true, // Commented out - using Wallee instead
+  // "/webhooks": true, // Stripe webhook - Commented out
+  "/api/wallee/webhook": true, // Wallee webhook
 };
 
 app.use("/api/health-check", (req, res) => {
@@ -168,7 +211,13 @@ app.get("/", (req, res) => {
 });
 
 app.use((req, res, next) => {
+  // Skip auth for unprotected APIs
   if (unProtectedApis[req.path]) return next();
+
+  // Explicitly skip auth for Wallee webhook (handles both exact and with query params)
+  if (req.path === "/api/wallee/webhook" || req.path.startsWith("/api/wallee/webhook")) {
+    return next();
+  }
 
   return verifyToken(req, res, next);
 });
@@ -186,7 +235,8 @@ app.use(
 app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 
 app.use("/api/orders", orderController);
-app.use("/api/stripe", StripeController);
+// app.use("/api/stripe", StripeController); // Commented out - using Wallee instead
+app.use("/api/wallee", WalleeController);
 app.use("/api/admins", adminController);
 
 const preloadPlatformFees = async () => {
