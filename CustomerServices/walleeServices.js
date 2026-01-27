@@ -81,7 +81,7 @@ const createWalleeTransaction = async (req) => {
   }
 
   // Validate Wallee configuration
-  if (!spaceId || !walleeUserId || !apiSecret) {
+  if (!walleeUserId || !apiSecret) {
     console.error("Wallee configuration missing:", {
       spaceId: !!spaceId,
       walleeUserId: !!walleeUserId,
@@ -110,7 +110,8 @@ const createWalleeTransaction = async (req) => {
     console.error("Event found but entityId is missing:", eventId);
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
-      message: t("EVENT_NOT_FOUND", lang) + " - Entity not associated with event",
+      message:
+        t("EVENT_NOT_FOUND", lang) + " - Entity not associated with event",
     });
   }
 
@@ -134,7 +135,9 @@ const createWalleeTransaction = async (req) => {
     console.error("Entity Name:", entityName);
     console.error("Event ID:", eventId);
     console.error("Error: Merchant has not completed Wallee onboarding");
-    console.error("Action Required: Merchant must provide their Wallee Space ID");
+    console.error(
+      "Action Required: Merchant must provide their Wallee Space ID"
+    );
     console.error("================================================");
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
@@ -173,10 +176,10 @@ const createWalleeTransaction = async (req) => {
     // Full amount goes to merchant (they receive $100, commission tracked separately)
     const lineItems = [
       {
-      name: `Payment for ${event.entityId.entityName || "Order"}`,
-      uniqueId: `order-${reqUserId}-${eventId}-${Date.now()}`,
-      sku: `event-${eventId}`,
-      quantity: 1,
+        name: `Payment for ${event.entityId.entityName || "Order"}`,
+        uniqueId: `order-${reqUserId}-${eventId}-${Date.now()}`,
+        sku: `event-${eventId}`,
+        quantity: 1,
         amountIncludingTax: totalAmount, // Full amount to merchant
         type: "PRODUCT",
       },
@@ -210,7 +213,10 @@ const createWalleeTransaction = async (req) => {
 
     // Create the transaction in MERCHANT'S space
     // Payment goes directly to merchant's Wallee account
-    console.log("Creating transaction in merchant's Wallee space:", merchantSpaceIdNumber);
+    console.log(
+      "Creating transaction in merchant's Wallee space:",
+      merchantSpaceIdNumber
+    );
     const transaction = await transactionsService.postPaymentTransactions({
       space: merchantSpaceIdNumber, // Use validated number
       transactionCreate: transactionCreate,
@@ -224,7 +230,10 @@ const createWalleeTransaction = async (req) => {
     });
 
     // Get the payment page URL from merchant's space
-    console.log("Generating payment page URL from merchant's space:", merchantSpaceIdNumber);
+    console.log(
+      "Generating payment page URL from merchant's space:",
+      merchantSpaceIdNumber
+    );
     const paymentPageUrl =
       await transactionsService.getPaymentTransactionsIdPaymentPageUrl({
         space: merchantSpaceIdNumber, // Use validated number
@@ -278,7 +287,9 @@ const getWalleeTransactionStatus = async (req) => {
 
   if (entityId) {
     try {
-      const entity = await EntityDetails.findById(entityId).select("walleeSpaceId");
+      const entity = await EntityDetails.findById(entityId).select(
+        "walleeSpaceId"
+      );
       if (entity?.walleeSpaceId) {
         transactionSpaceId = entity.walleeSpaceId;
         console.log("Using merchant space ID:", transactionSpaceId);
@@ -301,11 +312,13 @@ const getWalleeTransactionStatus = async (req) => {
     } catch (merchantSpaceError) {
       // If merchant space fails, try platform space as fallback
       if (transactionSpaceId !== spaceId) {
-        console.warn("Failed to fetch from merchant space, trying platform space");
+        console.warn(
+          "Failed to fetch from merchant space, trying platform space"
+        );
         transaction = await transactionsService.getPaymentTransactionsId({
-      space: spaceId,
-      id: Number(transactionId),
-    });
+          space: spaceId,
+          id: Number(transactionId),
+        });
       } else {
         throw merchantSpaceError;
       }
@@ -326,7 +339,10 @@ const getWalleeTransactionStatus = async (req) => {
     const errorDetails = await parseWalleeError(error);
     throwError({
       status: STATUS_CODES.SERVER_ERROR,
-      message: errorDetails?.message || error.message || t("WALLEE_TRANSACTION_STATUS_ERROR", lang),
+      message:
+        errorDetails?.message ||
+        error.message ||
+        t("WALLEE_TRANSACTION_STATUS_ERROR", lang),
     });
   }
 };
@@ -340,9 +356,15 @@ const handleWalleeWebhook = async (req) => {
   const webhookStartTime = Date.now();
 
   console.log("\n");
-  console.log("╔══════════════════════════════════════════════════════════════╗");
-  console.log("║          🎯 WALLEE WEBHOOK RECEIVED                         ║");
-  console.log("╚══════════════════════════════════════════════════════════════╝");
+  console.log(
+    "╔══════════════════════════════════════════════════════════════╗"
+  );
+  console.log(
+    "║          🎯 WALLEE WEBHOOK RECEIVED                         ║"
+  );
+  console.log(
+    "╚══════════════════════════════════════════════════════════════╝"
+  );
   console.log("📅 Timestamp:", new Date().toISOString());
   console.log("🌐 Request Method:", req.method);
   console.log("📍 Request Path:", req.path);
@@ -357,7 +379,10 @@ const handleWalleeWebhook = async (req) => {
     contentToVerify = req.body.toString("utf8");
     console.log("✅ Raw body extracted successfully");
     console.log("📄 Raw body length:", contentToVerify.length, "characters");
-    console.log("📄 Raw body preview:", contentToVerify.substring(0, 200) + "...");
+    console.log(
+      "📄 Raw body preview:",
+      contentToVerify.substring(0, 200) + "..."
+    );
   } catch (bodyError) {
     console.error("❌ Error extracting raw body:", bodyError);
     throwError({
@@ -385,8 +410,15 @@ const handleWalleeWebhook = async (req) => {
         contentToVerify
       );
       const verificationDuration = Date.now() - verificationStartTime;
-      console.log("⏱️ Signature verification took:", verificationDuration, "ms");
-      console.log("✅ Signature verification result:", isValid ? "VALID ✅" : "INVALID ❌");
+      console.log(
+        "⏱️ Signature verification took:",
+        verificationDuration,
+        "ms"
+      );
+      console.log(
+        "✅ Signature verification result:",
+        isValid ? "VALID ✅" : "INVALID ❌"
+      );
 
       if (!isValid) {
         console.error("\n❌❌❌ WEBHOOK SIGNATURE VERIFICATION FAILED ❌❌❌");
@@ -396,7 +428,9 @@ const handleWalleeWebhook = async (req) => {
           message: "Invalid Wallee webhook signature",
         });
       }
-      console.log("✅ Webhook signature verified successfully - webhook is authentic");
+      console.log(
+        "✅ Webhook signature verified successfully - webhook is authentic"
+      );
     } catch (verificationError) {
       console.error("\n❌ ERROR DURING SIGNATURE VERIFICATION");
       console.error("Error details:", verificationError);
@@ -404,13 +438,19 @@ const handleWalleeWebhook = async (req) => {
       console.error("Error stack:", verificationError.stack);
       // For now, log the error but continue processing (for debugging)
       // In production, you should throw an error here
-      console.warn("⚠️ Continuing without signature verification for debugging...");
+      console.warn(
+        "⚠️ Continuing without signature verification for debugging..."
+      );
       console.warn("⚠️ WARNING: This should be enabled in production!");
     }
   } else {
     console.warn("\n⚠️⚠️⚠️ NO X-SIGNATURE HEADER FOUND ⚠️⚠️⚠️");
-    console.warn("⚠️ Webhook may not be signed - proceeding without verification");
-    console.warn("⚠️ This is acceptable for testing but should be enabled in production");
+    console.warn(
+      "⚠️ Webhook may not be signed - proceeding without verification"
+    );
+    console.warn(
+      "⚠️ This is acceptable for testing but should be enabled in production"
+    );
   }
 
   // 3️⃣ Parse payload
@@ -434,8 +474,13 @@ const handleWalleeWebhook = async (req) => {
     });
   }
 
-  const { listenerEntityId, entityId, listenerEntityTechnicalName, state, spaceId: webhookSpaceId } =
-    payload;
+  const {
+    listenerEntityId,
+    entityId,
+    listenerEntityTechnicalName,
+    state,
+    spaceId: webhookSpaceId,
+  } = payload;
 
   console.log("\n📊 STEP 3: WEBHOOK DATA EXTRACTION");
   console.log("─────────────────────────────────────────────────────────────");
@@ -444,28 +489,41 @@ const handleWalleeWebhook = async (req) => {
   console.log("📛 Entity Type:", listenerEntityTechnicalName);
   console.log("📊 Transaction State:", state);
   console.log("🌐 Space ID (from webhook):", webhookSpaceId);
-  console.log("📋 Full webhook details:", JSON.stringify({
-    listenerEntityId,
-    entityId,
-    listenerEntityTechnicalName,
-    webhookState: state,
-    webhookSpaceId,
-  }, null, 2));
+  console.log(
+    "📋 Full webhook details:",
+    JSON.stringify(
+      {
+        listenerEntityId,
+        entityId,
+        listenerEntityTechnicalName,
+        webhookState: state,
+        webhookSpaceId,
+      },
+      null,
+      2
+    )
+  );
 
   try {
     // 4️⃣ Only handle Transaction webhooks
     console.log("\n🔍 STEP 4: WEBHOOK TYPE VALIDATION");
-    console.log("─────────────────────────────────────────────────────────────");
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
     console.log("🔎 Checking webhook type:", listenerEntityTechnicalName);
-    
+
     if (listenerEntityTechnicalName !== "Transaction") {
-      console.log(`⏭️ Skipping non-Transaction webhook: ${listenerEntityTechnicalName}`);
-      console.log("✅ Webhook received but not processed (not a Transaction webhook)");
-      return { 
-        received: true, 
-        skipped: true, 
+      console.log(
+        `⏭️ Skipping non-Transaction webhook: ${listenerEntityTechnicalName}`
+      );
+      console.log(
+        "✅ Webhook received but not processed (not a Transaction webhook)"
+      );
+      return {
+        received: true,
+        skipped: true,
         reason: "Not a Transaction webhook",
-        webhookType: listenerEntityTechnicalName
+        webhookType: listenerEntityTechnicalName,
       };
     }
     console.log("✅ Webhook type validated - this is a Transaction webhook");
@@ -473,13 +531,15 @@ const handleWalleeWebhook = async (req) => {
     // Use space ID from webhook payload (this is the merchant's space where payment was created)
     // In this model, webhooks come from merchant spaces, not platform space
     const transactionSpaceId = webhookSpaceId;
-    
+
     console.log("\n🌐 STEP 5: SPACE ID VALIDATION");
-    console.log("─────────────────────────────────────────────────────────────");
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
     console.log("🔍 Checking Space ID from webhook payload...");
     console.log("📝 Space ID value:", transactionSpaceId);
     console.log("📝 Space ID type:", typeof transactionSpaceId);
-    
+
     if (!transactionSpaceId) {
       console.error("\n❌❌❌ WEBHOOK MISSING SPACE ID ❌❌❌");
       console.error("⚠️ Cannot fetch transaction without Space ID");
@@ -500,30 +560,46 @@ const handleWalleeWebhook = async (req) => {
         message: "Invalid Space ID format in webhook",
       });
     }
-    
+
     console.log("✅ Space ID validated:", transactionSpaceIdNumber);
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
-    console.log(`║   PROCESSING WEBHOOK FROM MERCHANT SPACE                    ║`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝`);
+    console.log(
+      `\n╔══════════════════════════════════════════════════════════════╗`
+    );
+    console.log(
+      `║   PROCESSING WEBHOOK FROM MERCHANT SPACE                    ║`
+    );
+    console.log(
+      `╚══════════════════════════════════════════════════════════════╝`
+    );
     console.log(`🏪 Merchant Space ID: ${transactionSpaceIdNumber}`);
     console.log(`🆔 Transaction ID: ${entityId}`);
     console.log(`📊 State: ${state}`);
-    console.log(`─────────────────────────────────────────────────────────────`);
+    console.log(
+      `─────────────────────────────────────────────────────────────`
+    );
 
     // 5️⃣ Fetch transaction from merchant's Wallee space (source of truth)
     console.log("\n📥 STEP 6: FETCHING TRANSACTION FROM WALLEE");
-    console.log("─────────────────────────────────────────────────────────────");
-    console.log(`🔄 Fetching transaction ${entityId} from merchant space ${transactionSpaceIdNumber}...`);
-    
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
+    console.log(
+      `🔄 Fetching transaction ${entityId} from merchant space ${transactionSpaceIdNumber}...`
+    );
+
     let transaction;
     try {
       const fetchStartTime = Date.now();
       transaction = await transactionsService.getPaymentTransactionsId({
         space: transactionSpaceIdNumber,
-      id: Number(entityId),
-    });
+        id: Number(entityId),
+      });
       const fetchDuration = Date.now() - fetchStartTime;
-      console.log("✅ Transaction fetched successfully in", fetchDuration, "ms");
+      console.log(
+        "✅ Transaction fetched successfully in",
+        fetchDuration,
+        "ms"
+      );
     } catch (fetchError) {
       console.error("\n❌❌❌ FAILED TO FETCH TRANSACTION FROM WALLEE ❌❌❌");
       console.error("Space ID:", transactionSpaceIdNumber);
@@ -535,29 +611,50 @@ const handleWalleeWebhook = async (req) => {
     }
 
     console.log("\n📋 STEP 7: TRANSACTION DETAILS");
-    console.log("─────────────────────────────────────────────────────────────");
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
     console.log("✅ Transaction fetched successfully");
     console.log("🆔 Transaction ID:", transaction.id);
     console.log("📊 Transaction State:", transaction.state);
     console.log("💱 Currency:", transaction.currency);
     console.log("💰 Authorization Amount:", transaction.authorizationAmount);
     console.log("📅 Created On:", transaction.createdOn);
-    console.log("✅ Completed On:", transaction.completedOn || "Not completed yet");
+    console.log(
+      "✅ Completed On:",
+      transaction.completedOn || "Not completed yet"
+    );
     console.log("❌ Failed On:", transaction.failedOn || "Not failed");
-    console.log("📝 Metadata:", JSON.stringify(transaction.metaData || {}, null, 2));
-    console.log("📋 Full transaction object keys:", Object.keys(transaction).join(", "));
+    console.log(
+      "📝 Metadata:",
+      JSON.stringify(transaction.metaData || {}, null, 2)
+    );
+    console.log(
+      "📋 Full transaction object keys:",
+      Object.keys(transaction).join(", ")
+    );
 
     // Extract commission information from metadata
     console.log("\n💰 STEP 8: EXTRACTING COMMISSION DATA");
-    console.log("─────────────────────────────────────────────────────────────");
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
     const metadata = transaction.metaData || {};
     console.log("📝 Metadata present:", !!metadata);
     console.log("📝 Metadata keys:", Object.keys(metadata).join(", "));
-    
-    const metadataMerchantSpaceId = metadata.merchantSpaceId ? Number(metadata.merchantSpaceId) : null;
-    const merchantAmount = metadata.merchantAmount ? Number(metadata.merchantAmount) : null;
-    const platformCommission = metadata.platformCommission ? Number(metadata.platformCommission) : null;
-    const totalAmount = metadata.totalAmount ? Number(metadata.totalAmount) : transaction.authorizationAmount;
+
+    const metadataMerchantSpaceId = metadata.merchantSpaceId
+      ? Number(metadata.merchantSpaceId)
+      : null;
+    const merchantAmount = metadata.merchantAmount
+      ? Number(metadata.merchantAmount)
+      : null;
+    const platformCommission = metadata.platformCommission
+      ? Number(metadata.platformCommission)
+      : null;
+    const totalAmount = metadata.totalAmount
+      ? Number(metadata.totalAmount)
+      : transaction.authorizationAmount;
     const eventId = metadata.eventId;
     const userId = metadata.userId;
     const entityIdFromMetadata = metadata.entityId;
@@ -567,14 +664,25 @@ const handleWalleeWebhook = async (req) => {
 
     console.log("📊 Commission Breakdown:");
     console.log("   Transaction Space ID (from webhook):", merchantSpaceId);
-    console.log("   Metadata Merchant Space ID:", metadataMerchantSpaceId || "Not in metadata");
+    console.log(
+      "   Metadata Merchant Space ID:",
+      metadataMerchantSpaceId || "Not in metadata"
+    );
     console.log("   Total Amount:", totalAmount, transaction.currency);
-    console.log("   Platform Commission:", platformCommission || 0, transaction.currency);
-    console.log("   Merchant Amount:", merchantAmount || totalAmount, transaction.currency);
+    console.log(
+      "   Platform Commission:",
+      platformCommission || 0,
+      transaction.currency
+    );
+    console.log(
+      "   Merchant Amount:",
+      merchantAmount || totalAmount,
+      transaction.currency
+    );
     console.log("   Event ID:", eventId || "Not in metadata");
     console.log("   User ID:", userId || "Not in metadata");
     console.log("   Entity ID:", entityIdFromMetadata || "Not in metadata");
-    
+
     // Validate metadata has required fields
     if (!eventId || !entityIdFromMetadata) {
       console.warn("⚠️ WARNING: Missing critical metadata fields");
@@ -584,46 +692,74 @@ const handleWalleeWebhook = async (req) => {
 
     // 6️⃣ Handle states
     console.log("\n🔄 STEP 9: PROCESSING TRANSACTION STATE");
-    console.log("─────────────────────────────────────────────────────────────");
+    console.log(
+      "─────────────────────────────────────────────────────────────"
+    );
     console.log("📊 Current Transaction State:", transaction.state);
     console.log("🔄 Processing state handler...");
-    
+
     switch (transaction.state) {
       case "FULFILL":
       case "COMPLETED":
       case "CONFIRMED":
       case "AUTHORIZED":
-        console.log("\n╔══════════════════════════════════════════════════════════════╗");
-        console.log("║          ✅ PAYMENT COMPLETED SUCCESSFULLY                  ║");
-        console.log("╚══════════════════════════════════════════════════════════════╝");
+        console.log(
+          "\n╔══════════════════════════════════════════════════════════════╗"
+        );
+        console.log(
+          "║          ✅ PAYMENT COMPLETED SUCCESSFULLY                  ║"
+        );
+        console.log(
+          "╚══════════════════════════════════════════════════════════════╝"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State:", transaction.state);
         console.log("💰 Amount:", totalAmount, transaction.currency);
-        console.log("💳 Payment Method: Card payments typically reach CONFIRMED state");
-        console.log("💳 TWINT payments typically reach FULFILL/COMPLETED state");
-        
+        console.log(
+          "💳 Payment Method: Card payments typically reach CONFIRMED state"
+        );
+        console.log(
+          "💳 TWINT payments typically reach FULFILL/COMPLETED state"
+        );
+
         // Full payment goes directly to merchant's Wallee space
         // Track commission separately for later collection/invoicing
         console.log("\n💰 STEP 10: COMMISSION TRACKING");
-        console.log("─────────────────────────────────────────────────────────────");
-        
-        if (platformCommission && platformCommission > 0 && entityIdFromMetadata) {
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
+
+        if (
+          platformCommission &&
+          platformCommission > 0 &&
+          entityIdFromMetadata
+        ) {
           console.log("✅ Commission tracking required");
-          console.log("   Platform Commission:", platformCommission, transaction.currency);
+          console.log(
+            "   Platform Commission:",
+            platformCommission,
+            transaction.currency
+          );
           console.log("   Entity ID:", entityIdFromMetadata);
-          
+
           try {
-            const entityIdObj = entityIdFromMetadata ? new mongoose.Types.ObjectId(entityIdFromMetadata) : null;
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = entityIdFromMetadata
+              ? new mongoose.Types.ObjectId(entityIdFromMetadata)
+              : null;
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             console.log("📝 Creating commission record...");
             console.log("   Entity ID Object:", entityIdObj);
             console.log("   Event ID Object:", eventIdObj);
             console.log("   User ID Object:", userIdObj);
-            
+
             const commissionStartTime = Date.now();
-            
+
             // Create commission record for later collection
             // Merchant receives full payment in their Wallee space
             // Platform commission is tracked and will be invoiced/collected separately
@@ -635,7 +771,9 @@ const handleWalleeWebhook = async (req) => {
               totalAmount: totalAmount,
               platformCommission: platformCommission,
               merchantAmount: merchantAmount || totalAmount, // Merchant receives full amount
-              platformFeesPercent: metadata.platformFeesPercent ? Number(metadata.platformFeesPercent) : 0,
+              platformFeesPercent: metadata.platformFeesPercent
+                ? Number(metadata.platformFeesPercent)
+                : 0,
               currency: transaction.currency,
               status: "PENDING", // Will be invoiced/collected later
               metadata: {
@@ -646,30 +784,51 @@ const handleWalleeWebhook = async (req) => {
                 transactionSpaceId: merchantSpaceId, // Space where payment was processed
               },
             });
-            
-            const commissionDuration = Date.now() - commissionStartTime;
-            console.log("✅ Commission record created successfully in", commissionDuration, "ms");
 
-            console.log("\n╔══════════════════════════════════════════════════════════════╗");
-            console.log("║     💰 COMMISSION TRACKING (Merchant Space Model)            ║");
-            console.log("╚══════════════════════════════════════════════════════════════╝");
-            console.log(`💰 Total Payment: ${totalAmount} ${transaction.currency}`);
-            console.log(`   → Merchant receives: FULL AMOUNT (${totalAmount} ${transaction.currency})`);
+            const commissionDuration = Date.now() - commissionStartTime;
+            console.log(
+              "✅ Commission record created successfully in",
+              commissionDuration,
+              "ms"
+            );
+
+            console.log(
+              "\n╔══════════════════════════════════════════════════════════════╗"
+            );
+            console.log(
+              "║     💰 COMMISSION TRACKING (Merchant Space Model)            ║"
+            );
+            console.log(
+              "╚══════════════════════════════════════════════════════════════╝"
+            );
+            console.log(
+              `💰 Total Payment: ${totalAmount} ${transaction.currency}`
+            );
+            console.log(
+              `   → Merchant receives: FULL AMOUNT (${totalAmount} ${transaction.currency})`
+            );
             console.log(`   → Merchant Space ID: ${merchantSpaceId}`);
-            console.log(`   → Platform commission (to be collected): ${platformCommission} ${transaction.currency}`);
+            console.log(
+              `   → Platform commission (to be collected): ${platformCommission} ${transaction.currency}`
+            );
             console.log(`   → Commission record ID: ${commissionRecord._id}`);
-            console.log(`   → Status: PENDING (will be invoiced/collected later)`);
+            console.log(
+              `   → Status: PENDING (will be invoiced/collected later)`
+            );
             console.log(`\n📋 Commission Details:`);
             console.log(`   Entity ID: ${entityIdObj}`);
             console.log(`   Event ID: ${eventIdObj}`);
             console.log(`   User ID: ${userIdObj}`);
             console.log(`   Merchant Space ID: ${merchantSpaceId}`);
-            console.log(`   Commission Amount: ${platformCommission} ${transaction.currency}`);
-            console.log(`   Commission Percentage: ${metadata.platformFeesPercent || 0}%`);
+            console.log(
+              `   Commission Amount: ${platformCommission} ${transaction.currency}`
+            );
+            console.log(
+              `   Commission Percentage: ${metadata.platformFeesPercent || 0}%`
+            );
             console.log(`   Transaction ID: ${transaction.id}`);
             console.log(`   Created At: ${new Date().toISOString()}`);
             console.log(`✅ Commission tracking completed successfully`);
-            
           } catch (commissionError) {
             console.error("\n❌❌❌ ERROR CREATING COMMISSION RECORD ❌❌❌");
             console.error("Error:", commissionError.message);
@@ -681,25 +840,37 @@ const handleWalleeWebhook = async (req) => {
               platformCommission: platformCommission,
             });
             // Don't fail the webhook - log error for manual review
-            console.warn("⚠️ Webhook processing continues despite commission error");
+            console.warn(
+              "⚠️ Webhook processing continues despite commission error"
+            );
           }
         } else {
           console.log("\n⚠️ COMMISSION TRACKING SKIPPED");
-          console.log("   Reason:", !platformCommission ? "Platform commission is 0" : "Entity ID missing");
+          console.log(
+            "   Reason:",
+            !platformCommission
+              ? "Platform commission is 0"
+              : "Entity ID missing"
+          );
           console.log("   Platform Commission:", platformCommission || 0);
-          console.log("   Entity ID from metadata:", entityIdFromMetadata || "Missing");
+          console.log(
+            "   Entity ID from metadata:",
+            entityIdFromMetadata || "Missing"
+          );
         }
-        
+
         // Update orders linked to this eventId to mark payment as completed
         // Orders are created with eventId, so we can find and update them
         console.log("\n📦 STEP 11: ORDER LOOKUP");
-        console.log("─────────────────────────────────────────────────────────────");
-        
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
+
         if (eventId) {
           try {
             console.log("🔍 Looking up orders for event:", eventId);
             const eventIdObj = new mongoose.Types.ObjectId(eventId);
-            
+
             const orderLookupStartTime = Date.now();
             // Find orders for this event that are still in WAITING status
             const orders = await Order.find({
@@ -707,24 +878,36 @@ const handleWalleeWebhook = async (req) => {
               status: ORDER_STATUS.WAITING, // Only update orders that are waiting
             });
             const orderLookupDuration = Date.now() - orderLookupStartTime;
-            
+
             console.log("⏱️ Order lookup took:", orderLookupDuration, "ms");
             console.log("📊 Orders found:", orders.length);
 
             if (orders.length > 0) {
-              console.log(`\n✅ Found ${orders.length} order(s) linked to this payment`);
-              console.log(`📋 Order IDs: ${orders.map(o => o._id.toString()).join(", ")}`);
-              console.log(`📋 Order Token Numbers: ${orders.map(o => o.tokenNumber).join(", ")}`);
-              
+              console.log(
+                `\n✅ Found ${orders.length} order(s) linked to this payment`
+              );
+              console.log(
+                `📋 Order IDs: ${orders
+                  .map((o) => o._id.toString())
+                  .join(", ")}`
+              );
+              console.log(
+                `📋 Order Token Numbers: ${orders
+                  .map((o) => o.tokenNumber)
+                  .join(", ")}`
+              );
+
               // Update all orders for this event
               // Note: Orders remain in WAITING status - payment completion doesn't change order status
               // Order status changes when restaurant processes the order (IN_PROGRESS -> READY -> COMPLETED)
               // But we can add payment confirmation metadata if needed
-              
+
               // For now, we'll just log that payment is confirmed
               // If you need to track payment status separately, add a paymentStatus field to Order model
-              console.log(`✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}`);
-              
+              console.log(
+                `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}`
+              );
+
               // Optional: You can add a payment confirmation timestamp or status field here
               // await Order.updateMany(
               //   { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
@@ -732,7 +915,9 @@ const handleWalleeWebhook = async (req) => {
               // );
             } else {
               console.log(`ℹ️ No orders found for event ${eventId}`);
-              console.log(`   This is normal if orders are created after payment verification`);
+              console.log(
+                `   This is normal if orders are created after payment verification`
+              );
             }
           } catch (orderUpdateError) {
             console.error("\n❌❌❌ ERROR LOOKING UP ORDERS ❌❌❌");
@@ -740,12 +925,16 @@ const handleWalleeWebhook = async (req) => {
             console.error("Error stack:", orderUpdateError.stack);
             console.error("Event ID that failed:", eventId);
             // Don't fail the webhook - log error for manual review
-            console.warn("⚠️ Webhook processing continues despite order lookup error");
+            console.warn(
+              "⚠️ Webhook processing continues despite order lookup error"
+            );
           }
         } else {
-          console.log("⚠️ Event ID missing from metadata - cannot lookup orders");
+          console.log(
+            "⚠️ Event ID missing from metadata - cannot lookup orders"
+          );
         }
-        
+
         // TODO: Send confirmation email/notification to user
         break;
 
@@ -761,16 +950,23 @@ const handleWalleeWebhook = async (req) => {
 
       case "FAILED":
         console.log("\n❌ PAYMENT FAILED");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: FAILED");
-        console.log("❌ Failure reason:", transaction.failureReason || "Not provided");
+        console.log(
+          "❌ Failure reason:",
+          transaction.failureReason || "Not provided"
+        );
         console.log("📅 Failed On:", transaction.failedOn || "Not specified");
         break;
 
       case "VOIDED":
         console.log("\n⚠️ PAYMENT VOIDED");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: VOIDED");
         console.log("ℹ️ Payment was voided/cancelled");
@@ -778,7 +974,9 @@ const handleWalleeWebhook = async (req) => {
 
       case "DECLINE":
         console.log("\n⛔ PAYMENT DECLINED");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: DECLINE");
         console.log("❌ Payment was declined by payment provider");
@@ -786,7 +984,9 @@ const handleWalleeWebhook = async (req) => {
 
       case "PENDING":
         console.log("\n⏳ PAYMENT PENDING");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: PENDING");
         console.log("ℹ️ Payment is still pending processing");
@@ -794,7 +994,9 @@ const handleWalleeWebhook = async (req) => {
 
       case "PROCESSING":
         console.log("\n🔄 PAYMENT PROCESSING");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: PROCESSING");
         console.log("ℹ️ Payment is currently being processed");
@@ -802,22 +1004,32 @@ const handleWalleeWebhook = async (req) => {
 
       default:
         console.log("\n⚠️ UNHANDLED TRANSACTION STATE");
-        console.log("─────────────────────────────────────────────────────────────");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State:", transaction.state);
         console.log("⚠️ This state is not explicitly handled");
     }
 
     const webhookDuration = Date.now() - webhookStartTime;
-    console.log("\n╔══════════════════════════════════════════════════════════════╗");
-    console.log("║     ✅ WEBHOOK PROCESSED SUCCESSFULLY                        ║");
-    console.log("╚══════════════════════════════════════════════════════════════╝");
+    console.log(
+      "\n╔══════════════════════════════════════════════════════════════╗"
+    );
+    console.log(
+      "║     ✅ WEBHOOK PROCESSED SUCCESSFULLY                        ║"
+    );
+    console.log(
+      "╚══════════════════════════════════════════════════════════════╝"
+    );
     console.log("⏱️ Total processing time:", webhookDuration, "ms");
     console.log("🆔 Transaction ID:", transaction.id);
     console.log("📊 Final State:", transaction.state);
     console.log("🌐 Space ID:", merchantSpaceId);
-    console.log("─────────────────────────────────────────────────────────────\n");
-    
+    console.log(
+      "─────────────────────────────────────────────────────────────\n"
+    );
+
     return {
       received: true,
       transactionId: transaction.id,
@@ -827,25 +1039,33 @@ const handleWalleeWebhook = async (req) => {
     };
   } catch (error) {
     const webhookDuration = Date.now() - webhookStartTime;
-    console.error("\n╔══════════════════════════════════════════════════════════════╗");
-    console.error("║     ❌ WEBHOOK PROCESSING FAILED                             ║");
-    console.error("╚══════════════════════════════════════════════════════════════╝");
+    console.error(
+      "\n╔══════════════════════════════════════════════════════════════╗"
+    );
+    console.error(
+      "║     ❌ WEBHOOK PROCESSING FAILED                             ║"
+    );
+    console.error(
+      "╚══════════════════════════════════════════════════════════════╝"
+    );
     console.error("⏱️ Processing time before error:", webhookDuration, "ms");
     console.error("❌ Error:", error.message);
     console.error("📋 Error name:", error.name);
     console.error("📋 Error stack:", error.stack);
-    
+
     if (error.response) {
       console.error("📡 HTTP Response Status:", error.response.status);
       console.error("📡 HTTP Response Status Text:", error.response.statusText);
     }
-    
+
     if (error.status) {
       console.error("📊 Error Status Code:", error.status);
     }
-    
-    console.error("─────────────────────────────────────────────────────────────\n");
-    
+
+    console.error(
+      "─────────────────────────────────────────────────────────────\n"
+    );
+
     throwError({
       status: STATUS_CODES.SERVER_ERROR,
       message: error.message || t("WALLEE_WEBHOOK_ERROR", lang),
@@ -857,7 +1077,7 @@ const handleWalleeWebhook = async (req) => {
  * Store merchant's Wallee Space ID
  * In this model, merchants create their own Wallee space on Wallee dashboard
  * and provide the Space ID to the platform for storage
- * 
+ *
  * Flow:
  * 1. Merchant signs up on Wallee dashboard
  * 2. Merchant completes KYC and bank account setup
@@ -915,7 +1135,7 @@ const createWalleeOnboardingLink = async (req) => {
       console.log("✅ Space ID already stored for this entity");
       return {
         success: true,
-        message: t("WALLEE_SPACE_ID_ALREADY_STORED", lang), 
+        message: t("WALLEE_SPACE_ID_ALREADY_STORED", lang),
         spaceId: spaceIdNumber,
       };
     }
@@ -934,7 +1154,7 @@ const createWalleeOnboardingLink = async (req) => {
       console.log("Full Space Object:", JSON.stringify(space, null, 2));
       console.log("Available Space Fields:", Object.keys(space).join(", "));
       console.log("==============================================");
-      
+
       // Log key fields that are commonly available
       const spaceDetails = {
         id: space.id,
@@ -965,7 +1185,7 @@ const createWalleeOnboardingLink = async (req) => {
         plannedPurgeDate: space.plannedPurgeDate,
         version: space.version,
       };
-      
+
       console.log("Key Space Details:", JSON.stringify(spaceDetails, null, 2));
 
       // Store the Space ID in EntityDetails
@@ -991,7 +1211,9 @@ const createWalleeOnboardingLink = async (req) => {
         spaceDetails: {
           primaryCurrency: space.primaryCurrency,
           administratorEmail: space.administratorEmail,
-          administratorName: `${space.administratorFirstName || ""} ${space.administratorLastName || ""}`.trim(),
+          administratorName: `${space.administratorFirstName || ""} ${
+            space.administratorLastName || ""
+          }`.trim(),
           createdOn: space.createdOn,
           timeZone: space.timeZone,
           requestLimit: space.requestLimit,
@@ -1002,7 +1224,7 @@ const createWalleeOnboardingLink = async (req) => {
     } catch (walleeError) {
       console.error("❌ Error validating Space ID with Wallee:", walleeError);
       const errorDetails = await parseWalleeError(walleeError);
-      
+
       // If space doesn't exist, return a helpful error
       if (walleeError.response?.status === 404) {
         throwError({
@@ -1013,12 +1235,13 @@ const createWalleeOnboardingLink = async (req) => {
 
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
-        message: errorDetails?.message || t("WALLEE_SPACE_VALIDATION_ERROR", lang),
+        message:
+          errorDetails?.message || t("WALLEE_SPACE_VALIDATION_ERROR", lang),
       });
     }
   } catch (error) {
     console.error("Error storing Wallee Space ID:", error);
-    
+
     // If error is already a throwError, re-throw it
     if (error.status) {
       throw error;
@@ -1027,11 +1250,11 @@ const createWalleeOnboardingLink = async (req) => {
     const errorDetails = await parseWalleeError(error);
     throwError({
       status: STATUS_CODES.SERVER_ERROR,
-      message: errorDetails?.message || t("WALLEE_SPACE_ID_STORAGE_ERROR", lang),
+      message:
+        errorDetails?.message || t("WALLEE_SPACE_ID_STORAGE_ERROR", lang),
     });
   }
 };
-
 
 /**
  * Continue/resume Wallee merchant onboarding
@@ -1066,7 +1289,9 @@ const continueWalleeOnboarding = async (req) => {
       : `${process.env.HOST_URL}/app/profile/bank-account`;
 
     // Generate onboarding URL for existing space
-    const onboardingUrl = `https://app-wallee.com/${entity.walleeSpaceId}/account/onboarding?returnUrl=${encodeURIComponent(redirectUrl)}`;
+    const onboardingUrl = `https://app-wallee.com/${
+      entity.walleeSpaceId
+    }/account/onboarding?returnUrl=${encodeURIComponent(redirectUrl)}`;
 
     await EntityDetails.updateOne(
       { _id: entityId },
@@ -1132,7 +1357,10 @@ const checkWalleeAccountStatus = async (req) => {
 
       // Check if payment methods are configured
       // Note: This may require additional API calls depending on Wallee's API structure
-      if (!space.paymentMethodConfigurations || space.paymentMethodConfigurations.length === 0) {
+      if (
+        !space.paymentMethodConfigurations ||
+        space.paymentMethodConfigurations.length === 0
+      ) {
         missingFields.push("Payment method configuration");
       }
 
@@ -1247,7 +1475,7 @@ const getWalleeSpace = async (req) => {
   } catch (err) {
     console.error("Error fetching Wallee space:", err);
     const errorDetails = await parseWalleeError(err);
-    
+
     // If space doesn't exist, return error
     if (err.response?.status === 404) {
       return {
@@ -1256,7 +1484,10 @@ const getWalleeSpace = async (req) => {
     }
 
     return {
-      error: errorDetails?.message || err.message || t("WALLEE_SPACE_FETCH_ERROR", lang),
+      error:
+        errorDetails?.message ||
+        err.message ||
+        t("WALLEE_SPACE_FETCH_ERROR", lang),
     };
   }
 };
