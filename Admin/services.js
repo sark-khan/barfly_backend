@@ -402,10 +402,16 @@ const resetPassword = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, password, authToken } = req.body;
 
+  console.log("=== ADMIN RESET PASSWORD DEBUG ===");
+  console.log("Email:", email);
+  console.log("AuthToken exists:", !!authToken);
+  console.log("Password exists:", !!password);
+
   let message = "";
 
   if (authToken && password) {
     const decryptedUserId = decrypt(authToken);
+    console.log("Decrypted userId:", decryptedUserId);
 
     const redisPrefix = KEY_TYPE_PREFIXES.USER_TOKEN;
     const storedToken = await redisClient.get(redisPrefix + decryptedUserId);
@@ -434,10 +440,12 @@ const resetPassword = async (req) => {
 
     return { message: t("ADMIN_PASSWORD_UPDATE_SUCCESS", lang) };
   } else {
+    console.log("Looking for admin with email:", email, "and status:", STATUS.ACTIVE);
     const adminUser = await Admin.findOne(
       { email, status: STATUS.ACTIVE },
       { email: 1, firstName: 1, lastName: 1, _id: 1 }
     );
+    console.log("Admin found:", adminUser);
 
     if (!adminUser) {
       throwError({
