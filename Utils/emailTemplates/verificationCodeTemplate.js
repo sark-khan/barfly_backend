@@ -31,21 +31,6 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .email-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 20px;
-            text-align: center;
-            color: #ffffff;
-        }
-        .email-header h1 {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-        .email-header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
         .email-body {
             padding: 40px 30px;
             text-align: center;
@@ -146,11 +131,6 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
 </head>
 <body>
     <div class="email-container">
-        <div class="email-header">
-            <h1>🔐 Verification Code</h1>
-            <p>Countr Account Verification</p>
-        </div>
-        
         <div class="email-body">
             <p class="greeting">Hello!</p>
             
