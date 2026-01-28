@@ -14,7 +14,7 @@ const entityDetailsSchema = new Schema(
     owner: { type: mongoose.Types.ObjectId, ref: "User" },
     image: { type: String },
     entityContactNumber: { type: String },
-    plotNo: { type: String },
+    // plotNo: { type: String },
     floor: { type: String },
     country: { type: String },
     buildingName: { type: String },
@@ -26,6 +26,9 @@ const entityDetailsSchema = new Schema(
     isOpen: { type: Boolean, default: true },
     stripeAccountId: { type: String },
     bankLinkUrl: { type: String },
+    walleeSpaceId: { type: Number },
+    walleeApplicationUserId: { type: Number },
+    walleeOnboardingUrl: { type: String },
     blockedAt: { type: Date },
   },
   { timestamps: true }

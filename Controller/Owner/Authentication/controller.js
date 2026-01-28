@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const { STATUS_CODES } = require("../../../Utils/globalConstants");
-const { register, login, logoutEntity } = require("./service");
+const {
+  register,
+  login,
+  logoutEntity,
+  sendEmailOtp,
+  resetPassword,
+} = require("./service");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 const multer = require("multer");
@@ -49,6 +55,32 @@ router.post("/logout", async (req, res) => {
     console.error("Error while logging out the entity: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("ENTITY_LOGOUT_ERROR", lang),
+    });
+  }
+});
+
+router.post("/send-email-otp", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const response = await sendEmailOtp(req);
+    return res.status(STATUS_CODES.OK).json(response);
+  } catch (error) {
+    console.error("Error in send email OTP: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("EMAIL_OTP_ERROR", lang),
+    });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  const lang = getLanguageFromRequest(req);
+  try {
+    const response = await resetPassword(req);
+    return res.status(STATUS_CODES.OK).json(response);
+  } catch (error) {
+    console.error("Error in reset password: ", error);
+    return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
+      message: error.message || t("PASSWORD_RESET_ERROR", lang),
     });
   }
 });

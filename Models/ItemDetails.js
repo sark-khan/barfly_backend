@@ -23,10 +23,11 @@ const itemSchema = new Schema(
     unit: { type: String, enum: Object.values(UNIT_TYPE) },
     nutritionType: { type: String, enum: Object.values(NUTRITION_TYPE) },
     isVegan: { type: Boolean, default: false },
+    isAlcohol18: { type: Boolean, default: false },
+    isAlcohol16: { type: Boolean, default: false },
     itemName: { type: String, required: true },
     description: { type: String },
     image: { type: String },
-
     price: { type: Number },
     currency: { type: String },
     // counterId: {

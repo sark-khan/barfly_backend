@@ -8,15 +8,22 @@ const {
   hashPassword,
   comparePassword,
   getJwtToken,
-  generateOTP,
 } = require("../../../Utils/commonFunction");
+const crypto = require("crypto");
+const { createMail } = require("../../../Utils/mailer");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
-const { createMail } = require("../../../Utils/mailer");
 const User = require("../../../Models/User");
 const CountRTags = require("../../../Models/CountRTags");
 const redisClient = require("./../../../redis");
 const notificationSettings = require("../../../Models/notificationSettings");
+const FavouriteEntity = require("../../../Models/FavouriteEntity");
+const FavouriteItem = require("../../../Models/FavouriteItem");
+const Cards = require("../../../Models/Cards");
+const Location = require("../../../Models/Location");
+const CustomerOrderReport = require("../../../Models/CustomerOrderReport");
+const UserFeedback = require("../../../Models/UserFeedback");
+const UserAppFeedback = require("../../../Models/UserAppFeedback");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
@@ -187,11 +194,205 @@ module.exports.deleteAccount = async (req) => {
       message: t("CUSTOMER_DOES_NOT_EXIST", lang),
     });
   }
+
+  // Generate unique deleted email to avoid conflicts if email has unique constraint
+  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
+
+  // Delete all user-related data and clear personal information in parallel for optimization
   await Promise.all([
+    // Update user: set status to DELETED, clear all personal information
     User.updateOne(
       { _id: userId },
-      { $set: { status: STATUS.DELETED, countrTag: null } }
+      {
+        $set: {
+          status: STATUS.DELETED,
+          email: deletedEmail,
+          contactNumber: null,
+          countrTag: null,
+          firstName: null,
+          lastName: null,
+          fullName: null,
+          password: null, // Clear password for security
+          fcmToken: [],
+          socketId: null,
+        },
+      }
     ),
+    // Delete all user-related data in parallel (optimized)
     CountRTags.deleteMany({ userId }),
+    FavouriteEntity.deleteMany({ userId }),
+    FavouriteItem.deleteMany({ userId }),
+    notificationSettings.deleteMany({ userId }),
+    Cards.deleteMany({ userId }),
+    Location.deleteMany({ userId }),
+    CustomerOrderReport.deleteMany({ userId }),
+    UserFeedback.deleteMany({ userId }),
+    UserAppFeedback.deleteMany({ userId }),
+    Otp.deleteMany({ userId }),
+    // Clear Redis token if exists
+    redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
   ]);
+};
+
+/**
+ * Send OTP to Email (Reusable utility)
+ * OTP valid for 2 minutes (120 seconds)
+ */
+const sendOtpToEmail = async (
+  email,
+  lang,
+  subject = "Your Verification Code - Countr"
+) => {
+  const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
+  const generatedOtp = crypto.randomInt(100000, 999999).toString();
+
+  await redisClient.setEx(redisKey, 120, generatedOtp);
+
+  const emailSent = await createMail({
+    to: email,
+    subject,
+    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`,
+  });
+
+  if (!emailSent) {
+    await redisClient.del(redisKey);
+    throwError({
+      status: STATUS_CODES.SERVER_ERROR,
+      message: t("EMAIL_SEND_ERROR", lang),
+    });
+  }
+
+  return generatedOtp;
+};
+
+/**
+ * Verify OTP from Redis and generate secure reset token
+ * Reset token valid for 24 hours (86400 seconds)
+ */
+const verifyOtpFromRedis = async (email, otp, lang) => {
+  const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
+  const storedOtp = await redisClient.get(redisKey);
+
+  if (!storedOtp) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OTP_EXPIRED", lang),
+    });
+  }
+
+  if (storedOtp !== otp) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OTP_INVALID", lang),
+    });
+  }
+
+  // Generate secure reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}:resetToken`;
+
+  // Delete OTP and store reset token with 24 hour expiry
+  await Promise.all([
+    redisClient.del(redisKey),
+    redisClient.setEx(resetTokenKey, 86400, resetToken),
+  ]);
+
+  return resetToken;
+};
+
+/**
+ * Send OTP to Email API (Single API for send + verify)
+ * - Send OTP: { email }
+ * - Verify OTP: { email, otp } -> Returns resetToken for password reset
+ */
+module.exports.sendEmailOtp = async (req) => {
+  const lang = getLanguageFromRequest(req);
+  const { email, otp } = req.body;
+
+  if (!email?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedOtp = otp?.trim();
+
+  if (trimmedOtp) {
+    const token = await verifyOtpFromRedis(trimmedEmail, trimmedOtp, lang);
+    return {
+      otpVerified: true,
+      token,
+      message: t("OTP_VERIFIED_SUCCESS", lang),
+    };
+  }
+
+  await sendOtpToEmail(trimmedEmail, lang);
+  return { otpSent: true, message: t("OTP_SENT_EMAIL_SUCCESS", lang) };
+};
+
+/**
+ * Reset Password (requires resetToken from headers)
+ * Headers: { token: "resetToken" }
+ * Payload: { email, newPassword }
+ */
+module.exports.resetPassword = async (req) => {
+  const lang = getLanguageFromRequest(req);
+  const { email, newPassword } = req.body;
+  let resetToken = req.headers["token"];
+
+  if (!resetToken?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("RESET_TOKEN_REQUIRED", lang),
+    });
+  }
+
+  // Remove Bearer prefix if present
+  resetToken = resetToken.trim().replace(/^Bearer\s+/i, "");
+
+  if (!email?.trim() || !newPassword?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_AND_PASSWORD_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}:resetToken`;
+
+  // Verify reset token
+  const storedToken = await redisClient.get(resetTokenKey);
+  console.log("Reset Password Debug:", {
+    resetTokenKey,
+    storedTokenExists: !!storedToken,
+    receivedToken: resetToken?.substring(0, 10) + "...",
+    storedToken: storedToken?.substring(0, 10) + "...",
+    tokensMatch: storedToken === resetToken,
+  });
+  if (!storedToken || storedToken !== resetToken) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("INVALID_RESET_TOKEN", lang),
+    });
+  }
+
+  const user = await User.findOne({
+    email: trimmedEmail,
+    status: STATUS.ACTIVE,
+    role: ROLES.CUSTOMER,
+  });
+
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: t("USER_NOT_FOUND", lang),
+    });
+  }
+
+  user.password = hashPassword(newPassword.trim());
+  await Promise.all([user.save(), redisClient.del(resetTokenKey)]);
+
+  return { success: true, message: t("PASSWORD_RESET_SUCCESS", lang) };
 };

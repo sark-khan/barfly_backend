@@ -588,7 +588,10 @@ router.get("/get-feedback-app-questions", async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error("Error occured while getting feedback questions: ", error);
+    console.error(
+      "Error occured while getting feedback  app questions: ",
+      error
+    );
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("FEEDBACK_QUESTIONS_FETCH_ERROR", lang),
     });

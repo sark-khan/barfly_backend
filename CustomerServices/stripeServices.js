@@ -17,7 +17,11 @@ const createPaymentIntent = async (req) => {
   const {
     userId,
     body: { amount, currency, paymentMethodType = "card", eventId },
+    email, // Get email from req.email (from JWT token) or req.body.email
   } = req;
+
+  // Use email from request body if provided, otherwise use from JWT token
+  const customerEmail = req.body.email || email;
 
   // Validate required fields
   if (!amount || !currency || !eventId) {
@@ -84,6 +88,15 @@ const createPaymentIntent = async (req) => {
         message: t("STRIPE_TRANSFERS_NOT_ENABLED", lang),
       });
     }
+
+    // Log account capabilities for debugging TWINT issues
+    if (paymentMethodTypes.includes("twint")) {
+      console.log("Connected account capabilities:", {
+        transfers: account.capabilities?.transfers,
+        card_payments: account.capabilities?.card_payments,
+        accountId: stripeAccountId,
+      });
+    }
   } catch (error) {
     // If it's already our custom error, re-throw it
     if (
@@ -103,7 +116,8 @@ const createPaymentIntent = async (req) => {
   // If TWINT is the payment method, use Stripe Checkout Session (for iOS compatibility)
   if (paymentMethodTypes.includes("twint")) {
     try {
-      const checkoutSession = await stripe.checkout.sessions.create({
+      // Create checkout session configuration
+      const checkoutSessionConfig = {
         payment_method_types: ["twint"],
         line_items: [
           {
@@ -136,6 +150,24 @@ const createPaymentIntent = async (req) => {
           eventId: eventId,
           paymentMethodType: "twint",
         },
+      };
+
+      // Pre-fill email if available to streamline checkout
+      if (customerEmail) {
+        checkoutSessionConfig.customer_email = customerEmail;
+      }
+
+      const checkoutSession = await stripe.checkout.sessions.create(
+        checkoutSessionConfig
+      );
+
+      // Log checkout session details for debugging
+      console.log("TWINT Checkout Session created:", {
+        sessionId: checkoutSession.id,
+        url: checkoutSession.url,
+        paymentMethodTypes: checkoutSession.payment_method_types,
+        customerEmail: checkoutSessionConfig.customer_email || "not provided",
+        connectedAccountId: stripeAccountId,
       });
 
       // Store checkout session info in database

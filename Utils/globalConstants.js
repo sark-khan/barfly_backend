@@ -329,12 +329,36 @@ const APP_FEEDBACK_QUESTIONS = [
   {
     id: "appFeedback2",
     question: "How user-friendly do you find countr?",
-    answerType: "RATING",
+    answerType: "FRIENDLY",
   },
   {
     id: "appFeedback3",
     question: "How likely is it that you would recommend countr to others?",
+    answerType: "RATING",
+  },
+  {
+    id: "appFeedback4",
+    question: "Is there anything else you would like to share?",
+    answerType: "TEXT",
+  },
+];
+
+const OWNER_APP_FEEDBACK_QUESTIONS = [
+  {
+    id: "appFeedback1",
+    question: "How would you rate your overall experience with countr plus?",
+    answerType: "RATING_FIVE",
+  },
+  {
+    id: "appFeedback2",
+    question: "How user-friendly do you find countr plus?",
     answerType: "FRIENDLY",
+  },
+  {
+    id: "appFeedback3",
+    question:
+      "How likely is it that you would recommend countr plus to others?",
+    answerType: "RATING_FIVE",
   },
   {
     id: "appFeedback4",
@@ -372,5 +396,6 @@ module.exports = {
   ANSWER_TYPES,
   ALL_ANSWER_TYPES,
   APP_FEEDBACK_QUESTIONS,
+  OWNER_APP_FEEDBACK_QUESTIONS,
   SERIAL_TYPE,
 };
