@@ -11,6 +11,7 @@ const {
 } = require("../../../Utils/commonFunction");
 const crypto = require("crypto");
 const { createMail } = require("../../../Utils/mailer");
+const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const User = require("../../../Models/User");
@@ -248,10 +249,14 @@ const sendOtpToEmail = async (
 
   await redisClient.setEx(redisKey, 120, generatedOtp);
 
+  // Generate HTML email template with verification code
+  const htmlTemplate = getVerificationCodeTemplate(generatedOtp, "2 minutes");
+
   const emailSent = await createMail({
     to: email,
     subject,
-    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`,
+    html: htmlTemplate,
+    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`, // Plain text fallback
   });
 
   if (!emailSent) {
