@@ -2103,6 +2103,7 @@ module.exports.getCounterAndCategory = async (req) => {
 };
 
 module.exports.getMenuCategory = async (req) => {
+  const lang = getLanguageFromRequest(req);
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 }
@@ -2115,20 +2116,36 @@ module.exports.getMenuCategory = async (req) => {
       model: "Counter",
     });
 
+  // Map of all known default category names (in any language) to their translation keys
+  const defaultCategoryKeyMap = {
+    "Food": "DEFAULT_CATEGORY_FOOD",
+    "Speisen": "DEFAULT_CATEGORY_FOOD",
+    "Soft Drinks": "DEFAULT_CATEGORY_SOFT_DRINKS",
+    "Alkoholfreie Getränke": "DEFAULT_CATEGORY_SOFT_DRINKS",
+  };
+
   const categoryNames = {};
 
   const filteredCategories = menuCategories.filter((category) => {
-    if (
-      category.counterId?.status === STATUS.ACTIVE &&
-      !categoryNames[category.categoryName]
-    ) {
+    // Include entity-level categories (no counterId) or categories with active counters
+    const isValidCategory = !category.counterId || category.counterId?.status === STATUS.ACTIVE;
+    if (isValidCategory && !categoryNames[category.categoryName]) {
       categoryNames[category.categoryName] = true;
       return true;
     }
     return false;
   });
 
-  return filteredCategories;
+  // Translate default category names based on request language
+  const translatedCategories = filteredCategories.map((category) => {
+    const translationKey = defaultCategoryKeyMap[category.categoryName];
+    if (translationKey) {
+      category.categoryName = t(translationKey, lang);
+    }
+    return category;
+  });
+
+  return translatedCategories;
 };
 
 module.exports.editCategory = async (req) => {
@@ -4380,6 +4397,20 @@ module.exports.editEvent = async (req) => {
 
   const lang = getLanguageFromRequest(req);
 
+  console.log("Edit Event Debug - Input:", {
+    eventId,
+    eventName,
+    serialType,
+    isRepetitive,
+    repetitiveDays,
+    from,
+    to,
+    counterIds,
+    location,
+    isAllDay,
+    hasFile: !!file,
+  });
+
   const event = await Event.findOne({ _id: eventId });
   if (!event) {
     throwError({
@@ -4459,7 +4490,17 @@ module.exports.editEvent = async (req) => {
   if (isAllDay !== undefined) event.isAllDay = isAllDay;
 
   try {
+    console.log("Edit Event Debug - Before Save:", {
+      eventId: event._id,
+      eventName: event.eventName,
+      from: event.from,
+      to: event.to,
+      counterIds: event.counterIds,
+    });
+
     await event.save();
+
+    console.log("Edit Event Debug - Save Successful");
 
     // Emit socket event to customer_entity topic for updated event
     io.to("customer_entity").emit("eventUpdate", {
@@ -4486,6 +4527,11 @@ module.exports.editEvent = async (req) => {
 
     return { message: t("EVENT_UPDATE_SUCCESS", lang) };
   } catch (error) {
+    console.error("Edit Event Debug - Error:", {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      errorName: error.name,
+    });
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("EVENT_UPDATE_ERROR", lang),

@@ -34,9 +34,15 @@ module.exports.createMail = async (mail_data) => {
       from: process.env.MAIL_USER,
       to: mail_data.to,
       subject: mail_data.subject,
-      text: mail_data.text,
-      // html: mail_data.html, // Uncomment if HTML body is needed
     };
+
+    // Add text or html content
+    if (mail_data.html) {
+      mailOptions.html = mail_data.html;
+    }
+    if (mail_data.text) {
+      mailOptions.text = mail_data.text;
+    }
 
     if (mail_data.cc) {
       mailOptions.cc = mail_data.cc;
