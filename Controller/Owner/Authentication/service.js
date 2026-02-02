@@ -8,6 +8,7 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
+const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -315,10 +316,14 @@ const sendOtpToEmail = async (
   // Store OTP in Redis with 2 minutes TTL (120 seconds)
   await redisClient.setEx(redisKey, 120, generatedOtp);
 
+  // Generate HTML email template with verification code
+  const htmlTemplate = getVerificationCodeTemplate(generatedOtp, "2 minutes");
+
   const emailSent = await createMail({
     to: email,
     subject,
-    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`,
+    html: htmlTemplate,
+    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`, // Plain text fallback
   });
 
   if (!emailSent) {
