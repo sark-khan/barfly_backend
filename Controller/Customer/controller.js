@@ -377,7 +377,7 @@ router.post("/update-user-details", async (req, res) => {
     console.error("Error while updating user details: ", error);
     return res.status(error.status || STATUS_CODES.SERVER_ERROR).json({
       message: error.message || t("USER_DETAILS_UPDATE_ERROR", lang),
-    });
+    }); 
   }
 });
 

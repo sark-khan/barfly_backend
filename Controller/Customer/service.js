@@ -26,6 +26,7 @@ const FavouriteItem = require("../../Models/FavouriteItem");
 const Cards = require("../../Models/Cards");
 const Otp = require("../../Models/Otp");
 const { createMail, sendSMS } = require("../../Utils/mailer");
+const otpVerificationTemplate = require("../../Utils/emailTemplates/otpVerification");
 const {
   haversineDistance,
   comparePassword,
@@ -1363,7 +1364,7 @@ module.exports.updateUserDetails = async (req) => {
   if (email) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
         { email },
@@ -1376,14 +1377,16 @@ module.exports.updateUserDetails = async (req) => {
       const mail_data = {
         to: email,
         subject: "COUNTR: OTP for Email Update",
-        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+        html: otpVerificationTemplate(otp, "Email Update"),
       };
+
+      console.log({ mail_data });
 
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
       message = t("OTP_SENT_NEW_EMAIL", lang);
-      return message;
+      return message; 
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (

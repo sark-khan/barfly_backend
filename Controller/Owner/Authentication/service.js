@@ -8,6 +8,7 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
+const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -20,6 +21,7 @@ const {
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const EntityDetails = require("../../../Models/EntityDetails");
+const MenuCategory = require("../../../Models/MenuCategory");
 const { uploadBufferToS3 } = require("../../aws-service");
 const NotificationSettings = require("../../../Models/notificationSettings");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
@@ -188,6 +190,17 @@ module.exports.register = async (req) => {
     isPromotionalOn: true,
   });
 
+  // Create default categories for the new entity
+  try {
+    const defaultCategories = await MenuCategory.insertMany([
+      { categoryName: t("DEFAULT_CATEGORY_FOOD", lang), entityId: entityDetails._id },
+      { categoryName: t("DEFAULT_CATEGORY_SOFT_DRINKS", lang), entityId: entityDetails._id },
+    ]);
+    console.log("Default categories created:", defaultCategories);
+  } catch (err) {
+    console.error("Error creating default categories:", err.message);
+  }
+
   // Send Firebase notification to customer_entity topic for new entity (non-blocking)
   try {
     sendFirebaseNotification({
@@ -283,4 +296,178 @@ module.exports.logoutEntity = async (req) => {
   const entity = await EntityDetails.findById(entityId, { _id: 1 });
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
   await redisClient.del(`${prefix}:${entity._id}`);
+};
+
+/**
+ * Send OTP to Email (Reusable utility)
+ * @param {string} email - Email address to send OTP
+ * @param {string} lang - Language for messages
+ * @param {string} subject - Email subject (optional)
+ * @returns {Promise<string>} - Generated OTP
+ */
+const sendOtpToEmail = async (
+  email,
+  lang,
+  subject = "Your Verification Code - Countr"
+) => {
+  const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
+  const generatedOtp = crypto.randomInt(100000, 999999).toString();
+
+  // Store OTP in Redis with 2 minutes TTL (120 seconds)
+  await redisClient.setEx(redisKey, 120, generatedOtp);
+
+  // Generate HTML email template with verification code
+  const htmlTemplate = getVerificationCodeTemplate(generatedOtp, "2 minutes");
+
+  const emailSent = await createMail({
+    to: email,
+    subject,
+    html: htmlTemplate,
+    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`, // Plain text fallback
+  });
+
+  if (!emailSent) {
+    await redisClient.del(redisKey);
+    throwError({
+      status: STATUS_CODES.SERVER_ERROR,
+      message: t("EMAIL_SEND_ERROR", lang),
+    });
+  }
+
+  return generatedOtp;
+};
+
+/**
+ * Verify OTP from Redis and generate secure reset token
+ * Reset token valid for 24 hours (86400 seconds)
+ * @param {string} email - Email address
+ * @param {string} otp - OTP to verify
+ * @param {string} lang - Language for messages
+ * @returns {Promise<string>} - Reset token
+ */
+const verifyOtpFromRedis = async (email, otp, lang) => {
+  const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
+  const storedOtp = await redisClient.get(redisKey);
+
+  if (!storedOtp) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OTP_EXPIRED", lang),
+    });
+  }
+
+  if (storedOtp !== otp) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OTP_INVALID", lang),
+    });
+  }
+
+  // Generate secure reset token
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}:resetToken`;
+
+  // Delete OTP and store reset token with 24 hour expiry
+  await Promise.all([
+    redisClient.del(redisKey),
+    redisClient.setEx(resetTokenKey, 86400, resetToken),
+  ]);
+
+  return resetToken;
+};
+
+/**
+ * Send OTP to Email API (Single API for send + verify)
+ * - Send OTP: { email }
+ * - Verify OTP: { email, otp } -> Returns resetToken for password reset
+ */
+module.exports.sendEmailOtp = async (req) => {
+  const lang = getLanguageFromRequest(req);
+  const { email, otp } = req.body;
+
+  // Validate email
+  if (!email?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedOtp = otp?.trim();
+
+  // If OTP provided -> Verify and return token, else -> Send OTP
+  if (trimmedOtp) {
+    const token = await verifyOtpFromRedis(trimmedEmail, trimmedOtp, lang);
+    return {
+      otpVerified: true,
+      token,
+      message: t("OTP_VERIFIED_SUCCESS", lang),
+    };
+  }
+
+  await sendOtpToEmail(trimmedEmail, lang);
+  return { otpSent: true, message: t("OTP_SENT_EMAIL_SUCCESS", lang) };
+};
+
+/**
+ * Reset Password (requires resetToken from headers)
+ * Headers: { token: "resetToken" }
+ * Payload: { email, newPassword }
+ */
+module.exports.resetPassword = async (req) => {
+  const lang = getLanguageFromRequest(req);
+  const { email, newPassword } = req.body;
+  let resetToken = req.headers["token"];
+
+  // Validate reset token from headers
+  if (!resetToken?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("RESET_TOKEN_REQUIRED", lang),
+    });
+  }
+
+  // Remove Bearer prefix if present
+  resetToken = resetToken.trim().replace(/^Bearer\s+/i, "");
+
+  // Validate inputs
+  if (!email?.trim() || !newPassword?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_AND_PASSWORD_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}:resetToken`;
+
+  // Verify reset token
+  const storedToken = await redisClient.get(resetTokenKey);
+  if (!storedToken || storedToken !== resetToken) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("INVALID_RESET_TOKEN", lang),
+    });
+  }
+
+  // Find user
+  const user = await User.findOne({
+    email: trimmedEmail,
+    status: STATUS.ACTIVE,
+    role: ROLES.STORE_OWNER,
+  });
+
+  if (!user) {
+    throwError({
+      status: STATUS_CODES.NOT_FOUND,
+      message: t("USER_NOT_FOUND", lang),
+    });
+  }
+
+  // Update password and clear reset token
+  user.password = hashPassword(newPassword.trim());
+  await Promise.all([user.save(), redisClient.del(resetTokenKey)]);
+
+  return { success: true, message: t("PASSWORD_RESET_SUCCESS", lang) };
 };
