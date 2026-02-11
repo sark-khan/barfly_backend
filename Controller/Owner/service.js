@@ -169,7 +169,7 @@ module.exports.createCounter = async (req) => {
       tableSectionName,
       userId: req.userId,
       entityId: req.entityId,
-      counterIds: newCounter._id,
+      counterIds: [newCounter._id],
       tableSetionNo: newTableSectionNo,
       status: STATUS.ACTIVE,
     });
@@ -289,7 +289,6 @@ module.exports.createCounterMenuCategory = async (req) => {
     const existingCategory = await MenuCategory.findOne({
       entityId,
       categoryName,
-      counterId: { $in: counterIds },
     });
 
     if (existingCategory) {
@@ -306,6 +305,7 @@ module.exports.createCounterMenuCategory = async (req) => {
     ({ categoryName, nutritionType }) =>
       counterIds.map((counterId) => ({
         categoryName,
+        nutritionType,
         counterId,
         entityId,
       }))
@@ -582,18 +582,11 @@ module.exports.createMenuItem = async (req) => {
     }
   }
 
-  // if (!menuCategoryIds || menuCategoryIds.length === 0) {
-  //   throwError({
-  //     status: STATUS_CODES.BAD_REQUEST,
-  //     message: "At least one menu category is required",
-  //   });
-  // }
-
   // Get menu categories by IDs
   const menuCategories = await MenuCategory.find({
     categoryName: categoryName,
     entityId: req.entityId,
-    counterId: { $in: counterIds }, // ✅ Use $in to match array of ObjectIds
+    counterId: { $in: counterIds },
   });
 
   // if (menuCategories.length !== menuCategoryIds.length) {
@@ -629,7 +622,7 @@ module.exports.createMenuItem = async (req) => {
         currency: currency || "CHF",
         menuCategoryId: category._id,
         entityId: req.entityId,
-        counterIds, // Full array as requested
+        counterIds,
         counterId: category.counterId, // If your MenuCategory has counterId, else you can remove this line
         image: fileName,
         isVegan,
@@ -739,38 +732,32 @@ module.exports.updateMenuItem = async (req) => {
   // Check if trying to change category or counters
   const isChangingCategory =
     categoryName !== undefined && categoryName !== null;
-  const isChangingCounters = counterIds !== undefined && counterIds !== null;
 
-  // Get reference item name to find all items with same name (since we update all of them)
+  // Get reference item name to find all items with same name for this entity (since we update all of them)
   const referenceItemName = item.itemName;
   const itemsWithSameName = await ItemDetails.find({
     itemName: referenceItemName,
+    entityId: req.entityId,
   });
   const allItemIds = itemsWithSameName.map((it) => it._id);
 
-  // If changing category or counters, check for active orders
-  if (isChangingCategory || isChangingCounters) {
-    // Check if any item with the same name is in any active orders (WAITING, IN_PROGRESS, READY)
-    const activeOrders = await Order.find({
-      "items.itemId": { $in: allItemIds },
-      status: {
-        $in: [
-          ORDER_STATUS.WAITING,
-          ORDER_STATUS.IN_PROGRESS,
-          ORDER_STATUS.READY,
-        ],
-      },
-    });
+  // Block all edits if item is in any active order
+  const activeOrders = await Order.find({
+    "items.itemId": { $in: allItemIds },
+    status: {
+      $in: [
+        ORDER_STATUS.WAITING,
+        ORDER_STATUS.IN_PROGRESS,
+        ORDER_STATUS.READY,
+      ],
+    },
+  });
 
-    if (activeOrders.length > 0) {
-      return throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: t(
-          "OWNER_ITEM_CANNOT_EDIT_CATEGORY_COUNTER_ACTIVE_ORDER",
-          lang
-        ),
-      });
-    }
+  if (activeOrders.length > 0) {
+    return throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_ITEM_CANNOT_EDIT_ACTIVE_ORDER", lang),
+    });
   }
 
   // If changing category, find the new category
@@ -899,6 +886,7 @@ module.exports.updateMenuItem = async (req) => {
         },
       });
     }
+    return;
   }
 
   for (const item of items) {
@@ -1276,6 +1264,22 @@ module.exports.deleteEvent = async (req) => {
   }
   const entityId = event.entityId;
   const eventName = event.eventName;
+
+  // Check for active orders linked to this event
+  const activeOrders = await Order.findOne({
+    eventId,
+    status: {
+      $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY],
+    },
+  });
+
+  if (activeOrders) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_EVENT_ACTIVE_ORDERS", lang),
+    });
+  }
+
   await Event.deleteOne({ _id: eventId });
 
   // Emit socket event to customer_entity topic for deleted event
@@ -1300,6 +1304,8 @@ module.exports.deleteEvent = async (req) => {
       topic: "customer_entity",
     },
   });
+
+  return { message: t("OWNER_EVENT_DELETE_SUCCESS", lang) };
 };
 
 // module.exports.getUpcomingEvents = async (req) => {
@@ -2124,20 +2130,35 @@ module.exports.getMenuCategory = async (req) => {
     "Alkoholfreie Getränke": "DEFAULT_CATEGORY_SOFT_DRINKS",
   };
 
-  const categoryNames = {};
+  // Group categories by name and collect all linked counters
+  const categoryMap = {};
 
-  const filteredCategories = menuCategories.filter((category) => {
-    // Include entity-level categories (no counterId) or categories with active counters
+  for (const category of menuCategories) {
     const isValidCategory = !category.counterId || category.counterId?.status === STATUS.ACTIVE;
-    if (isValidCategory && !categoryNames[category.categoryName]) {
-      categoryNames[category.categoryName] = true;
-      return true;
+    if (!isValidCategory) continue;
+
+    if (!categoryMap[category.categoryName]) {
+      categoryMap[category.categoryName] = {
+        _id: category._id,
+        categoryName: category.categoryName,
+        nutritionType: category.nutritionType,
+        __v: category.__v,
+        counterIds: [],
+      };
     }
-    return false;
-  });
+
+    if (category.counterId) {
+      const alreadyAdded = categoryMap[category.categoryName].counterIds.some(
+        (c) => c._id.toString() === category.counterId._id.toString()
+      );
+      if (!alreadyAdded) {
+        categoryMap[category.categoryName].counterIds.push(category.counterId);
+      }
+    }
+  }
 
   // Translate default category names based on request language
-  const translatedCategories = filteredCategories.map((category) => {
+  const result = Object.values(categoryMap).map((category) => {
     const translationKey = defaultCategoryKeyMap[category.categoryName];
     if (translationKey) {
       category.categoryName = t(translationKey, lang);
@@ -2145,7 +2166,7 @@ module.exports.getMenuCategory = async (req) => {
     return category;
   });
 
-  return translatedCategories;
+  return result;
 };
 
 module.exports.editCategory = async (req) => {
@@ -2174,6 +2195,48 @@ module.exports.editCategory = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    // Check for active orders on items in this category
+    const categoryIds = categories.map((c) => c._id);
+    const itemsInCategory = await ItemDetails.find({
+      menuCategoryId: { $in: categoryIds },
+    }).select("_id");
+
+    if (itemsInCategory.length > 0) {
+      const itemIds = itemsInCategory.map((i) => i._id);
+      const activeOrders = await Order.findOne({
+        "items.itemId": { $in: itemIds },
+        status: {
+          $in: [
+            ORDER_STATUS.WAITING,
+            ORDER_STATUS.IN_PROGRESS,
+            ORDER_STATUS.READY,
+          ],
+        },
+      });
+
+      if (activeOrders) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_CATEGORY_ACTIVE_ORDERS", lang),
+        });
+      }
+    }
+
+    // Check if newCategoryName already exists for this entity
+    if (newCategoryName) {
+      const duplicateCategory = await MenuCategory.findOne({
+        entityId: req.entityId,
+        categoryName: newCategoryName,
+      });
+      if (duplicateCategory) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_CATEGORY_ALREADY_EXISTS_FOR_COUNTER", lang, {
+            categoryName: newCategoryName,
+          }),
+        });
+      }
+    }
     // Update all categories with this name for this entity (all counters)
     for (const category of categories) {
       if (newCategoryName) category.categoryName = newCategoryName;
@@ -2205,6 +2268,45 @@ module.exports.editCategory = async (req) => {
     });
     message = t("OWNER_CATEGORIES_UPDATE_SUCCESS", lang);
   } else if (action === EDIT_ACTION.DELETE) {
+    // Find all category IDs with this name for this entity
+    const categoriesToDelete = await MenuCategory.find({
+      categoryName,
+      entityId: req.entityId,
+    }).select("_id");
+    const categoryIds = categoriesToDelete.map((c) => c._id);
+
+    // Check if any items in these categories have active orders
+    const itemsInCategory = await ItemDetails.find({
+      menuCategoryId: { $in: categoryIds },
+    }).select("_id");
+
+    if (itemsInCategory.length > 0) {
+      const itemIds = itemsInCategory.map((i) => i._id);
+      const activeOrders = await Order.findOne({
+        "items.itemId": { $in: itemIds },
+        status: {
+          $in: [
+            ORDER_STATUS.WAITING,
+            ORDER_STATUS.IN_PROGRESS,
+            ORDER_STATUS.READY,
+          ],
+        },
+      });
+
+      if (activeOrders) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_CATEGORY_ACTIVE_ORDERS", lang),
+        });
+      }
+
+      // Unlink items from these categories (don't delete items)
+      await ItemDetails.updateMany(
+        { menuCategoryId: { $in: categoryIds } },
+        { $unset: { menuCategoryId: "" } }
+      );
+    }
+
     // Delete all categories with this name for this entity (all counters)
     await MenuCategory.deleteMany({
       categoryName,
@@ -2382,6 +2484,24 @@ module.exports.updateCounterSettings = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
+    // Check for active orders
+    const activeOrders = await Order.findOne({
+      counterId,
+      status: {
+        $nin: [
+          globalConstants.ORDER_STATUS.COMPLETED,
+          globalConstants.ORDER_STATUS.CANCELLED,
+        ],
+      },
+    });
+
+    if (activeOrders) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OWNER_COUNTER_ACTIVE_ORDERS", lang),
+      });
+    }
+
     if (counterName) {
       const duplicate = await Counter.findOne({
         _id: { $ne: counterId },
@@ -2406,6 +2526,7 @@ module.exports.updateCounterSettings = async (req) => {
 
     // Table section validation
     if (
+      tableSectionName !== undefined &&
       counter.isTableService &&
       counter.tableSectionName === tableSectionName
     ) {
@@ -2554,7 +2675,7 @@ module.exports.updateCounterSettings = async (req) => {
     //   tableRange: counter.tableCount,
     // };
   } else if (action === EDIT_ACTION.DELETE) {
-    // Delete handling remains same
+    // 1. Check for active orders
     const activeOrders = await Order.findOne({
       counterId,
       status: {
@@ -2572,18 +2693,34 @@ module.exports.updateCounterSettings = async (req) => {
       });
     }
 
+    // 2. Unlink items - remove this counter from items' counterIds
+    await ItemDetails.updateMany(
+      { counterIds: counterId },
+      { $pull: { counterIds: counterId } }
+    );
+
+    // 3. Unlink tables - remove this counter from tables' counterIds
+    await Tables.updateMany(
+      { counterIds: counterId },
+      { $pull: { counterIds: counterId } }
+    );
+
+    // 4. Unlink events - remove this counter from events' counterIds
+    await Event.updateMany(
+      { counterIds: counterId },
+      { $pull: { counterIds: counterId } }
+    );
+
+    // 5. Unlink categories - remove counterId reference
+    await MenuCategory.updateMany(
+      { counterId: counterId },
+      { $unset: { counterId: "" } }
+    );
+
+    // 6. Soft delete counter
     await Counter.updateOne(
       { _id: counterId },
       { $set: { status: STATUS.DELETED } }
-    );
-
-    // Delete all categories associated with this counter
-    const deletedCategories = await MenuCategory.deleteMany({
-      counterId: counterId,
-    });
-
-    console.log(
-      `[updateCounterSettings] Deleted ${deletedCategories.deletedCount} categories for counter ${counterId}`
     );
 
     io.to(counter.entityId.toString()).emit("counterUpdate", { counterId });
@@ -3043,7 +3180,7 @@ module.exports.editBusinessDetails = async (req) => {
       });
       if (
         !otpRecord ||
-        otpRecord.otp != enteredOtp ||
+        String(otpRecord.otp) !== String(enteredOtp) ||
         new Date() > otpRecord.expiresAt
       ) {
         throwError({
@@ -3125,7 +3262,7 @@ module.exports.editBusinessDetails = async (req) => {
       const otpRecord = await Otp.findOne({ email });
       if (
         !otpRecord ||
-        otpRecord.otp != enteredOtp ||
+        String(otpRecord.otp) !== String(enteredOtp) ||
         new Date() > otpRecord.expiresAt
       ) {
         throwError({
@@ -3375,7 +3512,7 @@ module.exports.editTable = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    if (tableData.tableSectionName === tableSectionName) {
+    if (tableSectionName !== undefined && tableData.tableSectionName === tableSectionName) {
       throwError({
         status: STATUS_CODES.BAD_REQUEST,
         message: t("OWNER_TABLE_NAME_EXISTS", lang),
@@ -3476,13 +3613,13 @@ module.exports.editTable = async (req) => {
       });
     }
 
+    // Unlink counters from this table so they can be reassigned
+    tableData.counterIds = tableData.counterIds.filter(
+      (cId) => !counterIds.some((id) => id.toString() === cId.toString())
+    );
     tableData.status = status;
 
     await tableData.save();
-    // await Counter.updateMany(
-    //   { _id: { $in: counterIds } },
-    //   { $set: { status } }
-    // );
     message = t("OWNER_TABLE_DELETE_SUCCESS", lang);
   }
   return { message };
@@ -3984,7 +4121,7 @@ module.exports.addFeedbackQuestions = async (req) => {
     });
   }
 
-  const feedback = FeedbackQuestions.create({
+  const feedback = await FeedbackQuestions.create({
     userId,
     entityId,
     question: question.trim(),
@@ -4416,6 +4553,24 @@ module.exports.editEvent = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("EVENT_NOT_FOUND", lang),
+    });
+  }
+
+  // Check for active orders linked to this event
+  const activeOrders = await Order.findOne({
+    eventId,
+    status: {
+      $nin: [
+        globalConstants.ORDER_STATUS.COMPLETED,
+        globalConstants.ORDER_STATUS.CANCELLED,
+      ],
+    },
+  });
+
+  if (activeOrders) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("OWNER_EVENT_ACTIVE_ORDERS", lang),
     });
   }
 
