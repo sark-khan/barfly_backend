@@ -26,15 +26,19 @@ app.use("/api/wallee/webhook", (req, res, next) => {
 });
 
 // Wallee webhook endpoint - must use express.raw() to preserve raw body for signature verification
-app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  try {
-    const result = await handleWalleeWebhook(req);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return res.status(error.status || 500).json({ message: error.message });
+app.post(
+  "/api/wallee/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const result = await handleWalleeWebhook(req);
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Webhook error:", error);
+      return res.status(error.status || 500).json({ message: error.message });
+    }
   }
-});
+);
 
 // Fallback handler for webhook if express.raw() doesn't match
 // app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {
@@ -215,7 +219,10 @@ app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();
 
   // Explicitly skip auth for Wallee webhook (handles both exact and with query params)
-  if (req.path === "/api/wallee/webhook" || req.path.startsWith("/api/wallee/webhook")) {
+  if (
+    req.path === "/api/wallee/webhook" ||
+    req.path.startsWith("/api/wallee/webhook")
+  ) {
     return next();
   }
 

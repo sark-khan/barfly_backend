@@ -335,12 +335,14 @@
   "OWNER_EVENT_DUPLICATE_TIME_ERROR": "Ein Event mit demselben Namen und überlappender Zeit existiert bereits",
   "OWNER_EVENT_REPETITIVE_DAYS_INVALID": "Ungültiges Format für repetitiveDays",
   "OWNER_EVENT_NOT_FOUND": "Event nicht gefunden",
+  "OWNER_EVENT_ACTIVE_ORDERS": "Event kann nicht gelöscht werden. Es gibt aktive Bestellungen, die mit diesem Event verknüpft sind.",
   "OWNER_EVENTS_MONTH_YEAR_REQUIRED": "Monat und Jahr sind erforderlich",
   "OWNER_EVENTS_MONTH_YEAR_INVALID": "Ungültiges Format für Monat oder Jahr",
   "OWNER_CATEGORY_ACTION_REQUIRED": "Erforderliche Felder fehlen: action oder categoryName",
   "OWNER_CATEGORY_NOT_FOUND_BY_NAME": "Keine Kategorien mit diesem Namen gefunden",
   "OWNER_CATEGORIES_UPDATE_SUCCESS": "Kategorien erfolgreich aktualisiert",
   "OWNER_CATEGORIES_DELETE_SUCCESS": "Kategorien erfolgreich gelöscht",
+  "OWNER_CATEGORY_ACTIVE_ORDERS": "Kategorie kann nicht gelöscht werden. Produkte in dieser Kategorie haben aktive Bestellungen.",
   "OWNER_CATEGORY_INVALID_ACTION": "Ungültige Aktion angegeben",
   "OWNER_CATEGORY_UPDATE_ERROR": "Fehler beim Aktualisieren der Kategorie",
   "OWNER_ITEM_NOT_IN_ENTITY": "Dieses Produkt gehört nicht zu diesem Eintrag",
@@ -355,6 +357,7 @@
   "OWNER_TABLE_COUNTER_CONFLICT": "Mehrere Counter sind diesen Tischen zugeordnet",
   "OWNER_TABLE_FOR_COUNTER_NOT_FOUND": "Kein Tisch für diesen Counter gefunden",
   "OWNER_COUNTER_ACTIVE_ORDERS": "Counter hat aktive Bestellungen",
+  "OWNER_COUNTER_HAS_ITEMS": "Theke kann nicht gelöscht werden. Bitte entfernen Sie zuerst alle Produkte, die mit dieser Theke verknüpft sind.",
   "OWNER_CONTACT_OTP_SENT": "OTP an deine neue Kontaktnummer gesendet",
   "OWNER_CONTACT_UPDATE_SUCCESS": "Kontaktnummer erfolgreich aktualisiert",
   "OWNER_COUNTER_IDS_REQUIRED": "Es muss mindestens eine Counter-ID angegeben werden",
@@ -434,5 +437,7 @@
   "app_feedback_owner_q3": "Wie wahrscheinlich ist es, dass du countr plus weiterempfehlen?",
   "DEFAULT_CATEGORY_FOOD": "Speisen",
   "DEFAULT_CATEGORY_SOFT_DRINKS": "Getränke",
-  "OWNER_ITEM_CANNOT_EDIT_CATEGORY_COUNTER_ACTIVE_ORDER": "Kategorie oder Theken der Produkte können nicht bearbeitet werden, wenn aktive Bestellungen vorhanden sind"
+  "OWNER_ITEM_CANNOT_EDIT_ACTIVE_ORDER": "Produkt kann nicht bearbeitet oder gelöscht werden, wenn aktive Bestellungen vorhanden sind",
+  "OWNER_ACCOUNT_DELETE_ACTIVE_ORDERS": "Konto kann nicht gelöscht werden. Sie haben aktive Bestellungen. Bitte schliessen oder stornieren Sie zuerst alle Bestellungen.",
+  "CUSTOMER_ACCOUNT_DELETE_ACTIVE_ORDERS": "Konto kann nicht gelöscht werden. Sie haben aktive Bestellungen. Bitte warten Sie, bis diese abgeschlossen oder storniert sind."
 }

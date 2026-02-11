@@ -986,7 +986,9 @@ module.exports.counterList = async (req) => {
 module.exports.getCounterMenuCategory = async (req) => {
   const { counterId, searchTerm } = req.query;
 
-  const query = { ...(counterId && { counterId }) };
+  const query = {
+    ...(counterId ? { counterId } : { counterId: { $exists: true, $ne: null } }),
+  };
   if (searchTerm) {
     query.name = { $regex: searchTerm, $options: "i" };
   }
@@ -1003,6 +1005,9 @@ module.exports.getMenuItems = async (req) => {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
   const menuCategory = await MenuCategory.find({ _id: menuCategoryId });
+  if (!menuCategory || menuCategory.length === 0) {
+    return [];
+  }
   const categoryName = menuCategory[0].categoryName;
   const menuItems1 = await ItemDetails.find(filter)
     .populate("menuCategoryId")
