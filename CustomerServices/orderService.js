@@ -229,7 +229,8 @@ const createOfflineOrder = async (req) => {
     totalAmount: amount,
     // finalAmount: amount,
     status: ORDER_STATUS.IN_PROGRESS,
-  });
+  }).lean();
+
   // off
 
   genrateCustomerOrderReport({
