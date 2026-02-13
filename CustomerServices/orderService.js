@@ -219,7 +219,7 @@ const createOfflineOrder = async (req) => {
     }
   });
 
-  const offlineOrderObj = await OfflineOrders.create({
+  await OfflineOrders.create({
     items,
     counterId,
     internalNumber,
@@ -229,8 +229,10 @@ const createOfflineOrder = async (req) => {
     totalAmount: amount,
     // finalAmount: amount,
     status: ORDER_STATUS.IN_PROGRESS,
+  });
+  const offlineOrderObj = await OfflineOrders.findOne({
+    _id: offlineOrderObj._id,
   }).lean();
-
   // off
 
   genrateCustomerOrderReport({
