@@ -211,7 +211,7 @@ const decrypt = (encryptedText) => {
   const decipher = crypto.createDecipheriv(
     algorithm,
     Buffer.from(secretKey),
-    Buffer.from(ivHex, "hex")
+    Buffer.from(ivHex, "hex"),
   );
   let decrypted = decipher.update(encrypted, "hex", "utf8");
   decrypted += decipher.final("utf8");
@@ -376,6 +376,8 @@ const sendFirebaseNotification = async ({
 
 const genrateCustomerOrderReport = async (req) => {
   const { userId, entityId, orders, mode = "Online" } = req;
+
+  console.log({ userId, entityId, orders, mode });
   const doc = new PDFDocument({ size: [595, 842] });
   const buffers = [];
   const currentUser = await User.findById(userId).select("email fullName");
@@ -428,27 +430,27 @@ const genrateCustomerOrderReport = async (req) => {
             const emailResult = await createMail(mailData);
             if (emailResult) {
               console.log(
-                `✅ Order report email sent successfully to: ${user.email}`
+                `✅ Order report email sent successfully to: ${user.email}`,
               );
             } else {
               console.warn(
-                `⚠️ Failed to send email to: ${user.email}, but PDF was generated successfully`
+                `⚠️ Failed to send email to: ${user.email}, but PDF was generated successfully`,
               );
             }
           } catch (emailError) {
             console.error(
               "❌ Error sending order report email:",
-              emailError.message
+              emailError.message,
             );
             console.warn(
-              "⚠️ Email failed but PDF generation completed successfully"
+              "⚠️ Email failed but PDF generation completed successfully",
             );
             // Don't throw error - PDF generation should still succeed
           }
         } else {
           console.warn("⚠️ User email not found, skipping email notification");
           console.log(
-            "📄 PDF generated successfully without email notification"
+            "📄 PDF generated successfully without email notification",
           );
         }
 
@@ -464,15 +466,15 @@ const genrateCustomerOrderReport = async (req) => {
 
   doc.registerFont(
     "Helveticaneue-Light",
-    "Assets/fonts/HelveticaNeueLight.otf"
+    "Assets/fonts/HelveticaNeueLight.otf",
   );
   doc.registerFont(
     "Helveticaneue-Medium",
-    "Assets/fonts/HelveticaNeueMedium.otf"
+    "Assets/fonts/HelveticaNeueMedium.otf",
   );
   doc.registerFont(
     "Helveticaneue-Regular",
-    "Assets/fonts/HelveticaNeue Regular.ttf"
+    "Assets/fonts/HelveticaNeue Regular.ttf",
   );
 
   const logoPath = "Assets/countr_logo.png";
@@ -489,7 +491,7 @@ const genrateCustomerOrderReport = async (req) => {
     .text(
       "countr app",
       pageWidth - leftMargin - rightMargin - 130,
-      topMargin + 25
+      topMargin + 25,
     )
     .fontSize(11)
     .font("Helveticaneue-Light")
@@ -516,12 +518,12 @@ const genrateCustomerOrderReport = async (req) => {
     .text(
       currentUser?.fullName || "[Account Owner Name]",
       leftMargin + 12,
-      doc.y + 4
+      doc.y + 4,
     )
     .text(
       `${user?.zipcode || "ZIP"} ${user?.city || "City"}`,
       leftMargin + 12,
-      doc.y + 4
+      doc.y + 4,
     );
 
   doc
@@ -530,7 +532,7 @@ const genrateCustomerOrderReport = async (req) => {
     .text(
       `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
       leftMargin + 12,
-      doc.y + 30
+      doc.y + 30,
     )
     .fontSize(12)
     .text(`Zahlungsmethode: ${mode}`, leftMargin + 12, doc.y + 3)
@@ -552,7 +554,7 @@ const genrateCustomerOrderReport = async (req) => {
     .text(
       "Total Price[CHF]",
       pageWidth - leftMargin - rightMargin - 130,
-      doc.y - 15
+      doc.y - 15,
     );
 
   const totalAmount = orders.totalAmount || orders.finalAmount || 0;
@@ -577,9 +579,8 @@ const genrateCustomerOrderReport = async (req) => {
       // Item is not populated, need to fetch
       const ItemDetails = require("../Models/ItemDetails");
       try {
-        const item = await ItemDetails.findById(itemId).select(
-          "itemName price"
-        );
+        const item =
+          await ItemDetails.findById(itemId).select("itemName price");
         if (item) {
           itemName = item.itemName;
           itemPrice = item.price || 0;
@@ -608,7 +609,7 @@ const genrateCustomerOrderReport = async (req) => {
     .text(
       `${orders.finalAmount.toFixed(2)} CHF`,
       pageWidth - leftMargin - rightMargin - 130,
-      doc.y - 16.5
+      doc.y - 16.5,
     );
 
   doc.fillColor("#000000");
