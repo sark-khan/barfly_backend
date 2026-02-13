@@ -4478,8 +4478,24 @@ module.exports.restaurantCancelOrder = async (req) => {
 
   // Send Firebase notification to the user who placed the order
 
-  // console.log({})
-  console.log({ order });
+  console.log({ order_details: order });
+  sendFirebaseNotification({
+    topic: `user_${order.userId}`,
+    showNotification: true,
+    title: "Order Cancelled",
+    body: `Your order #${order.tokenNumber} has been cancelled by the restaurant.`,
+    data: {
+      orderId: order._id.toString(),
+      status: globalConstants.ORDER_STATUS.CANCELLED,
+      entityId: order.entityId.toString(),
+      tokenNumber: order.tokenNumber?.toString() || "",
+      finalAmount: order.finalAmount?.toString() || "",
+      action: "order_cancelled",
+      screen: "order_details",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `user_${order.userId}`,
+    },
+  });
 
   sendFirebaseNotification({
     topic: `entity_${order.entityId}`,
