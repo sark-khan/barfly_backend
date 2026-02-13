@@ -227,14 +227,15 @@ const createOfflineOrder = async (req) => {
     entityId,
     userId,
     totalAmount: amount,
-    finalAmount: amount,
+    // finalAmount: amount,
     status: ORDER_STATUS.IN_PROGRESS,
   });
+  // off
 
   genrateCustomerOrderReport({
     userId: userId,
     entityId: entityId,
-    orders: offlineOrderObj,
+    orders: { ...offlineOrderObj, finalAmount: amount },
     mode: "Offline",
   });
   return offlineOrderObj;
