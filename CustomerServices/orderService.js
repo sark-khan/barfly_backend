@@ -219,7 +219,7 @@ const createOfflineOrder = async (req) => {
     }
   });
 
-  await OfflineOrders.create({
+  const offlineOrderObjCreated = await OfflineOrders.create({
     items,
     counterId,
     internalNumber,
@@ -231,7 +231,7 @@ const createOfflineOrder = async (req) => {
     status: ORDER_STATUS.IN_PROGRESS,
   });
   const offlineOrderObj = await OfflineOrders.findOne({
-    _id: offlineOrderObj._id,
+    _id: offlineOrderObjCreated._id,
   }).lean();
   // off
 
