@@ -1,9 +1,10 @@
+const globalConstants = require("../../../Utils/globalConstants");
 const {
   STATUS_CODES,
   ROLES,
   KEY_TYPE_PREFIXES,
   STATUS,
-} = require("../../../Utils/globalConstants");
+} = globalConstants;
 const {
   hashPassword,
   comparePassword,
@@ -25,6 +26,8 @@ const Location = require("../../../Models/Location");
 const CustomerOrderReport = require("../../../Models/CustomerOrderReport");
 const UserFeedback = require("../../../Models/UserFeedback");
 const UserAppFeedback = require("../../../Models/UserAppFeedback");
+const Order = require("../../../Models/Order");
+const StripePayment = require("../../../Models/Stripe");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 
 module.exports.register = async (req) => {
@@ -230,6 +233,8 @@ module.exports.deleteAccount = async (req) => {
     UserFeedback.deleteMany({ userId }),
     UserAppFeedback.deleteMany({ userId }),
     Otp.deleteMany({ userId }),
+    Order.deleteMany({ userId }),
+    StripePayment.deleteMany({ userId }),
     // Clear Redis token if exists
     redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
   ]);
