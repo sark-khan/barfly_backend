@@ -26,15 +26,19 @@ app.use("/api/wallee/webhook", (req, res, next) => {
 });
 
 // Wallee webhook endpoint - must use express.raw() to preserve raw body for signature verification
-app.post("/api/wallee/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  try {
-    const result = await handleWalleeWebhook(req);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return res.status(error.status || 500).json({ message: error.message });
-  }
-});
+app.post(
+  "/api/wallee/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const result = await handleWalleeWebhook(req);
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Webhook error:", error);
+      return res.status(error.status || 500).json({ message: error.message });
+    }
+  },
+);
 
 // Fallback handler for webhook if express.raw() doesn't match
 // app.post("/api/wallee/webhook-fallback", express.json(), async (req, res) => {
@@ -215,22 +219,26 @@ app.use((req, res, next) => {
   if (unProtectedApis[req.path]) return next();
 
   // Explicitly skip auth for Wallee webhook (handles both exact and with query params)
-  if (req.path === "/api/wallee/webhook" || req.path.startsWith("/api/wallee/webhook")) {
+  if (
+    req.path === "/api/wallee/webhook" ||
+    req.path.startsWith("/api/wallee/webhook")
+  ) {
     return next();
   }
+  console.log({ req: req.path });
 
   return verifyToken(req, res, next);
 });
 
 app.use(
   "/api/owner/auth",
-  require("./Controller/Owner/Authentication/controller")
+  require("./Controller/Owner/Authentication/controller"),
 );
 app.use("/api/survey", require("./Controller/Owner/Feedback/controller"));
 app.use("/api/owner/restaurant", require("./Controller/Owner/controller"));
 app.use(
   "/api/customer/auth",
-  require("./Controller/Customer/Authentication/controller")
+  require("./Controller/Customer/Authentication/controller"),
 );
 app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 
@@ -250,7 +258,7 @@ app.post("/api/update-menu-items", async (req, res) => {
   try {
     const getMenuitems = await Counter.updateMany(
       {},
-      { $set: { isTableService: false, isSelfPickUp: true, totalTables: 0 } }
+      { $set: { isTableService: false, isSelfPickUp: true, totalTables: 0 } },
     );
     return res.status(200).json(getMenuitems);
   } catch (error) {
@@ -303,7 +311,7 @@ app.post("/update-entity-items", async (req, res) => {
     const itemIds = itemsId.map((item) => item.itemId);
     await MenuItem.updateMany(
       { _id: { $in: itemIds } },
-      { $set: { entityId: req.entityId } }
+      { $set: { entityId: req.entityId } },
     );
     return res
       .status(STATUS_CODES.OK)
