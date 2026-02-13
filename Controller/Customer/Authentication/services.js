@@ -1,10 +1,5 @@
 const globalConstants = require("../../../Utils/globalConstants");
-const {
-  STATUS_CODES,
-  ROLES,
-  KEY_TYPE_PREFIXES,
-  STATUS,
-} = globalConstants;
+const { STATUS_CODES, ROLES, KEY_TYPE_PREFIXES, STATUS } = globalConstants;
 const {
   hashPassword,
   comparePassword,
@@ -12,7 +7,12 @@ const {
 } = require("../../../Utils/commonFunction");
 const crypto = require("crypto");
 const { createMail } = require("../../../Utils/mailer");
-const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getVerificationCodeTemplate,
+} = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getWelcomeTemplate,
+} = require("../../../Utils/emailTemplates/welcomeTemplate");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const User = require("../../../Models/User");
@@ -87,6 +87,21 @@ module.exports.register = async (req) => {
     isPromotionalOn: true,
   });
 
+  // Send welcome email
+  try {
+    const welcomeHtmlTemplate = getWelcomeTemplate(firstName);
+    createMail({
+      to: email,
+      subject: "Welcome to Countr! 🎉",
+      html: welcomeHtmlTemplate,
+      text: `Hello ${firstName}! Welcome to the Countr app. We're thrilled to have you join our community!`,
+    });
+    console.log(`✅ Welcome email sent successfully to: ${email}`);
+  } catch (error) {
+    console.error(`❌ Error sending welcome email to ${email}:`, error.message);
+    // Don't throw error - registration should succeed even if email fails
+  }
+
   delete userObj.password;
 
   const token = getJwtToken(userObj, true);
@@ -107,7 +122,7 @@ module.exports.login = async (req) => {
 
   const user = await User.findOne(
     { email, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
-    userProjection
+    userProjection,
   ).lean();
 
   if (!user) {
@@ -175,7 +190,7 @@ module.exports.checkAndProvideCountRTag = async (req) => {
   });
 
   const availableTags = uniqueUsernames.filter(
-    (tag) => !existingTags.includes(tag)
+    (tag) => !existingTags.includes(tag),
   );
 
   return availableTags;
@@ -220,7 +235,7 @@ module.exports.deleteAccount = async (req) => {
           fcmToken: [],
           socketId: null,
         },
-      }
+      },
     ),
     // Delete all user-related data in parallel (optimized)
     CountRTags.deleteMany({ userId }),
@@ -247,7 +262,7 @@ module.exports.deleteAccount = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr"
+  subject = "Your Verification Code - Countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();

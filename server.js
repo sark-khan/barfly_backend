@@ -42,7 +42,7 @@ const orderSocket = async (io) => {
       const sockets = await io.in(entityId.toString()).fetchSockets();
       console.log(
         `Sockets in room ${entityId}:`,
-        sockets.map((s) => s.id)
+        sockets.map((s) => s.id),
       );
       socket.on("disconnect", async () => {
         console.log("A restaurant disconnected:", socket.id);
