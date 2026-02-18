@@ -1194,6 +1194,36 @@ const cancelOrder = async (req) => {
     status: ORDER_STATUS.CANCELLED,
   });
 
+  // Notify owner (restaurant) via Firebase topic so FE can refetch orders
+  sendFirebaseNotification({
+    topic: `owner_entity_${order.entityId._id}`,
+    showNotification: true,
+    title: "Order Cancelled",
+    body: "A customer has cancelled their order. Tap to view details.",
+    data: {
+      orderId: `${order._id}`,
+      status: ORDER_STATUS.CANCELLED,
+      action: "order_cancelled",
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+  });
+
+  // Notify customer who cancelled via Firebase topic so their FE can refetch
+  // sendFirebaseNotification({
+  //   topic: `user_${order.userId}`,
+  //   showNotification: false,
+  //   title: "Order Cancelled",
+  //   body: "Your order has been cancelled.",
+  //   data: {
+  //     orderId: `${order._id}`,
+  //     status: ORDER_STATUS.CANCELLED,
+  //     action: "order_cancelled",
+  //     screen: "landing_home",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  // });
+
   const tokens = Array.isArray(order.entityId.userId.fcmToken)
     ? order.entityId.userId.fcmToken.filter(Boolean)
     : [];
@@ -1206,6 +1236,7 @@ const cancelOrder = async (req) => {
     data: {
       orderId: `${order._id}`,
       data: JSON.stringify(order),
+      action: "order_cancelled",
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
