@@ -117,9 +117,11 @@ const createWalleeTransaction = async (req) => {
 
   // Get platform fees (commission percentage)
   const platformFeesPercent = global.PLATFORM_FEES || 2; // e.g., 1 for 1%
-  const totalAmount = Number(amount);
-  const platformCommission = (totalAmount * platformFeesPercent) / 100;
-  const merchantAmount = totalAmount - platformCommission;
+  const totalAmount = parseFloat(Number(amount).toFixed(2));
+  const platformCommission = parseFloat(
+    ((totalAmount * platformFeesPercent) / 100).toFixed(2)
+  );
+  const merchantAmount = parseFloat((totalAmount - platformCommission).toFixed(2));
 
   // IMPORTANT: Process payment in MERCHANT'S space
   // In this model, each merchant owns their own Wallee space
@@ -180,7 +182,7 @@ const createWalleeTransaction = async (req) => {
         uniqueId: `order-${reqUserId}-${eventId}-${Date.now()}`,
         sku: `event-${eventId}`,
         quantity: 1,
-        amountIncludingTax: totalAmount, // Full amount to merchant
+        amountIncludingTax: totalAmount, // already rounded to 2 decimal places
         type: "PRODUCT",
       },
     ];
