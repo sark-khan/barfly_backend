@@ -825,6 +825,7 @@ const particularOrderDetailsCustomer = async (req) => {
           ORDER_STATUS.IN_PROGRESS,
           ORDER_STATUS.READY,
           ORDER_STATUS.COMPLETED,
+          ORDER_STATUS.CANCELLED,
         ],
       },
       _id: orderId,
@@ -1199,7 +1200,7 @@ const cancelOrder = async (req) => {
     topic: `owner_entity_${order.entityId._id}`,
     showNotification: true,
     title: "Order Cancelled",
-    body: "A customer has cancelled their order. Tap to view details.",
+    body: `A customer has cancelled order #${order.tokenNumber || order._id}.`,
     data: {
       orderId: `${order._id}`,
       status: ORDER_STATUS.CANCELLED,
