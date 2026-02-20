@@ -121,7 +121,9 @@ const createWalleeTransaction = async (req) => {
   const platformCommission = parseFloat(
     ((totalAmount * platformFeesPercent) / 100).toFixed(2)
   );
-  const merchantAmount = parseFloat((totalAmount - platformCommission).toFixed(2));
+  const merchantAmount = parseFloat(
+    (totalAmount - platformCommission).toFixed(2)
+  );
 
   // IMPORTANT: Process payment in MERCHANT'S space
   // In this model, each merchant owns their own Wallee space
@@ -972,9 +974,15 @@ const handleWalleeWebhook = async (req) => {
         // Track failed transaction in Commission for transaction logs
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -1006,7 +1014,10 @@ const handleWalleeWebhook = async (req) => {
             );
             console.log("✅ Commission record upserted for FAILED transaction");
           } catch (err) {
-            console.error("❌ Error upserting commission for FAILED:", err.message);
+            console.error(
+              "❌ Error upserting commission for FAILED:",
+              err.message
+            );
           }
         }
         break;
@@ -1023,9 +1034,15 @@ const handleWalleeWebhook = async (req) => {
         // Track voided transaction in Commission for transaction logs
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -1056,7 +1073,10 @@ const handleWalleeWebhook = async (req) => {
             );
             console.log("✅ Commission record upserted for VOIDED transaction");
           } catch (err) {
-            console.error("❌ Error upserting commission for VOIDED:", err.message);
+            console.error(
+              "❌ Error upserting commission for VOIDED:",
+              err.message
+            );
           }
         }
         break;
@@ -1073,9 +1093,15 @@ const handleWalleeWebhook = async (req) => {
         // Track declined transaction in Commission for transaction logs
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -1104,9 +1130,14 @@ const handleWalleeWebhook = async (req) => {
               },
               { upsert: true, new: true }
             );
-            console.log("✅ Commission record upserted for DECLINE transaction");
+            console.log(
+              "✅ Commission record upserted for DECLINE transaction"
+            );
           } catch (err) {
-            console.error("❌ Error upserting commission for DECLINE:", err.message);
+            console.error(
+              "❌ Error upserting commission for DECLINE:",
+              err.message
+            );
           }
         }
         break;
@@ -1123,9 +1154,15 @@ const handleWalleeWebhook = async (req) => {
         // Track pending transaction in Commission for transaction logs
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -1153,9 +1190,14 @@ const handleWalleeWebhook = async (req) => {
               },
               { upsert: true, new: true }
             );
-            console.log("✅ Commission record upserted for PENDING transaction");
+            console.log(
+              "✅ Commission record upserted for PENDING transaction"
+            );
           } catch (err) {
-            console.error("❌ Error upserting commission for PENDING:", err.message);
+            console.error(
+              "❌ Error upserting commission for PENDING:",
+              err.message
+            );
           }
         }
         break;
@@ -1172,9 +1214,15 @@ const handleWalleeWebhook = async (req) => {
         // Track processing transaction in Commission for transaction logs
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -1202,9 +1250,14 @@ const handleWalleeWebhook = async (req) => {
               },
               { upsert: true, new: true }
             );
-            console.log("✅ Commission record upserted for PROCESSING transaction");
+            console.log(
+              "✅ Commission record upserted for PROCESSING transaction"
+            );
           } catch (err) {
-            console.error("❌ Error upserting commission for PROCESSING:", err.message);
+            console.error(
+              "❌ Error upserting commission for PROCESSING:",
+              err.message
+            );
           }
         }
         break;
