@@ -1290,7 +1290,7 @@ module.exports.deleteEvent = async (req) => {
   // Send Firebase notification to customer_entity topic for deleted event
   sendFirebaseNotification({
     topic: "customer_entity",
-    showNotification: false,
+    showNotification: true,
     title: "Event Deleted",
     body: `The event "${eventName}" has been removed.`,
     data: {
@@ -2252,7 +2252,7 @@ module.exports.editCategory = async (req) => {
     // Send Firebase notification to entity_{entityId} topic for category edit
     sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
-      showNotification: false,
+      showNotification: true,
       title: "Category Updated",
       body: `Category "${categoryName}" has been updated.`,
       data: {
@@ -2320,7 +2320,7 @@ module.exports.editCategory = async (req) => {
     // Send Firebase notification to entity_{entityId} topic for category delete
     sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
-      showNotification: false,
+      showNotification: true,
       title: "Category Deleted",
       body: `Category "${categoryName}" has been removed.`,
       data: {
@@ -4676,7 +4676,7 @@ module.exports.editEvent = async (req) => {
     // Send Firebase notification to customer_entity topic for updated event
     sendFirebaseNotification({
       topic: "customer_entity",
-      showNotification: false,
+      showNotification: true,
       title: "Event Updated",
       body: `The event "${event.eventName}" has been updated.`,
       data: {
