@@ -33,9 +33,10 @@ const { t, getLanguageFromRequest } = require("../../../Utils/translator");
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, firstName, lastName, password, dob, countrTag } = req.body;
+  const emailLower = (email || "").trim().toLowerCase();
 
   const userExist = await User.findOne({
-    email,
+    email: emailLower,
     status: STATUS.ACTIVE,
     role: ROLES.CUSTOMER,
   }).lean();
@@ -74,7 +75,7 @@ module.exports.register = async (req) => {
     fullName: `${firstName} ${lastName}`,
     firstName,
     lastName,
-    email,
+    email: emailLower,
     password: hashedPassword,
     status: STATUS.ACTIVE,
     countrTag,
@@ -91,14 +92,14 @@ module.exports.register = async (req) => {
   try {
     const welcomeHtmlTemplate = getWelcomeTemplate(firstName);
     createMail({
-      to: email,
+      to: emailLower,
       subject: "Welcome to Countr! 🎉",
       html: welcomeHtmlTemplate,
       text: `Hello ${firstName}! Welcome to the Countr app. We're thrilled to have you join our community!`,
     });
-    console.log(`✅ Welcome email sent successfully to: ${email}`);
+    console.log(`✅ Welcome email sent successfully to: ${emailLower}`);
   } catch (error) {
-    console.error(`❌ Error sending welcome email to ${email}:`, error.message);
+    console.error(`❌ Error sending welcome email to ${emailLower}:`, error.message);
     // Don't throw error - registration should succeed even if email fails
   }
 
@@ -111,6 +112,7 @@ module.exports.register = async (req) => {
 module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, password } = req.body;
+  const emailLower = (email || "").trim().toLowerCase();
   const userProjection = {
     role: 1,
     firstName: 1,
@@ -121,7 +123,7 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
+    { email: emailLower, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
     userProjection,
   ).lean();
 
