@@ -146,6 +146,7 @@ const editAdmin = async (req) => {
     return { message: t("ADMIN_UPDATE_SUCCESS", lang) };
   } else if (action === EDIT_ACTION.DELETE) {
     if (status) admin.status = status;
+    admin.blockUnblockDate = new Date();
 
     await admin.save();
     return { message: t("ADMIN_DELETE_SUCCESS", lang) };
@@ -326,7 +327,7 @@ const editRestaurantsOrUsers = async (req) => {
 
   const updateOperations = [];
   let message = "";
-  let blockedAt = new Date();
+  const blockUnblockDate = new Date();
   let statusCode = STATUS_CODES.OK;
 
   if (entityId) {
@@ -344,7 +345,7 @@ const editRestaurantsOrUsers = async (req) => {
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
-        { $set: { status, blockedAt } }
+        { $set: { status, blockUnblockDate } }
       )
     );
 
@@ -382,7 +383,7 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
+      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } })
     );
     statusCode =
       status === STATUS.BLOCKED
@@ -440,7 +441,12 @@ const resetPassword = async (req) => {
 
     return { message: t("ADMIN_PASSWORD_UPDATE_SUCCESS", lang) };
   } else {
-    console.log("Looking for admin with email:", email, "and status:", STATUS.ACTIVE);
+    console.log(
+      "Looking for admin with email:",
+      email,
+      "and status:",
+      STATUS.ACTIVE
+    );
     const adminUser = await Admin.findOne(
       { email, status: STATUS.ACTIVE },
       { email: 1, firstName: 1, lastName: 1, _id: 1 }
