@@ -1065,10 +1065,10 @@ module.exports.getCreatedItems = async (req) => {
   const alreadyAddedItems = {};
 
   const filteredItems = createdItems.filter((item) => {
-    const isActive = item.menuCategoryId?.counterId?.status === STATUS.ACTIVE;
+    // const isActive = item.menuCategoryId?.counterId?.status === STATUS.ACTIVE;
     const isNewItem = !alreadyAddedItems[item.itemName];
 
-    if (isActive && isNewItem) {
+    if (isNewItem) {
       alreadyAddedItems[item.itemName] = true;
       return true;
     }
