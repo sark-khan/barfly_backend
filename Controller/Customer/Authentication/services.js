@@ -216,24 +216,14 @@ module.exports.deleteAccount = async (req) => {
     });
   }
 
-  // Generate unique deleted email to avoid conflicts if email has unique constraint
-  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
-
-  // Delete all user-related data and clear personal information in parallel for optimization
+  // Delete all user-related data and clear session info in parallel
   await Promise.all([
-    // Update user: set status to DELETED, clear all personal information
+    // Update user: set status to DELETED, clear tokens/sessions
     User.updateOne(
       { _id: userId },
       {
         $set: {
           status: STATUS.DELETED,
-          email: deletedEmail,
-          contactNumber: null,
-          countrTag: null,
-          firstName: null,
-          lastName: null,
-          fullName: null,
-          password: null, // Clear password for security
           fcmToken: [],
           socketId: null,
         },

@@ -1707,6 +1707,7 @@ exports.newlyAddedEntities = async () => {
 
   const entities = await EntityDetails.find({
     createdAt: { $gte: fortyEightHoursago },
+    status: STATUS.ACTIVE,
   }).sort({ createdAt: -1 });
 
   entities.map((entity) => {
@@ -1718,7 +1719,7 @@ exports.newlyAddedEntities = async () => {
 
 exports.popularEntities = async () => {
   const popular = await EntityDetails.find(
-    {},
+    { status: STATUS.ACTIVE },
     { entityName: 1, city: 1, views: 1, country: 1, status: 1, image: 1 }
   )
     .sort({ views: -1 })

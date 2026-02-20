@@ -4296,40 +4296,25 @@ module.exports.deleteEntityAccount = async (req) => {
     });
   }
 
-  // Generate unique deleted email to avoid conflicts if email has unique constraint
-  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
-
-  // Delete all owner/entity-related data and clear personal information in parallel
+  // Delete all owner/entity-related data in parallel
   await Promise.all([
-    // Update user: set status to DELETED, clear all personal information
+    // Update user: set status to DELETED, clear tokens/sessions
     User.updateOne(
       { _id: userId },
       {
         $set: {
           status: STATUS.DELETED,
-          email: deletedEmail,
-          contactNumber: null,
-          countrTag: null,
-          firstName: null,
-          lastName: null,
-          fullName: null,
-          password: null,
           fcmToken: [],
           socketId: null,
         },
       },
     ),
-    // Update entity: set status to DELETED, clear sensitive information
+    // Update entity: set status to DELETED
     EntityDetails.updateOne(
       { _id: entityId },
       {
         $set: {
           status: STATUS.DELETED,
-          entityName: null,
-          entityEmail: null,
-          contactNumber: null,
-          stripeAccountId: null,
-          bankLinkUrl: null,
         },
       },
     ),
