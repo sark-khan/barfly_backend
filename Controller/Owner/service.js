@@ -1234,7 +1234,7 @@ module.exports.createEvent = async (req) => {
   // Send Firebase notification to customer_entity topic for new event
   sendFirebaseNotification({
     topic: "customer_entity",
-    showNotification: false,
+    showNotification: true, // ← Change from false
     title: "New Event Added",
     body: `A new event "${eventName}" has been added.`,
     data: {
