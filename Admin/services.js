@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 
 const Admin = require("../Models/Admin");
 const Stripe = require("../Models/Stripe");
+const Commission = require("../Models/Commission");
 const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const redisClient = require("../redis");
@@ -26,6 +27,26 @@ const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
 const { io } = require("../app");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
+const {
+  TransactionsService,
+  Configuration,
+  HttpBearerAuth,
+} = require("wallee");
+
+// Wallee API config for fetching transaction details (lazy init)
+let walleeTransactionsService = null;
+const getWalleeTransactionsService = () => {
+  if (!walleeTransactionsService) {
+    const userId = Number(process.env.WALLEE_USER_ID);
+    const apiSecret = process.env.WALLEE_API_SECRET;
+    if (userId && apiSecret) {
+      const httpBearerAuth = new HttpBearerAuth(userId, apiSecret);
+      const walleeConfig = new Configuration({ httpBearerAuth });
+      walleeTransactionsService = new TransactionsService(walleeConfig);
+    }
+  }
+  return walleeTransactionsService;
+};
 
 const addAdmin = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -275,17 +296,127 @@ const getTransactionLogs = async (req) => {
     pageLimit = parseInt(pageLimit, 10);
   }
   const skip = +(pageNo - 1) * +pageLimit;
-  const transactions = await Stripe.find()
-    .populate({
-      path: "userId",
-      select: "fullName",
-      model: "User",
+
+  // Wallee transaction logs from Commission model
+  const [commissions, totalCount] = await Promise.all([
+    Commission.find()
+      .populate({
+        path: "userId",
+        select: "fullName email",
+        model: "User",
+      })
+      .populate({
+        path: "entityId",
+        select: "entityName",
+        model: "EntityDetails",
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageLimit)
+      .lean(),
+    Commission.countDocuments(),
+  ]);
+
+  // Enrich with Wallee transaction details (payment method, state, customer info)
+  const transactions = await Promise.all(
+    commissions.map(async (commission) => {
+      const merchantSpaceId = commission.metadata?.merchantSpaceId;
+      const walleeTransactionId = commission.walleeTransactionId;
+
+      let walleeDetails = {};
+      const txService = getWalleeTransactionsService();
+      if (txService && merchantSpaceId && walleeTransactionId) {
+        try {
+          const transaction =
+            await txService.getPaymentTransactionsId({
+              space: Number(merchantSpaceId),
+              id: Number(walleeTransactionId),
+              expand: new Set(["paymentConnectorConfiguration"]),
+            });
+          const connectorName =
+            transaction.paymentConnectorConfiguration?.name || null;
+          walleeDetails = {
+            paymentMethod: connectorName
+              ? connectorName.replace(/^Wallee\s*-\s*/i, "")
+              : null,
+            paymentMethodImage:
+              transaction.paymentConnectorConfiguration?.imagePath || null,
+            transactionState: transaction.state,
+            transactionDate:
+              transaction.completedOn ||
+              transaction.failedOn ||
+              transaction.confirmedOn ||
+              transaction.authorizedOn ||
+              transaction.createdOn,
+            customerEmail: transaction.customerEmailAddress,
+            authorizedAmount: transaction.authorizationAmount,
+            completedAmount: transaction.completedAmount,
+            createdOn: transaction.createdOn,
+            completedOn: transaction.completedOn,
+            failedOn: transaction.failedOn,
+            failureReason: transaction.failureReason,
+            lineItems: transaction.lineItems,
+          };
+        } catch (err) {
+          console.error(
+            `Failed to fetch Wallee transaction ${walleeTransactionId}:`,
+            err.message
+          );
+          // Fallback to commission metadata
+          walleeDetails = {
+            transactionState: commission.metadata?.transactionState || null,
+            transactionDate:
+              commission.metadata?.completedOn ||
+              commission.metadata?.failedOn ||
+              commission.metadata?.voidedOn ||
+              commission.metadata?.declinedOn ||
+              commission.createdAt,
+          };
+        }
+      } else {
+        walleeDetails = {
+          transactionState: commission.metadata?.transactionState || null,
+          transactionDate:
+            commission.metadata?.completedOn ||
+            commission.metadata?.failedOn ||
+            commission.metadata?.voidedOn ||
+            commission.metadata?.declinedOn ||
+            commission.createdAt,
+        };
+      }
+
+      return {
+        _id: commission._id,
+        walleeTransactionId: commission.walleeTransactionId,
+        totalAmount: commission.totalAmount,
+        platformCommission: commission.platformCommission,
+        merchantAmount: commission.merchantAmount,
+        platformFeesPercent: commission.platformFeesPercent,
+        currency: commission.currency,
+        commissionStatus: commission.status,
+        userId: commission.userId,
+        entityId: commission.entityId,
+        eventId: commission.eventId,
+        createdAt: commission.createdAt,
+        ...walleeDetails,
+      };
     })
-    .sort({ _id: -1 })
-    .skip(skip)
-    .limit(pageLimit);
-  const totalCount = await Stripe.countDocuments();
+  );
+
   return { transactions, totalCount };
+
+  // -- Stripe transaction logs (commented out) --
+  // const transactions = await Stripe.find()
+  //   .populate({
+  //     path: "userId",
+  //     select: "fullName",
+  //     model: "User",
+  //   })
+  //   .sort({ _id: -1 })
+  //   .skip(skip)
+  //   .limit(pageLimit);
+  // const totalCount = await Stripe.countDocuments();
+  // return { transactions, totalCount };
 };
 
 const getAdminUserDetails = async (req) => {
@@ -302,23 +433,26 @@ const getDashboardAnalytics = async (req) => {
   const entities = await EntityDetails.countDocuments({
     status: STATUS.ACTIVE,
   });
-  const [revenue] = await Order.aggregate([
-    {
-      $match: {
-        status: {
-          $in: [
-            ORDER_STATUS.COMPLETED,
-            ORDER_STATUS.WAITING,
-            ORDER_STATUS.IN_PROGRESS,
-            ORDER_STATUS.READY,
-          ],
-        },
-      },
-    },
-    { $group: { _id: null, totalRevenue: { $sum: "$platformFees" } } },
+  // Total revenue from Wallee commissions (one record per transaction via upsert)
+  const [revenue] = await Commission.aggregate([
+    { $group: { _id: null, totalRevenue: { $sum: "$platformCommission" } } },
   ]);
-  const totalRevenue = revenue?.totalRevenue || 0;
+  const totalRevenue = parseFloat((revenue?.totalRevenue || 0).toFixed(2));
   return { users, entities, totalRevenue };
+
+  // -- Old: Stripe-era revenue from Order.platformFees (commented out) --
+  // const [revenue] = await Order.aggregate([
+  //   {
+  //     $match: {
+  //       status: {
+  //         $in: [ORDER_STATUS.COMPLETED, ORDER_STATUS.WAITING,
+  //               ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY],
+  //       },
+  //     },
+  //   },
+  //   { $group: { _id: null, totalRevenue: { $sum: "$platformFees" } } },
+  // ]);
+  // const totalRevenue = revenue?.totalRevenue || 0;
 };
 
 const editRestaurantsOrUsers = async (req) => {
