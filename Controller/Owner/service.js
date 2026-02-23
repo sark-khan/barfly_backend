@@ -1224,6 +1224,13 @@ module.exports.createEvent = async (req) => {
     { $inc: { activeUsers: 1 } },
   );
 
+  // Socket emit to owner for real-time UI update
+  io.to(req.entityId.toString()).emit("eventUpdate", {
+    action: "create",
+    event: savedEvent,
+    entityId: req.entityId.toString(),
+  });
+
   // Emit socket event to customer_entity topic for new event
   io.to("customer_entity").emit("eventUpdate", {
     action: "create",
@@ -1279,6 +1286,13 @@ module.exports.deleteEvent = async (req) => {
   }
 
   await Event.deleteOne({ _id: eventId });
+
+  // Socket emit to owner for real-time UI update
+  io.to(entityId.toString()).emit("eventUpdate", {
+    action: "delete",
+    eventId: eventId,
+    entityId: entityId.toString(),
+  });
 
   // Emit socket event to customer_entity topic for deleted event
   io.to("customer_entity").emit("eventUpdate", {
@@ -2241,6 +2255,14 @@ module.exports.editCategory = async (req) => {
       if (newCategoryName) category.categoryName = newCategoryName;
       await category.save();
     }
+    // Socket emit to owner for real-time UI update
+    io.to(req.entityId.toString()).emit("categoryUpdate", {
+      action: "edit",
+      categories: categories,
+      oldCategoryName: categoryName,
+      newCategoryName: newCategoryName,
+      entityId: req.entityId.toString(),
+    });
     // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
     io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
       action: "edit",
@@ -2310,6 +2332,12 @@ module.exports.editCategory = async (req) => {
     await MenuCategory.deleteMany({
       categoryName,
       entityId: req.entityId,
+    });
+    // Socket emit to owner for real-time UI update
+    io.to(req.entityId.toString()).emit("categoryUpdate", {
+      action: "delete",
+      categoryName: categoryName,
+      entityId: req.entityId.toString(),
     });
     // Emit socket event to entity_{entityId} topic (for customers subscribed to this entity)
     io.to(`entity_${req.entityId}`).emit("categoryUpdate", {
@@ -3622,6 +3650,29 @@ module.exports.editTable = async (req) => {
     tableData.status = status;
 
     await tableData.save();
+
+    // Socket emit to owner for real-time UI update
+    io.to(tableData.entityId.toString()).emit("tableUpdate", {
+      action: "delete",
+      tableId: tableId,
+      entityId: tableData.entityId.toString(),
+    });
+    // Send Firebase notification for table delete
+    sendFirebaseNotification({
+      topic: `entity_${tableData.entityId}`,
+      showNotification: false,
+      title: "Table Deleted",
+      body: "A table has been removed.",
+      data: {
+        action: "table_delete",
+        screen: "table_screen",
+        tableId: tableId.toString(),
+        entityId: tableData.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${tableData.entityId}`,
+      },
+    });
+
     message = t("OWNER_TABLE_DELETE_SUCCESS", lang);
   }
   return { message };
@@ -4200,12 +4251,36 @@ module.exports.deleteFeedbackQuestions = async (req) => {
     });
   }
 
+  const entityId = question.entityId;
+
   await FeedbackQuestions.deleteOne({ _id: questionId });
 
   await Feedbacks.updateMany(
     { "answers.questionId": questionId },
     { $pull: { answers: { questionId } } },
   );
+
+  // Socket emit to owner for real-time UI update
+  io.to(entityId.toString()).emit("feedbackQuestionsUpdate", {
+    action: "delete",
+    questionId: questionId.toString(),
+    entityId: entityId.toString(),
+  });
+  // Send Firebase notification for feedback question delete
+  sendFirebaseNotification({
+    topic: `entity_${entityId}`,
+    showNotification: false,
+    title: "Feedback Question Deleted",
+    body: "A feedback question has been removed.",
+    data: {
+      action: "feedback_delete",
+      screen: "feedback_screen",
+      questionId: questionId.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${entityId}`,
+    },
+  });
 };
 
 module.exports.restaurantOpen = async (req) => {
@@ -4665,6 +4740,13 @@ module.exports.editEvent = async (req) => {
     await event.save();
 
     console.log("Edit Event Debug - Save Successful");
+
+    // Socket emit to owner for real-time UI update
+    io.to(event.entityId.toString()).emit("eventUpdate", {
+      action: "edit",
+      event: event,
+      entityId: event.entityId.toString(),
+    });
 
     // Emit socket event to customer_entity topic for updated event
     io.to("customer_entity").emit("eventUpdate", {

@@ -153,6 +153,8 @@ const createOrder = async (req, session) => {
   //   },
   // });
 
+  // Note: Socket emit "newOrder" is handled in orderController.js after transaction commits
+
   // Send Firebase notification to owner_entity_{entityId} topic for new order
   sendFirebaseNotification({
     topic: `owner_entity_${entityDetails._id}`,
@@ -234,6 +236,29 @@ const createOfflineOrder = async (req) => {
     _id: offlineOrderObjCreated._id,
   }).lean();
   // off
+
+  // Send Firebase data message to owner for real-time update
+  sendFirebaseNotification({
+    topic: `owner_entity_${entityId}`,
+    showNotification: false,
+    title: "New Offline Order",
+    body: "A new offline order has been placed.",
+    data: {
+      action: "offline_order_create",
+      screen: "order_screen",
+      orderId: offlineOrderObj._id.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${entityId}`,
+    },
+  });
+
+  // Socket emit to owner for real-time UI update
+  io.to(entityId.toString()).emit("offlineOrderUpdate", {
+    action: "create",
+    order: offlineOrderObj,
+    entityId: entityId.toString(),
+  });
 
   genrateCustomerOrderReport({
     userId: userId,
