@@ -193,6 +193,7 @@ const unProtectedApis = {
   "/api/owner/restaurant/email-exist": true,
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
+  "/api/admins/send-email-otp": true,
   // "/api/admins/add-admin": true,
 
   // "/api/stripe/get-stripe-accounts": true, // Commented out - using Wallee instead
@@ -225,6 +226,7 @@ app.use((req, res, next) => {
   ) {
     return next();
   }
+  console.log({ req: req.path });
 
   return verifyToken(req, res, next);
 });

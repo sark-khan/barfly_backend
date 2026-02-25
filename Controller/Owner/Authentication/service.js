@@ -8,7 +8,9 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
-const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getVerificationCodeTemplate,
+} = require("../../../Utils/emailTemplates/verificationCodeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -25,6 +27,7 @@ const MenuCategory = require("../../../Models/MenuCategory");
 const { uploadBufferToS3 } = require("../../aws-service");
 const NotificationSettings = require("../../../Models/notificationSettings");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
+const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -76,7 +79,7 @@ module.exports.register = async (req) => {
     otpRecord = await Otp.findOneAndUpdate(
       { contactNumber },
       { otp, expiresAt },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
@@ -193,8 +196,14 @@ module.exports.register = async (req) => {
   // Create default categories for the new entity
   try {
     const defaultCategories = await MenuCategory.insertMany([
-      { categoryName: t("DEFAULT_CATEGORY_FOOD", lang), entityId: entityDetails._id },
-      { categoryName: t("DEFAULT_CATEGORY_SOFT_DRINKS", lang), entityId: entityDetails._id },
+      {
+        categoryName: t("DEFAULT_CATEGORY_FOOD", lang),
+        entityId: entityDetails._id,
+      },
+      {
+        categoryName: t("DEFAULT_CATEGORY_SOFT_DRINKS", lang),
+        entityId: entityDetails._id,
+      },
     ]);
     console.log("Default categories created:", defaultCategories);
   } catch (err) {
@@ -205,7 +214,7 @@ module.exports.register = async (req) => {
   try {
     sendFirebaseNotification({
       topic: "customer_entity",
-      showNotification: false,
+      showNotification: true,
       title: "New Entity Added",
       body: `A new entity "${entityName}" has been added.`,
       data: {
@@ -220,6 +229,18 @@ module.exports.register = async (req) => {
     });
   } catch (err) {
     console.error("Firebase notification error:", err.message);
+  }
+
+  // Notify admin dashboard — new entity/restaurant added
+  try {
+    io.to("admin_room").emit("adminDashboardUpdate", {
+      action: "new_entity",
+      entityId: entityDetails._id.toString(),
+      entityName: entityName,
+      entityType: entityType,
+    });
+  } catch (err) {
+    console.error("Admin socket emit error:", err.message);
   }
 
   userDetails.entityDetails = entityDetails;
@@ -260,7 +281,7 @@ module.exports.login = async (req) => {
       userId: user._id,
       status: STATUS.ACTIVE,
     },
-    { _id: 1 }
+    { _id: 1 },
   );
 
   if (!entityDetails)
@@ -308,7 +329,7 @@ module.exports.logoutEntity = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr"
+  subject = "Your Verification Code - Countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();

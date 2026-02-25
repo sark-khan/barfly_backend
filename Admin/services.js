@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 
 const Admin = require("../Models/Admin");
 const Stripe = require("../Models/Stripe");
+const Commission = require("../Models/Commission");
 const User = require("../Models/User");
 const EntityDetails = require("../Models/EntityDetails");
 const redisClient = require("../redis");
@@ -18,14 +19,36 @@ const throwError = require("./../Utils/throwError");
 const {
   comparePassword,
   getJwtToken,
-  encrypt,
-  decrypt,
 } = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
+const crypto = require("crypto");
+const {
+  getVerificationCodeTemplate,
+} = require("../Utils/emailTemplates/verificationCodeTemplate");
 const { io } = require("../app");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
+const {
+  TransactionsService,
+  Configuration,
+  HttpBearerAuth,
+} = require("wallee");
+
+// Wallee API config for fetching transaction details (lazy init)
+let walleeTransactionsService = null;
+const getWalleeTransactionsService = () => {
+  if (!walleeTransactionsService) {
+    const userId = Number(process.env.WALLEE_USER_ID);
+    const apiSecret = process.env.WALLEE_API_SECRET;
+    if (userId && apiSecret) {
+      const httpBearerAuth = new HttpBearerAuth(userId, apiSecret);
+      const walleeConfig = new Configuration({ httpBearerAuth });
+      walleeTransactionsService = new TransactionsService(walleeConfig);
+    }
+  }
+  return walleeTransactionsService;
+};
 
 const addAdmin = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -146,6 +169,7 @@ const editAdmin = async (req) => {
     return { message: t("ADMIN_UPDATE_SUCCESS", lang) };
   } else if (action === EDIT_ACTION.DELETE) {
     if (status) admin.status = status;
+    admin.blockUnblockDate = new Date();
 
     await admin.save();
     return { message: t("ADMIN_DELETE_SUCCESS", lang) };
@@ -220,27 +244,30 @@ const getRestaurants = async (req) => {
 const getRestaurantOrders = async (req) => {
   let { entityId, pageNo = 1, pageLimit = 10 } = req.query;
 
-  if (typeof pageLimit === "string") {
-    pageLimit = parseInt(pageLimit, 10);
-  }
-  const skip = +(pageNo - 1) * +pageLimit;
+  pageNo = parseInt(pageNo, 10);
+  pageLimit = parseInt(pageLimit, 10);
+  const skip = (pageNo - 1) * pageLimit;
 
-  const orders = await Order.find({ entityId })
+  const filter = entityId ? { entityId } : {};
+
+  const orders = await Order.find(filter)
     .populate({ path: "counterId", select: "counterName" })
     .populate({ path: "items.itemId", select: "itemName quantity currency" })
     .skip(skip)
     .limit(pageLimit)
+    .sort({ createdAt: -1 })
     .lean();
 
   if (!orders.length) {
-    return [];
+    return { orders: [], totalOrders: 0, totalRevenue: 0 };
   }
 
-  const totalOrders = await Order.countDocuments();
+  const totalOrders = await Order.countDocuments(filter);
 
   const [revenueData] = await Order.aggregate([
     {
       $match: {
+        ...filter,
         status: {
           $in: [
             ORDER_STATUS.COMPLETED,
@@ -251,7 +278,6 @@ const getRestaurantOrders = async (req) => {
         },
       },
     },
-
     {
       $group: {
         _id: null,
@@ -274,17 +300,127 @@ const getTransactionLogs = async (req) => {
     pageLimit = parseInt(pageLimit, 10);
   }
   const skip = +(pageNo - 1) * +pageLimit;
-  const transactions = await Stripe.find()
-    .populate({
-      path: "userId",
-      select: "fullName",
-      model: "User",
+
+  // Wallee transaction logs from Commission model
+  const [commissions, totalCount] = await Promise.all([
+    Commission.find()
+      .populate({
+        path: "userId",
+        select: "fullName email",
+        model: "User",
+      })
+      .populate({
+        path: "entityId",
+        select: "entityName",
+        model: "EntityDetails",
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageLimit)
+      .lean(),
+    Commission.countDocuments(),
+  ]);
+
+  // Enrich with Wallee transaction details (payment method, state, customer info)
+  const transactions = await Promise.all(
+    commissions.map(async (commission) => {
+      const merchantSpaceId = commission.metadata?.merchantSpaceId;
+      const walleeTransactionId = commission.walleeTransactionId;
+
+      let walleeDetails = {};
+      const txService = getWalleeTransactionsService();
+      if (txService && merchantSpaceId && walleeTransactionId) {
+        try {
+          const transaction =
+            await txService.getPaymentTransactionsId({
+              space: Number(merchantSpaceId),
+              id: Number(walleeTransactionId),
+              expand: new Set(["paymentConnectorConfiguration"]),
+            });
+          const connectorName =
+            transaction.paymentConnectorConfiguration?.name || null;
+          walleeDetails = {
+            paymentMethod: connectorName
+              ? connectorName.replace(/^Wallee\s*-\s*/i, "")
+              : null,
+            paymentMethodImage:
+              transaction.paymentConnectorConfiguration?.imagePath || null,
+            transactionState: transaction.state,
+            transactionDate:
+              transaction.completedOn ||
+              transaction.failedOn ||
+              transaction.confirmedOn ||
+              transaction.authorizedOn ||
+              transaction.createdOn,
+            customerEmail: transaction.customerEmailAddress,
+            authorizedAmount: transaction.authorizationAmount,
+            completedAmount: transaction.completedAmount,
+            createdOn: transaction.createdOn,
+            completedOn: transaction.completedOn,
+            failedOn: transaction.failedOn,
+            failureReason: transaction.failureReason,
+            lineItems: transaction.lineItems,
+          };
+        } catch (err) {
+          console.error(
+            `Failed to fetch Wallee transaction ${walleeTransactionId}:`,
+            err.message
+          );
+          // Fallback to commission metadata
+          walleeDetails = {
+            transactionState: commission.metadata?.transactionState || null,
+            transactionDate:
+              commission.metadata?.completedOn ||
+              commission.metadata?.failedOn ||
+              commission.metadata?.voidedOn ||
+              commission.metadata?.declinedOn ||
+              commission.createdAt,
+          };
+        }
+      } else {
+        walleeDetails = {
+          transactionState: commission.metadata?.transactionState || null,
+          transactionDate:
+            commission.metadata?.completedOn ||
+            commission.metadata?.failedOn ||
+            commission.metadata?.voidedOn ||
+            commission.metadata?.declinedOn ||
+            commission.createdAt,
+        };
+      }
+
+      return {
+        _id: commission._id,
+        walleeTransactionId: commission.walleeTransactionId,
+        totalAmount: commission.totalAmount,
+        platformCommission: commission.platformCommission,
+        merchantAmount: commission.merchantAmount,
+        platformFeesPercent: commission.platformFeesPercent,
+        currency: commission.currency,
+        commissionStatus: commission.status,
+        userId: commission.userId,
+        entityId: commission.entityId,
+        eventId: commission.eventId,
+        createdAt: commission.createdAt,
+        ...walleeDetails,
+      };
     })
-    .sort({ _id: -1 })
-    .skip(skip)
-    .limit(pageLimit);
-  const totalCount = await Stripe.countDocuments();
+  );
+
   return { transactions, totalCount };
+
+  // -- Stripe transaction logs (commented out) --
+  // const transactions = await Stripe.find()
+  //   .populate({
+  //     path: "userId",
+  //     select: "fullName",
+  //     model: "User",
+  //   })
+  //   .sort({ _id: -1 })
+  //   .skip(skip)
+  //   .limit(pageLimit);
+  // const totalCount = await Stripe.countDocuments();
+  // return { transactions, totalCount };
 };
 
 const getAdminUserDetails = async (req) => {
@@ -301,23 +437,26 @@ const getDashboardAnalytics = async (req) => {
   const entities = await EntityDetails.countDocuments({
     status: STATUS.ACTIVE,
   });
-  const [revenue] = await Order.aggregate([
-    {
-      $match: {
-        status: {
-          $in: [
-            ORDER_STATUS.COMPLETED,
-            ORDER_STATUS.WAITING,
-            ORDER_STATUS.IN_PROGRESS,
-            ORDER_STATUS.READY,
-          ],
-        },
-      },
-    },
-    { $group: { _id: null, totalRevenue: { $sum: "$platformFees" } } },
+  // Total revenue from Wallee commissions (one record per transaction via upsert)
+  const [revenue] = await Commission.aggregate([
+    { $group: { _id: null, totalRevenue: { $sum: "$platformCommission" } } },
   ]);
-  const totalRevenue = revenue?.totalRevenue || 0;
+  const totalRevenue = parseFloat((revenue?.totalRevenue || 0).toFixed(2));
   return { users, entities, totalRevenue };
+
+  // -- Old: Stripe-era revenue from Order.platformFees (commented out) --
+  // const [revenue] = await Order.aggregate([
+  //   {
+  //     $match: {
+  //       status: {
+  //         $in: [ORDER_STATUS.COMPLETED, ORDER_STATUS.WAITING,
+  //               ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY],
+  //       },
+  //     },
+  //   },
+  //   { $group: { _id: null, totalRevenue: { $sum: "$platformFees" } } },
+  // ]);
+  // const totalRevenue = revenue?.totalRevenue || 0;
 };
 
 const editRestaurantsOrUsers = async (req) => {
@@ -326,7 +465,7 @@ const editRestaurantsOrUsers = async (req) => {
 
   const updateOperations = [];
   let message = "";
-  let blockedAt = new Date();
+  const blockUnblockDate = new Date();
   let statusCode = STATUS_CODES.OK;
 
   if (entityId) {
@@ -344,7 +483,7 @@ const editRestaurantsOrUsers = async (req) => {
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
-        { $set: { status, blockedAt } }
+        { $set: { status, blockUnblockDate } }
       )
     );
 
@@ -382,7 +521,7 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      User.updateOne({ _id: userId }, { $set: { status, blockedAt } })
+      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } })
     );
     statusCode =
       status === STATUS.BLOCKED
@@ -400,81 +539,57 @@ const editRestaurantsOrUsers = async (req) => {
 
 const resetPassword = async (req) => {
   const lang = getLanguageFromRequest(req);
-  const { email, password, authToken } = req.body;
+  const { email, newPassword } = req.body;
+  let resetToken = req.headers["token"];
 
-  console.log("=== ADMIN RESET PASSWORD DEBUG ===");
-  console.log("Email:", email);
-  console.log("AuthToken exists:", !!authToken);
-  console.log("Password exists:", !!password);
-
-  let message = "";
-
-  if (authToken && password) {
-    const decryptedUserId = decrypt(authToken);
-    console.log("Decrypted userId:", decryptedUserId);
-
-    const redisPrefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-    const storedToken = await redisClient.get(redisPrefix + decryptedUserId);
-
-    if (!storedToken || storedToken !== authToken) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: t("ADMIN_SESSION_EXPIRED_ERROR", lang),
-      });
-    }
-
-    const adminToUpdate = await Admin.findById(decryptedUserId);
-    if (!adminToUpdate) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: t("ADMIN_SESSION_EXPIRED_ERROR", lang),
-      });
-    }
-
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    adminToUpdate.password = hashedPassword;
-
-    await adminToUpdate.save();
-
-    await redisClient.del(redisPrefix + decryptedUserId);
-
-    return { message: t("ADMIN_PASSWORD_UPDATE_SUCCESS", lang) };
-  } else {
-    console.log("Looking for admin with email:", email, "and status:", STATUS.ACTIVE);
-    const adminUser = await Admin.findOne(
-      { email, status: STATUS.ACTIVE },
-      { email: 1, firstName: 1, lastName: 1, _id: 1 }
-    );
-    console.log("Admin found:", adminUser);
-
-    if (!adminUser) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: t("ADMIN_NOT_FOUND_ERROR", lang),
-      });
-    }
-
-    const authToken = encrypt(adminUser._id.toString());
-
-    const redisPrefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-    await redisClient.setEx(
-      redisPrefix + adminUser._id.toString(),
-      20 * 60,
-      authToken
-    );
-
-    const fullName = `${adminUser.firstName} ${adminUser.lastName}`;
-
-    const resetLink = `${process.env.HOST_URL}/admins/reset-password?auth=${authToken}`;
-    const mailData = {
-      to: email,
-      subject: "COUNTR: Reset Password Request",
-      html: resetPasswordTemplate(fullName, resetLink),
-    };
-    createMail(mailData);
-
-    return { message: t("ADMIN_RESET_EMAIL_SENT", lang), emailSent: true };
+  // Validate reset token from headers
+  if (!resetToken?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("RESET_TOKEN_REQUIRED", lang),
+    });
   }
+
+  resetToken = resetToken.trim().replace(/^Bearer\s+/i, "");
+
+  // Validate inputs
+  if (!email?.trim() || !newPassword?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_AND_PASSWORD_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}:resetToken`;
+
+  // Verify reset token from send-email-otp
+  const storedToken = await redisClient.get(resetTokenKey);
+  if (!storedToken || storedToken !== resetToken) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("INVALID_RESET_TOKEN", lang),
+    });
+  }
+
+  // Find admin
+  const adminUser = await Admin.findOne({
+    email: trimmedEmail,
+    status: STATUS.ACTIVE,
+  });
+
+  if (!adminUser) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ADMIN_NOT_FOUND_ERROR", lang),
+    });
+  }
+
+  // Update password and clear reset token
+  adminUser.password = bcrypt.hashSync(newPassword.trim(), 10);
+  await Promise.all([adminUser.save(), redisClient.del(resetTokenKey)]);
+
+  return { message: t("ADMIN_PASSWORD_UPDATE_SUCCESS", lang) };
   return message;
 };
 
@@ -510,6 +625,94 @@ const platformmFees = async (req) => {
   global.PLATFORM_FEES = platformFees;
 };
 
+const sendEmailOtp = async (req) => {
+  const lang = getLanguageFromRequest(req);
+  const { email, otp } = req.body;
+
+  if (!email?.trim()) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("EMAIL_REQUIRED", lang),
+    });
+  }
+
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedOtp = otp?.trim();
+
+  // If OTP provided -> Verify and return reset token
+  if (trimmedOtp) {
+    const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}`;
+    const storedOtp = await redisClient.get(redisKey);
+
+    if (!storedOtp) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OTP_EXPIRED", lang),
+      });
+    }
+
+    if (storedOtp !== trimmedOtp) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OTP_INVALID", lang),
+      });
+    }
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}:resetToken`;
+
+    await Promise.all([
+      redisClient.del(redisKey),
+      redisClient.setEx(resetTokenKey, 86400, resetToken),
+    ]);
+
+    return {
+      otpVerified: true,
+      token: resetToken,
+      message: t("OTP_VERIFIED_SUCCESS", lang),
+    };
+  }
+
+  // Check admin exists with this email
+  const adminUser = await Admin.findOne(
+    { email: trimmedEmail, status: STATUS.ACTIVE },
+    { _id: 1 }
+  );
+
+  if (!adminUser) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ADMIN_NOT_FOUND_ERROR", lang),
+    });
+  }
+
+  // Send OTP
+  const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}`;
+  const generatedOtp = crypto.randomInt(100000, 999999).toString();
+
+  await redisClient.setEx(redisKey, 120, generatedOtp);
+
+  const htmlTemplate = getVerificationCodeTemplate(generatedOtp, "2 minutes");
+
+  const emailSent = await createMail({
+    to: trimmedEmail,
+    subject: "Your Verification Code - Countr",
+    html: htmlTemplate,
+    text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`,
+  });
+
+  if (!emailSent) {
+    await redisClient.del(redisKey);
+    throwError({
+      status: STATUS_CODES.SERVER_ERROR,
+      message: t("EMAIL_SEND_ERROR", lang),
+    });
+  }
+
+  return { otpSent: true, message: t("OTP_SENT_EMAIL_SUCCESS", lang) };
+};
+
 module.exports = {
   addAdmin,
   loginAdmin,
@@ -525,4 +728,5 @@ module.exports = {
   resetPassword,
   logoutAdmin,
   platformmFees,
+  sendEmailOtp,
 };

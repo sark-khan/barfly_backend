@@ -1,10 +1,5 @@
 const globalConstants = require("../../../Utils/globalConstants");
-const {
-  STATUS_CODES,
-  ROLES,
-  KEY_TYPE_PREFIXES,
-  STATUS,
-} = globalConstants;
+const { STATUS_CODES, ROLES, KEY_TYPE_PREFIXES, STATUS } = globalConstants;
 const {
   hashPassword,
   comparePassword,
@@ -12,7 +7,12 @@ const {
 } = require("../../../Utils/commonFunction");
 const crypto = require("crypto");
 const { createMail } = require("../../../Utils/mailer");
-const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getVerificationCodeTemplate,
+} = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getWelcomeTemplate,
+} = require("../../../Utils/emailTemplates/welcomeTemplate");
 const throwError = require("../../../Utils/throwError");
 const Otp = require("../../../Models/Otp");
 const User = require("../../../Models/User");
@@ -29,13 +29,15 @@ const UserAppFeedback = require("../../../Models/UserAppFeedback");
 const Order = require("../../../Models/Order");
 const StripePayment = require("../../../Models/Stripe");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
+const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, firstName, lastName, password, dob, countrTag } = req.body;
+  const emailLower = (email || "").trim().toLowerCase();
 
   const userExist = await User.findOne({
-    email,
+    email: emailLower,
     status: STATUS.ACTIVE,
     role: ROLES.CUSTOMER,
   }).lean();
@@ -74,7 +76,7 @@ module.exports.register = async (req) => {
     fullName: `${firstName} ${lastName}`,
     firstName,
     lastName,
-    email,
+    email: emailLower,
     password: hashedPassword,
     status: STATUS.ACTIVE,
     countrTag,
@@ -87,6 +89,32 @@ module.exports.register = async (req) => {
     isPromotionalOn: true,
   });
 
+  // Send welcome email
+  try {
+    const welcomeHtmlTemplate = getWelcomeTemplate(firstName);
+    createMail({
+      to: emailLower,
+      subject: "Welcome to Countr! 🎉",
+      html: welcomeHtmlTemplate,
+      text: `Hello ${firstName}! Welcome to the Countr app. We're thrilled to have you join our community!`,
+    });
+    console.log(`✅ Welcome email sent successfully to: ${emailLower}`);
+  } catch (error) {
+    console.error(`❌ Error sending welcome email to ${emailLower}:`, error.message);
+    // Don't throw error - registration should succeed even if email fails
+  }
+
+  // Notify admin dashboard — new user registered
+  try {
+    io.to("admin_room").emit("adminDashboardUpdate", {
+      action: "new_user",
+      userId: userObj._id.toString(),
+      name: `${firstName} ${lastName}`,
+    });
+  } catch (err) {
+    console.error("Admin socket emit error:", err.message);
+  }
+
   delete userObj.password;
 
   const token = getJwtToken(userObj, true);
@@ -96,6 +124,7 @@ module.exports.register = async (req) => {
 module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, password } = req.body;
+  const emailLower = (email || "").trim().toLowerCase();
   const userProjection = {
     role: 1,
     firstName: 1,
@@ -106,8 +135,8 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
-    userProjection
+    { email: emailLower, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
+    userProjection,
   ).lean();
 
   if (!user) {
@@ -175,7 +204,7 @@ module.exports.checkAndProvideCountRTag = async (req) => {
   });
 
   const availableTags = uniqueUsernames.filter(
-    (tag) => !existingTags.includes(tag)
+    (tag) => !existingTags.includes(tag),
   );
 
   return availableTags;
@@ -199,28 +228,18 @@ module.exports.deleteAccount = async (req) => {
     });
   }
 
-  // Generate unique deleted email to avoid conflicts if email has unique constraint
-  const deletedEmail = `deleted_${userId}_${Date.now()}@deleted.local`;
-
-  // Delete all user-related data and clear personal information in parallel for optimization
+  // Delete all user-related data and clear session info in parallel
   await Promise.all([
-    // Update user: set status to DELETED, clear all personal information
+    // Update user: set status to DELETED, clear tokens/sessions
     User.updateOne(
       { _id: userId },
       {
         $set: {
           status: STATUS.DELETED,
-          email: deletedEmail,
-          contactNumber: null,
-          countrTag: null,
-          firstName: null,
-          lastName: null,
-          fullName: null,
-          password: null, // Clear password for security
           fcmToken: [],
           socketId: null,
         },
-      }
+      },
     ),
     // Delete all user-related data in parallel (optimized)
     CountRTags.deleteMany({ userId }),
@@ -247,7 +266,7 @@ module.exports.deleteAccount = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr"
+  subject = "Your Verification Code - Countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();

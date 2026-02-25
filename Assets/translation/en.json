@@ -352,7 +352,7 @@
   "OWNER_EVENT_DUPLICATE_TIME_ERROR": "An event with the same name and overlapping time already exists.",
   "OWNER_EVENT_REPETITIVE_DAYS_INVALID": "Invalid repetitiveDays format.",
   "OWNER_EVENT_NOT_FOUND": "Event not found.",
-  "OWNER_EVENT_ACTIVE_ORDERS": "Cannot delete event. There are active orders linked to this event.",
+  "OWNER_EVENT_ACTIVE_ORDERS": "Cannot edit event. There are ongoing orders for this event.",
   "OWNER_EVENTS_MONTH_YEAR_REQUIRED": "Month and year are required.",
   "OWNER_EVENTS_MONTH_YEAR_INVALID": "Invalid month or year format.",
   "OWNER_CATEGORY_ACTION_REQUIRED": "Missing required fields: action or categoryName.",
