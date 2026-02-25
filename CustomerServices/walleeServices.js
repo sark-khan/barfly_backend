@@ -19,6 +19,7 @@ const Commission = require("../Models/Commission");
 const Order = require("../Models/Order");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
+const { io } = require("../app");
 
 // Wallee Configuration
 const spaceId = Number(process.env.WALLEE_SPACE_ID);
@@ -839,6 +840,20 @@ const handleWalleeWebhook = async (req) => {
             console.log(`   Transaction ID: ${transaction.id}`);
             console.log(`   Created At: ${new Date().toISOString()}`);
             console.log(`✅ Commission tracking completed successfully`);
+
+            // Notify admin dashboard — revenue changed
+            try {
+              io.to("admin_room").emit("adminDashboardUpdate", {
+                action: "revenue_update",
+                transactionId: transaction.id,
+                amount: totalAmount,
+                platformCommission: platformCommission,
+                currency: transaction.currency,
+                entityId: entityIdFromMetadata,
+              });
+            } catch (err) {
+              console.error("Admin socket emit error:", err.message);
+            }
           } catch (commissionError) {
             console.error("\n❌❌❌ ERROR CREATING COMMISSION RECORD ❌❌❌");
             console.error("Error:", commissionError.message);

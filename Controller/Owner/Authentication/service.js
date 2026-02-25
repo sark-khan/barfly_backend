@@ -27,6 +27,7 @@ const MenuCategory = require("../../../Models/MenuCategory");
 const { uploadBufferToS3 } = require("../../aws-service");
 const NotificationSettings = require("../../../Models/notificationSettings");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
+const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -213,7 +214,7 @@ module.exports.register = async (req) => {
   try {
     sendFirebaseNotification({
       topic: "customer_entity",
-      showNotification: false,
+      showNotification: true,
       title: "New Entity Added",
       body: `A new entity "${entityName}" has been added.`,
       data: {
@@ -228,6 +229,18 @@ module.exports.register = async (req) => {
     });
   } catch (err) {
     console.error("Firebase notification error:", err.message);
+  }
+
+  // Notify admin dashboard — new entity/restaurant added
+  try {
+    io.to("admin_room").emit("adminDashboardUpdate", {
+      action: "new_entity",
+      entityId: entityDetails._id.toString(),
+      entityName: entityName,
+      entityType: entityType,
+    });
+  } catch (err) {
+    console.error("Admin socket emit error:", err.message);
   }
 
   userDetails.entityDetails = entityDetails;

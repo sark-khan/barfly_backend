@@ -29,6 +29,7 @@ const UserAppFeedback = require("../../../Models/UserAppFeedback");
 const Order = require("../../../Models/Order");
 const StripePayment = require("../../../Models/Stripe");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
+const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -101,6 +102,17 @@ module.exports.register = async (req) => {
   } catch (error) {
     console.error(`❌ Error sending welcome email to ${emailLower}:`, error.message);
     // Don't throw error - registration should succeed even if email fails
+  }
+
+  // Notify admin dashboard — new user registered
+  try {
+    io.to("admin_room").emit("adminDashboardUpdate", {
+      action: "new_user",
+      userId: userObj._id.toString(),
+      name: `${firstName} ${lastName}`,
+    });
+  } catch (err) {
+    console.error("Admin socket emit error:", err.message);
   }
 
   delete userObj.password;

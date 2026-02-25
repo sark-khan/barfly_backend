@@ -37,7 +37,7 @@ app.post(
       console.error("Webhook error:", error);
       return res.status(error.status || 500).json({ message: error.message });
     }
-  },
+  }
 );
 
 // Fallback handler for webhook if express.raw() doesn't match
@@ -193,6 +193,7 @@ const unProtectedApis = {
   "/api/owner/restaurant/email-exist": true,
   "/api/admins/login-admin": true,
   "/api/admins/reset-password": true,
+  "/api/admins/send-email-otp": true,
   // "/api/admins/add-admin": true,
 
   // "/api/stripe/get-stripe-accounts": true, // Commented out - using Wallee instead
@@ -232,13 +233,13 @@ app.use((req, res, next) => {
 
 app.use(
   "/api/owner/auth",
-  require("./Controller/Owner/Authentication/controller"),
+  require("./Controller/Owner/Authentication/controller")
 );
 app.use("/api/survey", require("./Controller/Owner/Feedback/controller"));
 app.use("/api/owner/restaurant", require("./Controller/Owner/controller"));
 app.use(
   "/api/customer/auth",
-  require("./Controller/Customer/Authentication/controller"),
+  require("./Controller/Customer/Authentication/controller")
 );
 app.use("/api/customer/entities", require("./Controller/Customer/controller"));
 
@@ -258,7 +259,7 @@ app.post("/api/update-menu-items", async (req, res) => {
   try {
     const getMenuitems = await Counter.updateMany(
       {},
-      { $set: { isTableService: false, isSelfPickUp: true, totalTables: 0 } },
+      { $set: { isTableService: false, isSelfPickUp: true, totalTables: 0 } }
     );
     return res.status(200).json(getMenuitems);
   } catch (error) {
@@ -311,7 +312,7 @@ app.post("/update-entity-items", async (req, res) => {
     const itemIds = itemsId.map((item) => item.itemId);
     await MenuItem.updateMany(
       { _id: { $in: itemIds } },
-      { $set: { entityId: req.entityId } },
+      { $set: { entityId: req.entityId } }
     );
     return res
       .status(STATUS_CODES.OK)

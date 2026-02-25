@@ -184,6 +184,20 @@ module.exports.createCounter = async (req) => {
   // );
 
   sendFirebaseNotification({
+    topic: `owner_entity_${newCounter.entityId}`,
+    showNotification: true,
+    title: "New Counter Added",
+    body: "You have a new counter added. Tap to view.",
+    data: {
+      action: "counter_update",
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${newCounter.entityId}`,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
+  sendFirebaseNotification({
     topic: `entity_${newCounter.entityId}`,
     showNotification: true,
     title: "New Counter Added",
@@ -327,6 +341,20 @@ module.exports.createCounterMenuCategory = async (req) => {
     entityId: createdCategories[0].entityId.toString(),
   });
 
+  sendFirebaseNotification({
+    topic: `owner_entity_${createdCategories[0].entityId}`,
+    showNotification: true,
+    title: "New Category Added",
+    body: "You have a new category added. Tap to view.",
+    data: {
+      action: "category_update",
+      screen: "category_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${createdCategories[0].entityId}`,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${createdCategories[0].entityId}`,
     showNotification: true,
@@ -649,6 +677,21 @@ module.exports.createMenuItem = async (req) => {
   });
 
   sendFirebaseNotification({
+    topic: `owner_entity_${req.entityId}`,
+    showNotification: true,
+    title: "New Item Added",
+    body: "You have a new item added. Tap to view.",
+    data: {
+      action: "item_update",
+      screen: "item_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${req.entityId}`,
+      entityId: req.entityId,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
+  sendFirebaseNotification({
     topic: `entity_${req.entityId}`,
     showNotification: true,
     title: "New Item Added",
@@ -847,6 +890,20 @@ module.exports.updateMenuItem = async (req) => {
         entityId: item.entityId.toString(),
       });
       sendFirebaseNotification({
+        topic: `owner_entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `owner_entity_${item.entityId}`,
+        },
+      });
+
+      // Send same notification to entity_ topic for customer app
+      sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
         title: "Item Updated",
@@ -871,6 +928,20 @@ module.exports.updateMenuItem = async (req) => {
         itemId: deletedItemId.toString(),
         entityId: entityId.toString(),
       });
+      sendFirebaseNotification({
+        topic: `owner_entity_${entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `owner_entity_${entityId}`,
+        },
+      });
+
+      // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${entityId}`,
         showNotification: true,
@@ -913,6 +984,20 @@ module.exports.updateMenuItem = async (req) => {
         entityId: item.entityId.toString(),
       });
       sendFirebaseNotification({
+        topic: `owner_entity_${item.entityId}`,
+        showNotification: true,
+        title: "Item Updated",
+        body: "An item has been updated. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `owner_entity_${item.entityId}`,
+        },
+      });
+
+      // Send same notification to entity_ topic for customer app
+      sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
         showNotification: true,
         title: "Item Updated",
@@ -937,6 +1022,20 @@ module.exports.updateMenuItem = async (req) => {
         itemId: deletedItemId.toString(),
         entityId: entityId.toString(),
       });
+      sendFirebaseNotification({
+        topic: `owner_entity_${entityId}`,
+        showNotification: true,
+        title: "Item Deleted",
+        body: "An item has been deleted. Tap to view.",
+        data: {
+          action: "item_update",
+          screen: "item_screen",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          topic: `owner_entity_${entityId}`,
+        },
+      });
+
+      // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${entityId}`,
         showNotification: true,
@@ -1238,10 +1337,42 @@ module.exports.createEvent = async (req) => {
     entityId: req.entityId.toString(),
   });
 
-  // Send Firebase notification to customer_entity topic for new event
+  // Send Firebase notification to owner app for new event
+  sendFirebaseNotification({
+    topic: `owner_entity_${req.entityId}`,
+    showNotification: true,
+    title: "New Event Added",
+    body: `A new event "${eventName}" has been added.`,
+    data: {
+      action: "event_update",
+      screen: "event_screen",
+      eventId: savedEvent._id.toString(),
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${req.entityId}`,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
+  sendFirebaseNotification({
+    topic: `entity_${req.entityId}`,
+    showNotification: true,
+    title: "New Event Added",
+    body: `A new event "${eventName}" has been added.`,
+    data: {
+      action: "event_update",
+      screen: "event_screen",
+      eventId: savedEvent._id.toString(),
+      entityId: req.entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${req.entityId}`,
+    },
+  });
+
+  // Send Firebase notification to customer app for new event
   sendFirebaseNotification({
     topic: "customer_entity",
-    showNotification: true, // ← Change from false
+    showNotification: true,
     title: "New Event Added",
     body: `A new event "${eventName}" has been added.`,
     data: {
@@ -1301,7 +1432,39 @@ module.exports.deleteEvent = async (req) => {
     entityId: entityId.toString(),
   });
 
-  // Send Firebase notification to customer_entity topic for deleted event
+  // Send Firebase notification to owner app for deleted event
+  sendFirebaseNotification({
+    topic: `owner_entity_${entityId}`,
+    showNotification: true,
+    title: "Event Deleted",
+    body: `The event "${eventName}" has been removed.`,
+    data: {
+      action: "event_update",
+      screen: "event_screen",
+      eventId: eventId.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${entityId}`,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
+  sendFirebaseNotification({
+    topic: `entity_${entityId}`,
+    showNotification: true,
+    title: "Event Deleted",
+    body: `The event "${eventName}" has been removed.`,
+    data: {
+      action: "event_update",
+      screen: "event_screen",
+      eventId: eventId.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `entity_${entityId}`,
+    },
+  });
+
+  // Send Firebase notification to customer app for deleted event
   sendFirebaseNotification({
     topic: "customer_entity",
     showNotification: true,
@@ -2273,12 +2436,29 @@ module.exports.editCategory = async (req) => {
     });
     // Send Firebase notification to entity_{entityId} topic for category edit
     sendFirebaseNotification({
+      topic: `owner_entity_${req.entityId}`,
+      showNotification: true,
+      title: "Category Updated",
+      body: `Category "${categoryName}" has been updated.`,
+      data: {
+        action: "category_update",
+        screen: "category_screen",
+        oldCategoryName: categoryName,
+        newCategoryName: newCategoryName || categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${req.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
       showNotification: true,
       title: "Category Updated",
       body: `Category "${categoryName}" has been updated.`,
       data: {
-        action: "category_edit",
+        action: "category_update",
         screen: "category_screen",
         oldCategoryName: categoryName,
         newCategoryName: newCategoryName || categoryName,
@@ -2347,12 +2527,28 @@ module.exports.editCategory = async (req) => {
     });
     // Send Firebase notification to entity_{entityId} topic for category delete
     sendFirebaseNotification({
+      topic: `owner_entity_${req.entityId}`,
+      showNotification: true,
+      title: "Category Deleted",
+      body: `Category "${categoryName}" has been removed.`,
+      data: {
+        action: "category_update",
+        screen: "category_screen",
+        categoryName: categoryName,
+        entityId: req.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${req.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
       showNotification: true,
       title: "Category Deleted",
       body: `Category "${categoryName}" has been removed.`,
       data: {
-        action: "category_delete",
+        action: "category_update",
         screen: "category_screen",
         categoryName: categoryName,
         entityId: req.entityId.toString(),
@@ -2643,6 +2839,20 @@ module.exports.updateCounterSettings = async (req) => {
       entityId: counter.entityId.toString(),
     });
     sendFirebaseNotification({
+      topic: `owner_entity_${counter.entityId}`,
+      showNotification: true,
+      title: "Counter Updated",
+      body: "A counter has been updated. Tap to view.",
+      data: {
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${counter.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
       title: "Counter Updated",
@@ -2757,6 +2967,20 @@ module.exports.updateCounterSettings = async (req) => {
       counterId: counterId,
       entityId: counter.entityId.toString(),
     });
+    sendFirebaseNotification({
+      topic: `owner_entity_${counter.entityId}`,
+      showNotification: true,
+      title: "Counter Deleted",
+      body: "A counter has been removed",
+      data: {
+        action: "counter_update",
+        screen: "counter_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${counter.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
       showNotification: true,
@@ -3109,7 +3333,7 @@ module.exports.editBusinessDetails = async (req) => {
     message = t("PASSWORD_UPDATE_SUCCESS", lang);
     io.to(entityId.toString()).emit("passwordUpdated", { message });
     sendFirebaseNotification({
-      topic: `entity_${entityId}`,
+      topic: `owner_entity_${entityId}`,
       showNotification: true,
       title: "New Profile Details Added",
       body: "You have a new entity details added. Tap to view.",
@@ -3117,9 +3341,10 @@ module.exports.editBusinessDetails = async (req) => {
         action: "profile_update",
         screen: "counter_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
-        topic: `entity_${entityId}`,
+        topic: `owner_entity_${entityId}`,
       },
     });
+
     return { message };
   }
 
@@ -3166,7 +3391,7 @@ module.exports.editBusinessDetails = async (req) => {
     await EntityDetails.updateOne({ _id: entityId }, updateEntityFields);
     io.to(entityId.toString()).emit("entityDetailsUpdated", updateEntityFields);
     sendFirebaseNotification({
-      topic: `entity_${entityId}`,
+      topic: `owner_entity_${entityId}`,
       showNotification: true,
       title: "New Profile Updated",
       body: "You have a new entity details added. Tap to view.",
@@ -3174,9 +3399,10 @@ module.exports.editBusinessDetails = async (req) => {
         action: "entity_details_update",
         screen: "entity_details_screen",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
-        topic: `entity_${entityId}`,
+        topic: `owner_entity_${entityId}`,
       },
     });
+
   }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
@@ -3235,7 +3461,7 @@ module.exports.editBusinessDetails = async (req) => {
       });
 
       sendFirebaseNotification({
-        topic: `entity_${entityId}`,
+        topic: `owner_entity_${entityId}`,
         showNotification: true,
         title: "New Profile Updated",
         body: "You have a new entity details added. Tap to view.",
@@ -3243,7 +3469,7 @@ module.exports.editBusinessDetails = async (req) => {
           action: "entity_details_update",
           screen: "entity_details_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${entityId}`,
+          topic: `owner_entity_${entityId}`,
         },
       });
 
@@ -3304,7 +3530,7 @@ module.exports.editBusinessDetails = async (req) => {
       message = t("EMAIL_UPDATE_SUCCESS", lang);
       io.to(entityId.toString()).emit("emailUpdated", { email });
       sendFirebaseNotification({
-        topic: `entity_${entityId}`,
+        topic: `owner_entity_${entityId}`,
         showNotification: true,
         title: "New Profile Updated",
         body: "You have a new entity details added. Tap to view.",
@@ -3312,9 +3538,10 @@ module.exports.editBusinessDetails = async (req) => {
           action: "entity_details_update",
           screen: "entity_details_screen",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
-          topic: `entity_${entityId}`,
+          topic: `owner_entity_${entityId}`,
         },
       });
+
       return { message, otpVerified: true };
     }
   }
@@ -3426,6 +3653,20 @@ module.exports.addingTables = async (req) => {
 
   const newTable = await Tables.create(tableObj);
   io.to(newTable.entityId.toString()).emit("newTable", newTable);
+  sendFirebaseNotification({
+    topic: `owner_entity_${newTable.entityId}`,
+    showNotification: true,
+    title: "New Profile Updated",
+    body: "You have a new table added. Tap to view.",
+    data: {
+      action: "table_update",
+      screen: "table_screen",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${newTable.entityId}`,
+    },
+  });
+
+  // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${newTable.entityId}`,
     showNotification: true,
@@ -3605,6 +3846,20 @@ module.exports.editTable = async (req) => {
     message = t("OWNER_TABLE_EDIT_SUCCESS", lang);
     io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
     sendFirebaseNotification({
+      topic: `owner_entity_${tableData.entityId}`,
+      showNotification: true,
+      title: "New Profile Updated",
+      body: "You have a new table added. Tap to view.",
+      data: {
+        action: "table_update",
+        screen: "table_screen",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${tableData.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
       topic: `entity_${tableData.entityId}`,
       showNotification: true,
       title: "New Profile Updated",
@@ -3659,12 +3914,28 @@ module.exports.editTable = async (req) => {
     });
     // Send Firebase notification for table delete
     sendFirebaseNotification({
-      topic: `entity_${tableData.entityId}`,
-      showNotification: false,
+      topic: `owner_entity_${tableData.entityId}`,
+      showNotification: true,
       title: "Table Deleted",
       body: "A table has been removed.",
       data: {
-        action: "table_delete",
+        action: "table_update",
+        screen: "table_screen",
+        tableId: tableId.toString(),
+        entityId: tableData.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${tableData.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
+      topic: `entity_${tableData.entityId}`,
+      showNotification: true,
+      title: "Table Deleted",
+      body: "A table has been removed.",
+      data: {
+        action: "table_update",
         screen: "table_screen",
         tableId: tableId.toString(),
         entityId: tableData.entityId.toString(),
@@ -4183,7 +4454,7 @@ module.exports.addFeedbackQuestions = async (req) => {
   });
   io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
   sendFirebaseNotification({
-    topic: `entity_${entityId}`,
+    topic: `owner_entity_${entityId}`,
     showNotification: true,
     title: "New Profile Updated",
     body: "You have a new feedback added. Tap to view.",
@@ -4191,9 +4462,10 @@ module.exports.addFeedbackQuestions = async (req) => {
       action: "feedback_update",
       screen: "feedback_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `entity_${entityId}`,
+      topic: `owner_entity_${entityId}`,
     },
   });
+
   return feedback;
 };
 
@@ -4268,8 +4540,8 @@ module.exports.deleteFeedbackQuestions = async (req) => {
   });
   // Send Firebase notification for feedback question delete
   sendFirebaseNotification({
-    topic: `entity_${entityId}`,
-    showNotification: false,
+    topic: `owner_entity_${entityId}`,
+    showNotification: true,
     title: "Feedback Question Deleted",
     body: "A feedback question has been removed.",
     data: {
@@ -4278,9 +4550,10 @@ module.exports.deleteFeedbackQuestions = async (req) => {
       questionId: questionId.toString(),
       entityId: entityId.toString(),
       click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `entity_${entityId}`,
+      topic: `owner_entity_${entityId}`,
     },
   });
+
 };
 
 module.exports.restaurantOpen = async (req) => {
@@ -4558,7 +4831,7 @@ module.exports.restaurantCancelOrder = async (req) => {
   });
 
   sendFirebaseNotification({
-    topic: `entity_${order.entityId}`,
+    topic: `owner_entity_${order.entityId}`,
     showNotification: true,
     title: "New Cancel Order",
     body: "You have a new cancel added. Tap to view.",
@@ -4566,9 +4839,10 @@ module.exports.restaurantCancelOrder = async (req) => {
       action: "cancel_update",
       screen: "cancel_screen",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `entity_${order.entityId}`,
+      topic: `owner_entity_${order.entityId}`,
     },
   });
+
 };
 
 module.exports.getSalesReportHistory = async (req) => {
@@ -4755,7 +5029,39 @@ module.exports.editEvent = async (req) => {
       entityId: event.entityId.toString(),
     });
 
-    // Send Firebase notification to customer_entity topic for updated event
+    // Send Firebase notification to owner app for updated event
+    sendFirebaseNotification({
+      topic: `owner_entity_${event.entityId}`,
+      showNotification: true,
+      title: "Event Updated",
+      body: `The event "${event.eventName}" has been updated.`,
+      data: {
+        action: "event_update",
+        screen: "event_screen",
+        eventId: event._id.toString(),
+        entityId: event.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `owner_entity_${event.entityId}`,
+      },
+    });
+
+    // Send same notification to entity_ topic for customer app
+    sendFirebaseNotification({
+      topic: `entity_${event.entityId}`,
+      showNotification: true,
+      title: "Event Updated",
+      body: `The event "${event.eventName}" has been updated.`,
+      data: {
+        action: "event_update",
+        screen: "event_screen",
+        eventId: event._id.toString(),
+        entityId: event.entityId.toString(),
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `entity_${event.entityId}`,
+      },
+    });
+
+    // Send Firebase notification to customer app for updated event
     sendFirebaseNotification({
       topic: "customer_entity",
       showNotification: true,
