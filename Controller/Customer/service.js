@@ -1904,6 +1904,8 @@ module.exports.getTablesUserSide = async (req) => {
     tableCount: 1,
     counterIds: 1,
     entityId: 1,
+    tableSectionName: 1,
+    tableSetionNo: 1,
   })
     .populate({
       path: "counterIds",
@@ -1925,7 +1927,12 @@ module.exports.getTablesUserSide = async (req) => {
   tables.counterIds.forEach((counter) => {
     const cId = counter?._id?.toString?.() ?? counter?.toString?.();
     if (cId === counterIdStr && counter?.isTableService === true) {
-      tablesRes.push(tables);
+      tablesRes.push({
+        tableCount: tables.tableCount ?? [],
+        tableSectionName: tables.tableSectionName,
+        tableSetionNo: tables.tableSetionNo,
+        entityId: tables.entityId,
+      });
     }
   });
 
