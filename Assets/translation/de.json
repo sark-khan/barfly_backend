@@ -292,6 +292,8 @@
   "ADMIN_LOGOUT_ERROR": "Fehler beim Ausloggen des Admins",
   "ADMIN_PLATFORM_FEES_ADD_SUCCESS": "Plattformgebühren erfolgreich hinzugefügt",
   "ADMIN_PLATFORM_FEES_ADD_ERROR": "Fehler beim Hinzufügen der Plattformgebühren",
+  "PLATFORM_FEE_FETCH_SUCCESS": "Plattformgebühr erfolgreich abgerufen",
+  "PLATFORM_FEE_FETCH_ERROR": "Fehler beim Abrufen der Plattformgebühr",
   "ADMIN_EMAIL_EXISTS_ERROR": "Admin mit dieser E-Mail existiert bereits",
   "ADMIN_NOT_FOUND_ERROR": "Admin existiert nicht",
   "ADMIN_INVALID_PASSWORD_ERROR": "Ungültiges Passwort",

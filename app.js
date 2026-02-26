@@ -179,6 +179,7 @@ const unProtectedApis = {
   "/api/customer/entities/popular-entities": true,
   "/api/customer/entities/entity-offers": true,
   "/api/customer/entities/get-tables-user-side": true,
+  "/api/customer/entities/get-platform-fee": true,
 
   // "/api/customer/entities/get-entities": true,
   "/api/owner/auth/register": true,

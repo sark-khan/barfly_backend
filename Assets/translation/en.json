@@ -305,6 +305,8 @@
   "ADMIN_LOGOUT_ERROR": "Error while logging out the admin.",
   "ADMIN_PLATFORM_FEES_ADD_SUCCESS": "Platform fees added successfully.",
   "ADMIN_PLATFORM_FEES_ADD_ERROR": "Error while adding platform fees.",
+  "PLATFORM_FEE_FETCH_SUCCESS": "Platform fee fetched successfully.",
+  "PLATFORM_FEE_FETCH_ERROR": "Error while fetching platform fee.",
   "ADMIN_EMAIL_EXISTS_ERROR": "Admin with this email already exists.",
   "ADMIN_NOT_FOUND_ERROR": "Admin doesn't exist.",
   "ADMIN_INVALID_PASSWORD_ERROR": "Invalid password.",
