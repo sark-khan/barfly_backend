@@ -867,14 +867,13 @@ module.exports.updateMenuItem = async (req) => {
 
   // When adding a new counter to an existing item, create ItemDetails for the new counter(s)
   // so the item is displayed on the customer side (items are queried by counterId)
-  if (
-    action === EDIT_ACTION.EDIT &&
-    counterIds &&
-    counterIds.length > 0
-  ) {
-    const existingCounterIds = items.map((i) => i.counterId?.toString()).filter(Boolean);
+  if (action === EDIT_ACTION.EDIT && counterIds && counterIds.length > 0) {
+    const existingCounterIds = items
+      .map((i) => i.counterId?.toString())
+      .filter(Boolean);
     const newCounterIds = counterIds.filter(
-      (cid) => !existingCounterIds.includes(cid?.toString?.() ?? cid.toString()),
+      (cid) =>
+        !existingCounterIds.includes(cid?.toString?.() ?? cid.toString()),
     );
 
     if (newCounterIds.length > 0) {
@@ -883,8 +882,7 @@ module.exports.updateMenuItem = async (req) => {
         referenceItem.menuCategoryId,
         { categoryName: 1 },
       ).lean();
-      const itemCategoryName =
-        categoryName ?? categoryToUse?.categoryName;
+      const itemCategoryName = categoryName ?? categoryToUse?.categoryName;
 
       if (itemCategoryName) {
         const newCategories = await MenuCategory.find({
@@ -3493,7 +3491,6 @@ module.exports.editBusinessDetails = async (req) => {
         topic: `owner_entity_${entityId}`,
       },
     });
-
   }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
@@ -3777,6 +3774,7 @@ module.exports.addingTables = async (req) => {
       $set: {
         tableSectionName,
         tableCount: tableNumbers,
+        isTableService: true,
       },
     },
   );
@@ -4644,7 +4642,6 @@ module.exports.deleteFeedbackQuestions = async (req) => {
       topic: `owner_entity_${entityId}`,
     },
   });
-
 };
 
 module.exports.restaurantOpen = async (req) => {
@@ -4964,7 +4961,6 @@ module.exports.restaurantCancelOrder = async (req) => {
       topic: `owner_entity_${order.entityId}`,
     },
   });
-
 };
 
 module.exports.getSalesReportHistory = async (req) => {
