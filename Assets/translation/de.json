@@ -199,6 +199,7 @@
   "CUSTOMER_ALREADY_REGISTERED_EMAIL": "Entschuldigung! Benutzer bereits mit dieser E-Mail registriert",
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Fehler beim Löschen des Kontos",
   "CUSTOMER_DELETE_ACCOUNT_SUCCESS": "Benutzerkonto erfolgreich gelöscht",
+  "CANNOT_DELETE_ACCOUNT_ACTIVE_ORDERS": "Das Konto kann nicht gelöscht werden, solange aktive Bestellungen vorhanden sind. Bitte schliessen oder stornieren Sie zuerst alle Bestellungen.",
   "CUSTOMER_DOES_NOT_EXIST": "Benutzer existiert nicht",
   "USER_NOT_AUTHENTICATED": "Benutzer nicht authentifiziert",
   "ENTITY_ID_REQUIRED": "Entitäts-ID ist erforderlich",

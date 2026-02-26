@@ -212,6 +212,7 @@
   "CUSTOMER_ALREADY_REGISTERED_EMAIL": "Apologies! user already registered with this email.",
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Error while deleting the account.",
   "CUSTOMER_DELETE_ACCOUNT_SUCCESS": "User account deleted successfully.",
+  "CANNOT_DELETE_ACCOUNT_ACTIVE_ORDERS": "Cannot delete account while you have active orders. Please complete or cancel all orders first.",
   "CUSTOMER_DOES_NOT_EXIST": "User doesn't exist.",
   "USER_NOT_AUTHENTICATED": "User not authenticated.",
   "ENTITY_ID_REQUIRED": "Entity ID is required.",

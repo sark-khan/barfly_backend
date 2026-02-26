@@ -214,7 +214,7 @@ module.exports.register = async (req) => {
   try {
     sendFirebaseNotification({
       topic: "customer_entity",
-      showNotification: true,
+      showNotification: false,
       title: "New Entity Added",
       body: `A new entity "${entityName}" has been added.`,
       data: {

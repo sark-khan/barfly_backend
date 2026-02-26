@@ -50,7 +50,7 @@ emitEventQueue.process(async (job, done) => {
       io.to(room).emit("ongoingEvent", cachedEvent);
       sendFirebaseNotification({
         topic: `owner_entity_${tableData.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "New Event Updated",
         body: "You have a new event added. Tap to view.",
         data: {
@@ -64,7 +64,7 @@ emitEventQueue.process(async (job, done) => {
       // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${tableData.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "New Event Updated",
         body: "You have a new event added. Tap to view.",
         data: {

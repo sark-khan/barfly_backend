@@ -228,6 +228,25 @@ module.exports.deleteAccount = async (req) => {
     });
   }
 
+  // Check for active orders
+  const activeOrder = await Order.findOne({
+    userId,
+    status: {
+      $in: [
+        globalConstants.ORDER_STATUS.WAITING,
+        globalConstants.ORDER_STATUS.IN_PROGRESS,
+        globalConstants.ORDER_STATUS.READY,
+      ],
+    },
+  });
+
+  if (activeOrder) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("CANNOT_DELETE_ACCOUNT_ACTIVE_ORDERS", lang),
+    });
+  }
+
   // Delete all user-related data and clear session info in parallel
   await Promise.all([
     // Update user: set status to DELETED, clear tokens/sessions
