@@ -1898,7 +1898,11 @@ module.exports.getUserAppFeedbackAnswers = async (req) => {
 
 module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
-  const query = { entityId, counterIds: counterId };
+  const query = {
+    entityId,
+    counterIds: counterId,
+    status: { $ne: STATUS.DELETED },
+  };
 
   const tables = await Tables.findOne(query, {
     tableCount: 1,
