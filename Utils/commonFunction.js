@@ -348,21 +348,34 @@ const sendFirebaseNotification = async ({
           : undefined,
       },
 
-      apns: {
-        payload: {
-          aps: {
-            content_available: true,
-            category: "FLUTTER_NOTIFICATION_CLICK",
-            mutableContent: 1,
-            alert: showNotification
-              ? {
+      apns: showNotification
+        ? {
+            headers: {
+              "apns-priority": "10",
+            },
+            payload: {
+              aps: {
+                alert: {
                   title,
                   body,
-                }
-              : undefined,
+                },
+                category: "FLUTTER_NOTIFICATION_CLICK",
+                mutableContent: 1,
+                content_available: true,
+              },
+            },
+          }
+        : {
+            headers: {
+              "apns-push-type": "background",
+              "apns-priority": "5",
+            },
+            payload: {
+              aps: {
+                "content-available": 1,
+              },
+            },
           },
-        },
-      },
       topic: topic,
     };
 
