@@ -137,14 +137,21 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email: emailLower, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
-    userProjection,
+    { email: emailLower, role: ROLES.CUSTOMER },
+    { ...userProjection, status: 1 },
   ).lean();
 
   if (!user) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: t("CUSTOMER_NOT_FOUND", lang),
+    });
+  }
+
+  if (user.status === STATUS.BLOCKED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("CUSTOMER_BLOCKED_BY_ADMIN", lang),
     });
   }
 

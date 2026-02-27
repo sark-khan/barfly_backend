@@ -260,7 +260,7 @@ module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
-  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  const query = { role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
   if (!Object.keys(query)) {
@@ -277,6 +277,13 @@ module.exports.login = async (req) => {
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: t("OWNER_INVALID_IDENTIFIER", lang),
     });
+
+  if (user.status === STATUS.BLOCKED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("OWNER_BLOCKED_BY_ADMIN", lang),
+    });
+  }
 
   const entityDetails = await EntityDetails.findOne(
     {
