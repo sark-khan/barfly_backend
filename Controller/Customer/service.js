@@ -53,16 +53,17 @@ module.exports.getEntities = async (req) => {
     isPopular,
   } = req.query;
   const now = new Date();
-
-  if (req.headers["token"] != null) {
-    verifyTokenWithoutResponse(req);
+  console.log(req.headers["token"], "token");
+  const token = req.headers["token"];
+  if (token != null && typeof token === "string" && token.trim().length > 0) {
+    await verifyTokenWithoutResponse(req);
   }
 
   const userId = req.id || req.userId;
   const favouritesList = await FavouriteEntity.find(
     { userId, isFavourite: true },
     { _id: 1, entityId: 1 },
-    { lean: true }
+    { lean: true },
   );
 
   const favouritesIdsSet = new Set();
@@ -88,7 +89,7 @@ module.exports.getEntities = async (req) => {
       repetitiveDays: 1,
       serialType: 1,
       isAllDay: 1,
-    }
+    },
   );
   const nowUTC = new Date();
   // Use UTC day for consistency with owner API
@@ -105,7 +106,7 @@ module.exports.getEntities = async (req) => {
       ) {
         // If invalid repetitiveDays, treat as non-repetitive (same as get-ongoing-event-details)
         console.log(
-          `[getEntities] Treating repetitive event ${event._id} as non-repetitive (invalid repetitiveDays)`
+          `[getEntities] Treating repetitive event ${event._id} as non-repetitive (invalid repetitiveDays)`,
         );
         // Continue to non-repetitive logic below
       } else {
@@ -137,8 +138,8 @@ module.exports.getEntities = async (req) => {
               nowUTC.getUTCMonth(),
               nowUTC.getUTCDate(),
               startHour,
-              startMin
-            )
+              startMin,
+            ),
           );
           let todayWindowEnd = new Date(
             Date.UTC(
@@ -146,8 +147,8 @@ module.exports.getEntities = async (req) => {
               nowUTC.getUTCMonth(),
               nowUTC.getUTCDate(),
               endHour,
-              endMin
-            )
+              endMin,
+            ),
           );
 
           // Handle midnight-spanning events
@@ -213,8 +214,8 @@ module.exports.getEntities = async (req) => {
           nowUTC.getUTCMonth(),
           nowUTC.getUTCDate(),
           fromHours,
-          fromMinutes
-        )
+          fromMinutes,
+        ),
       );
 
       let eventEndToday = new Date(
@@ -223,8 +224,8 @@ module.exports.getEntities = async (req) => {
           nowUTC.getUTCMonth(),
           nowUTC.getUTCDate(),
           toHours,
-          toMinutes
-        )
+          toMinutes,
+        ),
       );
 
       // Handle events that span midnight
@@ -237,7 +238,7 @@ module.exports.getEntities = async (req) => {
       const eventToDate = new Date(event.to);
       const daysDiff = Math.floor(
         (eventToDate.getTime() - eventFromDate.getTime()) /
-          (1000 * 60 * 60 * 24)
+          (1000 * 60 * 60 * 24),
       );
 
       if (daysDiff > 0) {
@@ -314,7 +315,7 @@ module.exports.getEntities = async (req) => {
         entity.isFavouriteEntity = false;
       }
       return entity;
-    }
+    },
   );
 
   if (req.query?.searchTerm && req.query.searchTerm != "") {
@@ -331,7 +332,7 @@ module.exports.getEntities = async (req) => {
       image: 1,
       views: 1,
     },
-    { limit: limit, skip: skip }
+    { limit: limit, skip: skip },
   )
     .sort({ _id: -1 })
     .lean();
@@ -363,7 +364,7 @@ module.exports.getEntities = async (req) => {
     uniqueRemainingEntitiesResponse = uniqueRemainingEntities.filter(
       (entity) => {
         return entity.isFavouriteEntity;
-      }
+      },
     );
   }
 
@@ -402,7 +403,7 @@ module.exports.addFavouriteEntity = async (req) => {
     {
       isFavourite,
     },
-    { upsert: true }
+    { upsert: true },
   );
   return;
 };
@@ -439,7 +440,7 @@ module.exports.removeFavouriteEvents = async (req) => {
 
   await UserFavourites.updateOne(
     { userId },
-    { $pull: { favouritesEvents: eventId } }
+    { $pull: { favouritesEvents: eventId } },
   );
 };
 
@@ -638,7 +639,7 @@ module.exports.counterList = async (req) => {
   const query = { entityId: entityObjectId, status: STATUS.ACTIVE };
 
   console.log(
-    `[counterList] Starting with entityId: ${entityId}, converted to ObjectId: ${entityObjectId.toString()}`
+    `[counterList] Starting with entityId: ${entityId}, converted to ObjectId: ${entityObjectId.toString()}`,
   );
 
   if (searchTerm) {
@@ -648,7 +649,7 @@ module.exports.counterList = async (req) => {
   const counters = await Counter.find(
     query,
     { counterName: 1, totalTables: 1, isTableService: 1 },
-    { sort: { _id: -1 }, lean: true }
+    { sort: { _id: -1 }, lean: true },
   );
 
   const counterIds = counters.map((counter) => ObjectId(counter._id));
@@ -662,7 +663,7 @@ module.exports.counterList = async (req) => {
   console.log(
     `[counterList] Querying events with entityId: ${entityObjectId.toString()}, counterIds: ${counterIds
       .map((id) => id.toString())
-      .join(", ")}`
+      .join(", ")}`,
   );
 
   const events = await Event.find(
@@ -681,18 +682,18 @@ module.exports.counterList = async (req) => {
       isAllDay: 1,
       entityId: 1,
       eventName: 1,
-    }
+    },
   ).lean();
 
   console.log(
-    `[counterList] Found ${events.length} events for entityId: ${entityId}`
+    `[counterList] Found ${events.length} events for entityId: ${entityId}`,
   );
   console.log(
     `[counterList] CounterIds being checked:`,
-    counterIds.map((id) => id.toString())
+    counterIds.map((id) => id.toString()),
   );
   console.log(
-    `[counterList] Current UTC time: ${nowUTC.toISOString()}, UTC day: ${currentDay} (0=Mon, 6=Sun)`
+    `[counterList] Current UTC time: ${nowUTC.toISOString()}, UTC day: ${currentDay} (0=Mon, 6=Sun)`,
   );
 
   const liveCounterIds = new Set();
@@ -702,11 +703,11 @@ module.exports.counterList = async (req) => {
     console.log(
       `[counterList] Processing event: ${
         event.eventName || event._id
-      }, isRepetitive: ${event.isRepetitive}, isAllDay: ${event.isAllDay}`
+      }, isRepetitive: ${event.isRepetitive}, isAllDay: ${event.isAllDay}`,
     );
     console.log(
       `[counterList] Event counterIds:`,
-      event.counterIds.map((id) => id.toString())
+      event.counterIds.map((id) => id.toString()),
     );
     console.log(`[counterList] Event repetitiveDays:`, event.repetitiveDays);
     const eventFrom = new Date(event.from);
@@ -722,7 +723,7 @@ module.exports.counterList = async (req) => {
       ) {
         // If invalid repetitiveDays, treat as non-repetitive (same as get-ongoing-event-details)
         console.log(
-          `[counterList] Treating repetitive event as non-repetitive (invalid repetitiveDays)`
+          `[counterList] Treating repetitive event as non-repetitive (invalid repetitiveDays)`,
         );
         // Continue to non-repetitive logic below
       } else {
@@ -734,7 +735,7 @@ module.exports.counterList = async (req) => {
         // Step 1: Check overall date range
         if (nowUTC < eventFrom || nowUTC > eventTo) {
           console.log(
-            `[counterList] Repetitive event overall date range check FAILED`
+            `[counterList] Repetitive event overall date range check FAILED`,
           );
           return; // Skip this event
         }
@@ -754,8 +755,8 @@ module.exports.counterList = async (req) => {
               nowUTC.getUTCMonth(),
               nowUTC.getUTCDate(),
               startHour,
-              startMin
-            )
+              startMin,
+            ),
           );
           let todayWindowEnd = new Date(
             Date.UTC(
@@ -763,8 +764,8 @@ module.exports.counterList = async (req) => {
               nowUTC.getUTCMonth(),
               nowUTC.getUTCDate(),
               endHour,
-              endMin
-            )
+              endMin,
+            ),
           );
 
           // Handle midnight-spanning events
@@ -783,7 +784,7 @@ module.exports.counterList = async (req) => {
 
           if (!inTodayWindow && !inYesterdayWindow) {
             console.log(
-              `[counterList] Repetitive event time window check FAILED`
+              `[counterList] Repetitive event time window check FAILED`,
             );
             return; // Skip this event
           }
@@ -796,14 +797,14 @@ module.exports.counterList = async (req) => {
 
         if (event.repetitiveDays[currentDayForCheck] !== 1) {
           console.log(
-            `[counterList] Repetitive event day match FAILED - currentDay: ${currentDayForCheck}, repetitiveDays[${currentDayForCheck}]: ${event.repetitiveDays[currentDayForCheck]}`
+            `[counterList] Repetitive event day match FAILED - currentDay: ${currentDayForCheck}, repetitiveDays[${currentDayForCheck}]: ${event.repetitiveDays[currentDayForCheck]}`,
           );
           return; // Skip this event
         }
 
         // All checks passed for repetitive event
         console.log(
-          `[counterList] Repetitive event ALL CHECKS PASSED, adding counters`
+          `[counterList] Repetitive event ALL CHECKS PASSED, adding counters`,
         );
         event.counterIds.forEach((counterId) => {
           const counterIdStr = counterId.toString();
@@ -812,11 +813,11 @@ module.exports.counterList = async (req) => {
             liveCounterIds.add(counterIdStr);
             counterToEventMap[counterIdStr] = event._id.toString();
             console.log(
-              `[counterList] Added counter ${counterIdStr} to liveCounterIds`
+              `[counterList] Added counter ${counterIdStr} to liveCounterIds`,
             );
           } else {
             console.log(
-              `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`
+              `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`,
             );
           }
         });
@@ -827,7 +828,7 @@ module.exports.counterList = async (req) => {
     // For non-repetitive events (or repetitive events with invalid repetitiveDays):
     {
       console.log(
-        `[counterList] Event is non-repetitive, checking day and time...`
+        `[counterList] Event is non-repetitive, checking day and time...`,
       );
       // For non-repetitive events, check repetitiveDays and time window
       // This handles "Weekends", "Workdays", "Custom", "One Day" types
@@ -837,18 +838,18 @@ module.exports.counterList = async (req) => {
       ) {
         // Check if today matches the repetitiveDays pattern
         console.log(
-          `[counterList] Non-repetitive event has repetitiveDays, checking day match - currentDay: ${currentDay}, repetitiveDays[${currentDay}]: ${event.repetitiveDays[currentDay]}`
+          `[counterList] Non-repetitive event has repetitiveDays, checking day match - currentDay: ${currentDay}, repetitiveDays[${currentDay}]: ${event.repetitiveDays[currentDay]}`,
         );
         if (event.repetitiveDays[currentDay] !== 1) {
           console.log(
-            `[counterList] Non-repetitive event day match FAILED, skipping event`
+            `[counterList] Non-repetitive event day match FAILED, skipping event`,
           );
           return; // Day doesn't match, skip this event
         }
         console.log(`[counterList] Non-repetitive event day match PASSED`);
       } else {
         console.log(
-          `[counterList] Non-repetitive event has no repetitiveDays or invalid array`
+          `[counterList] Non-repetitive event has no repetitiveDays or invalid array`,
         );
       }
 
@@ -865,8 +866,8 @@ module.exports.counterList = async (req) => {
             nowUTC.getUTCMonth(),
             nowUTC.getUTCDate(),
             fromHours,
-            fromMinutes
-          )
+            fromMinutes,
+          ),
         );
 
         let eventEndToday = new Date(
@@ -875,8 +876,8 @@ module.exports.counterList = async (req) => {
             nowUTC.getUTCMonth(),
             nowUTC.getUTCDate(),
             toHours,
-            toMinutes
-          )
+            toMinutes,
+          ),
         );
 
         // Handle events that span midnight
@@ -889,11 +890,11 @@ module.exports.counterList = async (req) => {
         const eventToDate = new Date(event.to);
         const daysDiff = Math.floor(
           (eventToDate.getTime() - eventFromDate.getTime()) /
-            (1000 * 60 * 60 * 24)
+            (1000 * 60 * 60 * 24),
         );
 
         console.log(
-          `[counterList] Non-repetitive event time check: nowUTC=${nowUTC.toISOString()}, eventStartToday=${eventStartToday.toISOString()}, eventEndToday=${eventEndToday.toISOString()}, daysDiff=${daysDiff}`
+          `[counterList] Non-repetitive event time check: nowUTC=${nowUTC.toISOString()}, eventStartToday=${eventStartToday.toISOString()}, eventEndToday=${eventEndToday.toISOString()}, daysDiff=${daysDiff}`,
         );
 
         let timeWindowPassed = false;
@@ -911,7 +912,7 @@ module.exports.counterList = async (req) => {
 
         if (timeWindowPassed) {
           console.log(
-            `[counterList] Non-repetitive event time window PASSED, adding counters`
+            `[counterList] Non-repetitive event time window PASSED, adding counters`,
           );
           event.counterIds.forEach((counterId) => {
             const counterIdStr = counterId.toString();
@@ -920,11 +921,11 @@ module.exports.counterList = async (req) => {
               liveCounterIds.add(counterIdStr);
               counterToEventMap[counterIdStr] = event._id.toString();
               console.log(
-                `[counterList] Added counter ${counterIdStr} to liveCounterIds`
+                `[counterList] Added counter ${counterIdStr} to liveCounterIds`,
               );
             } else {
               console.log(
-                `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`
+                `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`,
               );
             }
           });
@@ -933,7 +934,7 @@ module.exports.counterList = async (req) => {
         }
       } else {
         console.log(
-          `[counterList] Non-repetitive event is all-day, adding all counters`
+          `[counterList] Non-repetitive event is all-day, adding all counters`,
         );
         // For all-day events, add all counterIds that are in the queried list
         event.counterIds.forEach((counterId) => {
@@ -943,11 +944,11 @@ module.exports.counterList = async (req) => {
             liveCounterIds.add(counterIdStr);
             counterToEventMap[counterIdStr] = event._id.toString();
             console.log(
-              `[counterList] Added counter ${counterIdStr} to liveCounterIds (all-day event)`
+              `[counterList] Added counter ${counterIdStr} to liveCounterIds (all-day event)`,
             );
           } else {
             console.log(
-              `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`
+              `[counterList] Skipped counter ${counterIdStr} - not in queried counterIds list`,
             );
           }
         });
@@ -959,10 +960,10 @@ module.exports.counterList = async (req) => {
 
   console.log(
     `[counterList] Final liveCounterIds:`,
-    Array.from(liveCounterIds)
+    Array.from(liveCounterIds),
   );
   console.log(
-    `[counterList] Total counters: ${counters.length}, Live counters: ${liveCounterIds.size}`
+    `[counterList] Total counters: ${counters.length}, Live counters: ${liveCounterIds.size}`,
   );
 
   const counterList = counters
@@ -970,7 +971,7 @@ module.exports.counterList = async (req) => {
       const idStr = counter._id.toString();
       const isLive = liveCounterIds.has(idStr);
       console.log(
-        `[counterList] Counter ${counter.counterName} (${idStr}): isLive=${isLive}`
+        `[counterList] Counter ${counter.counterName} (${idStr}): isLive=${isLive}`,
       );
       return {
         ...counter,
@@ -987,7 +988,9 @@ module.exports.getCounterMenuCategory = async (req) => {
   const { counterId, searchTerm } = req.query;
 
   const query = {
-    ...(counterId ? { counterId } : { counterId: { $exists: true, $ne: null } }),
+    ...(counterId
+      ? { counterId }
+      : { counterId: { $exists: true, $ne: null } }),
   };
   if (searchTerm) {
     query.name = { $regex: searchTerm, $options: "i" };
@@ -1016,7 +1019,7 @@ module.exports.getMenuItems = async (req) => {
   // Now filter by categoryName manually (because it's in a populated field)
   const menuItems = categoryName
     ? menuItems1.filter(
-        (item) => item.menuCategoryId?.categoryName === categoryName
+        (item) => item.menuCategoryId?.categoryName === categoryName,
       )
     : menuItems1;
 
@@ -1084,7 +1087,7 @@ module.exports.addExistingItemToMenu = async (req) => {
   await ItemDetails.updateOne(
     { _id: itemId },
     { $set: updateSet },
-    { upsert: true }
+    { upsert: true },
   ).lean();
 };
 
@@ -1093,7 +1096,7 @@ module.exports.updateLanguage = async (req) => {
   await User.updateOne(
     { id: req.id },
     { $set: { language: selectedLanguage } },
-    { upsert: true }
+    { upsert: true },
   );
 };
 
@@ -1115,7 +1118,7 @@ module.exports.updateFavouriteItem = async (req) => {
         isFavourite,
       },
     },
-    { upsert: true }
+    { upsert: true },
   );
   return;
 };
@@ -1128,13 +1131,13 @@ module.exports.getFavouriteItems = async (req) => {
       counterId: counterId,
       isFavourite: true,
     },
-    { favouriteItemId: 1 }
+    { favouriteItemId: 1 },
   );
 
   const searchTerm = req.query.searchTerm?.trim();
 
   const favouriteItemIds = favouriteItemList.map(
-    (item) => item.favouriteItemId
+    (item) => item.favouriteItemId,
   );
 
   const menuItems = await ItemDetails.aggregate([
@@ -1331,7 +1334,7 @@ module.exports.updateUserDetails = async (req) => {
 
     const passwordCompare = await comparePassword(
       newPassword,
-      userPass.password
+      userPass.password,
     );
     if (passwordCompare) {
       throwError({
@@ -1374,7 +1377,7 @@ module.exports.updateUserDetails = async (req) => {
       await Otp.findOneAndUpdate(
         { email },
         { otp, userId, expiresAt },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       console.log({ otp });
@@ -1391,7 +1394,7 @@ module.exports.updateUserDetails = async (req) => {
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
       message = t("OTP_SENT_NEW_EMAIL", lang);
-      return message; 
+      return message;
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -1422,7 +1425,7 @@ module.exports.updateUserDetails = async (req) => {
       await Otp.findOneAndUpdate(
         { contactNumber },
         { otp, userId, expiresAt },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
@@ -1449,7 +1452,7 @@ module.exports.updateUserDetails = async (req) => {
 
       await User.updateOne(
         { _id: userId },
-        { contactNumber, phoneOtpVerified: true }
+        { contactNumber, phoneOtpVerified: true },
       );
 
       message = t("MOBILE_UPDATE_SUCCESS", lang);
@@ -1469,7 +1472,7 @@ module.exports.processLocationForUser = async (req) => {
     latitude,
     longitude,
     referencePoint.lat,
-    referencePoint.lon
+    referencePoint.lon,
   );
   console.log({ distance });
 
@@ -1584,7 +1587,7 @@ module.exports.userAppFeedback = async (req) => {
     }
     // Validate questionId exists in hardcoded questions
     const question = APP_FEEDBACK_QUESTIONS.find(
-      (q) => q.id === answer.questionId
+      (q) => q.id === answer.questionId,
     );
     if (!question) {
       throwError({
@@ -1654,7 +1657,7 @@ exports.createSearchLogs = async (req) => {
   if (existingLog) {
     return SearchLogs.updateOne(
       { _id: existingLog._id },
-      { $set: { createdAt: new Date(), isRemoved: false } }
+      { $set: { createdAt: new Date(), isRemoved: false } },
     );
   }
 
@@ -1720,7 +1723,7 @@ exports.newlyAddedEntities = async () => {
 exports.popularEntities = async () => {
   const popular = await EntityDetails.find(
     { status: STATUS.ACTIVE },
-    { entityName: 1, city: 1, views: 1, country: 1, status: 1, image: 1 }
+    { entityName: 1, city: 1, views: 1, country: 1, status: 1, image: 1 },
   )
     .sort({ views: -1 })
     .limit(10);
@@ -1802,7 +1805,7 @@ module.exports.getFeedbackAppQuestions = async (req) => {
   const translatedQuestions = APP_FEEDBACK_QUESTIONS.map((question) => {
     const translationKey = `app_feedback_q${question.id.replace(
       "appFeedback",
-      ""
+      "",
     )}`;
 
     const result = {
@@ -1851,7 +1854,7 @@ module.exports.getUserAppFeedbackAnswers = async (req) => {
   // Translate answers to current user language
   const translatedAnswers = userFeedback.answers.map((answer) => {
     const question = APP_FEEDBACK_QUESTIONS.find(
-      (q) => q.id === answer.questionId
+      (q) => q.id === answer.questionId,
     );
 
     // For FRIENDLY type answers, check if the answer is a translatable option
@@ -1859,7 +1862,8 @@ module.exports.getUserAppFeedbackAnswers = async (req) => {
       // Check if answer exists in any language's FRIENDLY options
       const isTranslatableOption = ANSWER_TYPES.FRIENDLY.some(
         (option) =>
-          t(option, "en") === answer.answer || t(option, "de") === answer.answer
+          t(option, "en") === answer.answer ||
+          t(option, "de") === answer.answer,
       );
 
       if (isTranslatableOption) {
@@ -1895,12 +1899,18 @@ module.exports.getUserAppFeedbackAnswers = async (req) => {
 
 module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
-  const query = { entityId, counterIds: counterId };
+  const query = {
+    entityId,
+    counterIds: counterId,
+    status: { $ne: STATUS.DELETED },
+  };
 
   const tables = await Tables.findOne(query, {
     tableCount: 1,
     counterIds: 1,
     entityId: 1,
+    tableSectionName: 1,
+    tableSetionNo: 1,
   })
     .populate({
       path: "counterIds",
@@ -1917,13 +1927,18 @@ module.exports.getTablesUserSide = async (req) => {
   //   return tables;
   // }
 
-  console.log({ tables });
   const tablesRes = [];
+  const counterIdStr = String(counterId);
   tables.counterIds.forEach((counter) => {
-    if (counter._id == counterId && counter.isTableService == true) {
-      tablesRes.push(tables);
+    const cId = counter?._id?.toString?.() ?? counter?.toString?.();
+    if (cId === counterIdStr && counter?.isTableService === true) {
+      tablesRes.push({
+        tableCount: tables.tableCount ?? [],
+        tableSectionName: tables.tableSectionName,
+        tableSetionNo: tables.tableSetionNo,
+        entityId: tables.entityId,
+      });
     }
-    // return false;
   });
 
   return tablesRes;
@@ -1953,7 +1968,15 @@ module.exports.updateNotificationSettings = async (req) => {
   await notificationSettings.updateOne(
     { userId: req.userId },
     { $set: updatedValue },
-    { upsert: true }
+    { upsert: true },
   );
   return;
+};
+
+module.exports.getPlatformFee = async (req) => {
+  const { entityId, eventId } = req.query;
+  const raw = global.PLATFORM_FEES ?? 0;
+  // If stored as percentage (e.g. 5 for 5%), convert to decimal (0.05) for frontend
+  const platformFee = raw > 1 ? raw / 100 : raw;
+  return { platformFee };
 };

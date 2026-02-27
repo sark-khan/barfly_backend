@@ -16,10 +16,7 @@ const {
   KEY_TYPE_PREFIXES,
 } = require("../Utils/globalConstants");
 const throwError = require("./../Utils/throwError");
-const {
-  comparePassword,
-  getJwtToken,
-} = require("../Utils/commonFunction");
+const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
@@ -87,7 +84,8 @@ const loginAdmin = async (req) => {
       email: 1,
       phoneNumber: 1,
       password: 1,
-    }
+      isAdmin: 1,
+    },
   ).lean();
   if (!admin) {
     throwError({
@@ -331,12 +329,11 @@ const getTransactionLogs = async (req) => {
       const txService = getWalleeTransactionsService();
       if (txService && merchantSpaceId && walleeTransactionId) {
         try {
-          const transaction =
-            await txService.getPaymentTransactionsId({
-              space: Number(merchantSpaceId),
-              id: Number(walleeTransactionId),
-              expand: new Set(["paymentConnectorConfiguration"]),
-            });
+          const transaction = await txService.getPaymentTransactionsId({
+            space: Number(merchantSpaceId),
+            id: Number(walleeTransactionId),
+            expand: new Set(["paymentConnectorConfiguration"]),
+          });
           const connectorName =
             transaction.paymentConnectorConfiguration?.name || null;
           walleeDetails = {
@@ -364,7 +361,7 @@ const getTransactionLogs = async (req) => {
         } catch (err) {
           console.error(
             `Failed to fetch Wallee transaction ${walleeTransactionId}:`,
-            err.message
+            err.message,
           );
           // Fallback to commission metadata
           walleeDetails = {
@@ -404,7 +401,7 @@ const getTransactionLogs = async (req) => {
         createdAt: commission.createdAt,
         ...walleeDetails,
       };
-    })
+    }),
   );
 
   return { transactions, totalCount };
@@ -426,6 +423,7 @@ const getTransactionLogs = async (req) => {
 const getAdminUserDetails = async (req) => {
   const { userId } = req;
   const adminDetails = await Admin.findOne({ _id: userId }).lean();
+  adminDetails.platformFees = global.PLATFORM_FEES;
   delete adminDetails.password;
   return adminDetails;
 };
@@ -483,17 +481,24 @@ const editRestaurantsOrUsers = async (req) => {
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
-        { $set: { status, blockUnblockDate } }
-      )
+        { $set: { status, blockUnblockDate } },
+      ),
     );
 
     if (entity.userId) {
       updateOperations.push(
         User.updateOne(
           { _id: entity.userId },
-          { $set: { status } } // Set to either ACTIVE or BLOCKED
-        )
+          { $set: { status } }, // Set to either ACTIVE or BLOCKED
+        ),
       );
+      // Invalidate owner's session when entity is blocked
+      if (status === STATUS.BLOCKED) {
+        const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+        updateOperations.push(
+          redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${entity.userId}`),
+        );
+      }
     }
 
     statusCode =
@@ -521,7 +526,7 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } })
+      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } }),
     );
     statusCode =
       status === STATUS.BLOCKED
@@ -531,6 +536,14 @@ const editRestaurantsOrUsers = async (req) => {
       status: status,
       statusCode,
     });
+
+    // Invalidate user's session/token when blocked so they are logged out immediately
+    if (status === STATUS.BLOCKED) {
+      const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+      updateOperations.push(
+        redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
+      );
+    }
   }
 
   await Promise.all(updateOperations);
@@ -594,7 +607,6 @@ const resetPassword = async (req) => {
 };
 
 const logoutAdmin = async (req) => {
-  const lang = getLanguageFromRequest(req);
   const { userId } = req;
   const admin = await Admin.findById(userId, { _id: 1, status: 1 });
   if (admin.status === STATUS.DELETED) {
@@ -677,7 +689,7 @@ const sendEmailOtp = async (req) => {
   // Check admin exists with this email
   const adminUser = await Admin.findOne(
     { email: trimmedEmail, status: STATUS.ACTIVE },
-    { _id: 1 }
+    { _id: 1 },
   );
 
   if (!adminUser) {

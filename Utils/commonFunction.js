@@ -45,7 +45,7 @@ const getJwtToken = (user, isUser = false) => {
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin === true,
     countrTag: user.countrTag,
   };
   if (!isUser) {
@@ -631,7 +631,7 @@ const genrateCustomerOrderReport = async (req) => {
 
   return await finished;
 };
-const verifyTokenWithoutResponse = (req) => {
+const verifyTokenWithoutResponse = async (req) => {
   const token = req.headers["token"];
   const lang = getLanguageFromRequest(req);
 
@@ -641,24 +641,39 @@ const verifyTokenWithoutResponse = (req) => {
       message: t("AUTH_TOKEN_MISSING", lang),
     });
   }
-  jwt.verify(token, SECRET_KEY, (err, decoded) => {
-    if (err) {
-      throwError({
-        status: STATUS_CODES.NOT_AUTHORIZED,
-        message: t("AUTH_TOKEN_INVALID", lang),
-      });
-    }
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
     req.id = decoded.id;
     req.userId = decoded.userId;
     req.role = decoded.role;
     req.email = decoded.email;
-    // req.contactNumber = decoded.contactNumber;
     req.entityName = decoded.entityName;
     req.entityId = decoded.entityId;
     req.entityType = decoded.entityType;
-    req.isAdmin = decoded.role == ROLES.ADMIN;
+    req.isAdmin = decoded.role === ROLES.ADMIN || decoded.isAdmin === true;
     req.countrTag = decoded.countrTag;
-  });
+
+    // Skip Redis check for admins (they use Admin model)
+    if (!req.isAdmin) {
+      const redisClient = require("../redis");
+      const { KEY_TYPE_PREFIXES } = require("./globalConstants");
+      const redisKey = `${KEY_TYPE_PREFIXES.USER_TOKEN}:${decoded.userId}`;
+      const sessionExists = await redisClient.get(redisKey);
+      if (!sessionExists) {
+        throwError({
+          status: STATUS_CODES.NOT_AUTHORIZED,
+          message: t("USER_ACCOUNT_BLOCKED", lang),
+        });
+      }
+    }
+  } catch (err) {
+    if (err.status) throw err;
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("AUTH_TOKEN_INVALID", lang),
+    });
+  }
 };
 module.exports = {
   hashPassword,

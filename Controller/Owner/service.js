@@ -865,6 +865,92 @@ module.exports.updateMenuItem = async (req) => {
     }
   }
 
+  // When adding a new counter to an existing item, create ItemDetails for the new counter(s)
+  // so the item is displayed on the customer side (items are queried by counterId)
+  if (action === EDIT_ACTION.EDIT && counterIds && counterIds.length > 0) {
+    const existingCounterIds = items
+      .map((i) => i.counterId?.toString())
+      .filter(Boolean);
+    const newCounterIds = counterIds.filter(
+      (cid) =>
+        !existingCounterIds.includes(cid?.toString?.() ?? cid.toString()),
+    );
+
+    if (newCounterIds.length > 0) {
+      const referenceItem = items[0];
+      const categoryToUse = await MenuCategory.findById(
+        referenceItem.menuCategoryId,
+        { categoryName: 1 },
+      ).lean();
+      const itemCategoryName = categoryName ?? categoryToUse?.categoryName;
+
+      if (itemCategoryName) {
+        const newCategories = await MenuCategory.find({
+          entityId: req.entityId,
+          counterId: { $in: newCounterIds },
+          categoryName: itemCategoryName,
+        }).lean();
+
+        const createdItems = [];
+        for (const newCat of newCategories) {
+          const newItem = await ItemDetails.create({
+            itemName: itemName ?? referenceItem.itemName,
+            price: price ?? referenceItem.price,
+            description: description ?? referenceItem.description,
+            nutritionType: nutritionType ?? referenceItem.nutritionType,
+            currency: currency ?? referenceItem.currency,
+            quantity: quantity ?? referenceItem.quantity,
+            menuCategoryId: newCat._id,
+            entityId: req.entityId,
+            counterIds: counterIds,
+            counterId: newCat.counterId,
+            image: fileName ?? referenceItem.image ?? "",
+            isVegan: isVegan ?? referenceItem.isVegan ?? false,
+            isAlcohol18: isAlcohol18 ?? referenceItem.isAlcohol18 ?? false,
+            isAlcohol16: isAlcohol16 ?? referenceItem.isAlcohol16 ?? false,
+            unit: unit ?? referenceItem.unit,
+            inStock: inStock ?? referenceItem.inStock ?? true,
+          });
+          createdItems.push(newItem);
+        }
+
+        if (createdItems.length > 0) {
+          const entityIdForEmit = referenceItem.entityId;
+          io.to(entityIdForEmit.toString()).emit("newItem", createdItems);
+          io.to(`entity_${entityIdForEmit}`).emit("itemUpdate", {
+            action: "create",
+            items: createdItems,
+            entityId: entityIdForEmit.toString(),
+          });
+          sendFirebaseNotification({
+            topic: `owner_entity_${entityIdForEmit}`,
+            showNotification: false,
+            title: "Item Added to Counter",
+            body: "An item has been added to a new counter. Tap to view.",
+            data: {
+              action: "item_update",
+              screen: "item_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+              topic: `owner_entity_${entityIdForEmit}`,
+            },
+          });
+          sendFirebaseNotification({
+            topic: `entity_${entityIdForEmit}`,
+            showNotification: false,
+            title: "Item Added to Counter",
+            body: "An item has been added to a new counter. Tap to view.",
+            data: {
+              action: "item_update",
+              screen: "item_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+              topic: `entity_${entityIdForEmit}`,
+            },
+          });
+        }
+      }
+    }
+  }
+
   if (isCounterRemove) {
     if (action === EDIT_ACTION.EDIT) {
       if (itemName !== undefined) item.itemName = itemName;
@@ -3406,7 +3492,6 @@ module.exports.editBusinessDetails = async (req) => {
         topic: `owner_entity_${entityId}`,
       },
     });
-
   }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
@@ -3690,6 +3775,7 @@ module.exports.addingTables = async (req) => {
       $set: {
         tableSectionName,
         tableCount: tableNumbers,
+        isTableService: true,
       },
     },
   );
@@ -4557,7 +4643,6 @@ module.exports.deleteFeedbackQuestions = async (req) => {
       topic: `owner_entity_${entityId}`,
     },
   });
-
 };
 
 module.exports.restaurantOpen = async (req) => {
@@ -4877,7 +4962,6 @@ module.exports.restaurantCancelOrder = async (req) => {
       topic: `owner_entity_${order.entityId}`,
     },
   });
-
 };
 
 module.exports.getSalesReportHistory = async (req) => {
