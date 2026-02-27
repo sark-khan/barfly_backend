@@ -45,7 +45,7 @@ const getJwtToken = (user, isUser = false) => {
     role: user.role,
     email: user.email,
     contactNumber: user.contactNumber,
-    isAdmin: user.isAdmin,
+    isAdmin: user.isAdmin === true,
     countrTag: user.countrTag,
   };
   if (!isUser) {
@@ -653,23 +653,17 @@ const verifyTokenWithoutResponse = async (req) => {
     req.isAdmin = decoded.role === ROLES.ADMIN || decoded.isAdmin === true;
     req.countrTag = decoded.countrTag;
 
-    // Skip check for admins (they use Admin model)
+    // Skip Redis check for admins (they use Admin model)
     if (!req.isAdmin) {
       const redisClient = require("../redis");
-      const { KEY_TYPE_PREFIXES, STATUS } = require("./globalConstants");
+      const { KEY_TYPE_PREFIXES } = require("./globalConstants");
       const redisKey = `${KEY_TYPE_PREFIXES.USER_TOKEN}:${decoded.userId}`;
       const sessionExists = await redisClient.get(redisKey);
       if (!sessionExists) {
-        // Fallback to DB when Redis doesn't have the data
-        const user = await User.findById(decoded.userId, { status: 1 }).lean();
-        if (!user || user.status === STATUS.BLOCKED) {
-          throwError({
-            status: STATUS_CODES.NOT_AUTHORIZED,
-            message: t("USER_ACCOUNT_BLOCKED", lang),
-          });
-        }
-        // Re-populate Redis for future requests
-        await redisClient.set(redisKey, "1");
+        throwError({
+          status: STATUS_CODES.NOT_AUTHORIZED,
+          message: t("USER_ACCOUNT_BLOCKED", lang),
+        });
       }
     }
   } catch (err) {

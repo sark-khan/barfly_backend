@@ -87,6 +87,7 @@ const loginAdmin = async (req) => {
       email: 1,
       phoneNumber: 1,
       password: 1,
+      isAdmin: 1,
     }
   ).lean();
   if (!admin) {
