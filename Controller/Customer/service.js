@@ -53,7 +53,7 @@ module.exports.getEntities = async (req) => {
     isPopular,
   } = req.query;
   const now = new Date();
-
+  console.log(req.headers["token"], "token");
   if (req.headers["token"] != null) {
     verifyTokenWithoutResponse(req);
   }
