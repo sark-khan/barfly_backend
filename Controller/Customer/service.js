@@ -54,7 +54,8 @@ module.exports.getEntities = async (req) => {
   } = req.query;
   const now = new Date();
   console.log(req.headers["token"], "token");
-  if (req.headers["token"] != null) {
+  const token = req.headers["token"];
+  if (token != null && typeof token === "string" && token.trim().length > 0) {
     verifyTokenWithoutResponse(req);
   }
 
