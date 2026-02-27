@@ -1060,7 +1060,6 @@ module.exports.getCreatedItems = async (req) => {
     entityId,
     query: {
       itemId,
-      menuCategoryId,
       pageNo = 1,
       pageLimit = 8,
       inStock,
@@ -1097,23 +1096,25 @@ module.exports.getCreatedItems = async (req) => {
   }
   let menuCategoryIds;
   if (menuCategoryName) {
+    console.log("menuCategoryName received:", menuCategoryName);
+    console.log("entityId:", entityId);
     const categories = await MenuCategory.find(
-      { categoryName: menuCategoryName },
+      { categoryName: { $regex: new RegExp(`^\\s*${menuCategoryName.trim()}\\s*$`, "i") }, entityId },
       { _id: 1 },
     );
+    console.log("categories found:", categories);
     menuCategoryIds = categories.map((cat) => cat._id);
+    console.log("menuCategoryIds:", menuCategoryIds);
+    if (!menuCategoryIds.length) {
+      console.log("No categories found, returning empty");
+      return { itemsList: [], totalCount: 0 };
+    }
   }
-
-  console.log({ menuCategoryIds });
 
   const query = { entityId };
 
-  if (searchedId && !menuCategoryId) {
+  if (searchedId) {
     query._id = { $ne: searchedId };
-  }
-
-  if (menuCategoryId) {
-    query.menuCategoryId = menuCategoryId;
   }
 
   if (menuCategoryName && menuCategoryIds?.length) {
