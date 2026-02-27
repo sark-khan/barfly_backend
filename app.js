@@ -168,7 +168,7 @@ const unProtectedApis = {
   "/api/customer/auth/send-email-otp": true,
   "/api/customer/auth/reset-password": true,
   "/api/get-entities": true,
-  "/api/customer/entities/get-entities": true,
+  // "/api/customer/entities/get-entities": true,
   "/api/customer/entities/get-entity": true,
   "/api/customer/entities/visitor-count": true,
   "/api/customer/entities/get-counter-list": true,
