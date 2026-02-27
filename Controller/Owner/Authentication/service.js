@@ -245,6 +245,8 @@ module.exports.register = async (req) => {
 
   userDetails.entityDetails = entityDetails;
   const token = getJwtToken(userDetails, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userDetails._id}`, "1");
 
   return {
     message: t("OWNER_REGISTRATION_SUCCESS", lang),
@@ -308,15 +310,22 @@ module.exports.login = async (req) => {
   user.entityDetails = entityDetails;
 
   const token = getJwtToken(user, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${user._id}`, "1");
 
   return { user, entityDetails, token };
 };
 
 module.exports.logoutEntity = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId, { _id: 1 });
-  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-  await redisClient.del(`${prefix}:${entity._id}`);
+  let userId = req.userId || req.id;
+  if (!userId && req.entityId) {
+    const entity = await EntityDetails.findById(req.entityId, { userId: 1 }).lean();
+    userId = entity?.userId;
+  }
+  if (userId) {
+    const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+    await redisClient.del(`${prefix}:${userId}`);
+  }
 };
 
 /**

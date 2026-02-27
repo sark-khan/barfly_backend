@@ -494,6 +494,13 @@ const editRestaurantsOrUsers = async (req) => {
           { $set: { status } } // Set to either ACTIVE or BLOCKED
         )
       );
+      // Invalidate owner's session when entity is blocked
+      if (status === STATUS.BLOCKED) {
+        const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+        updateOperations.push(
+          redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${entity.userId}`)
+        );
+      }
     }
 
     statusCode =
@@ -531,6 +538,14 @@ const editRestaurantsOrUsers = async (req) => {
       status: status,
       statusCode,
     });
+
+    // Invalidate user's session/token when blocked so they are logged out immediately
+    if (status === STATUS.BLOCKED) {
+      const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+      updateOperations.push(
+        redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`)
+      );
+    }
   }
 
   await Promise.all(updateOperations);

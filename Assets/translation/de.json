@@ -195,6 +195,7 @@
   "LOCATION_FETCH_SUCCESS": "Standort erfolgreich abgerufen",
   "LOGS_NOT_FOUND": "Logs nicht gefunden",
   "AUTH_TOKEN_INVALID": "Ungültiges Token",
+  "USER_ACCOUNT_BLOCKED": "Dein Konto wurde gesperrt. Bitte kontaktiere den Support.",
   "AUTH_TOKEN_MISSING": "Kein Token angegeben",
   "CUSTOMER_ALREADY_REGISTERED_EMAIL": "Entschuldigung! Benutzer bereits mit dieser E-Mail registriert",
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Fehler beim Löschen des Kontos",

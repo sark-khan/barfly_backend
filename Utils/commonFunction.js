@@ -630,7 +630,7 @@ const genrateCustomerOrderReport = async (req) => {
 
   return await finished;
 };
-const verifyTokenWithoutResponse = (req) => {
+const verifyTokenWithoutResponse = async (req) => {
   const token = req.headers["token"];
   const lang = getLanguageFromRequest(req);
 
@@ -640,24 +640,45 @@ const verifyTokenWithoutResponse = (req) => {
       message: t("AUTH_TOKEN_MISSING", lang),
     });
   }
-  jwt.verify(token, SECRET_KEY, (err, decoded) => {
-    if (err) {
-      throwError({
-        status: STATUS_CODES.NOT_AUTHORIZED,
-        message: t("AUTH_TOKEN_INVALID", lang),
-      });
-    }
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
     req.id = decoded.id;
     req.userId = decoded.userId;
     req.role = decoded.role;
     req.email = decoded.email;
-    // req.contactNumber = decoded.contactNumber;
     req.entityName = decoded.entityName;
     req.entityId = decoded.entityId;
     req.entityType = decoded.entityType;
-    req.isAdmin = decoded.role == ROLES.ADMIN;
+    req.isAdmin = decoded.role === ROLES.ADMIN || decoded.isAdmin === true;
     req.countrTag = decoded.countrTag;
-  });
+
+    // Skip check for admins (they use Admin model)
+    if (!req.isAdmin) {
+      const redisClient = require("../redis");
+      const { KEY_TYPE_PREFIXES, STATUS } = require("./globalConstants");
+      const redisKey = `${KEY_TYPE_PREFIXES.USER_TOKEN}:${decoded.userId}`;
+      const sessionExists = await redisClient.get(redisKey);
+      if (!sessionExists) {
+        // Fallback to DB when Redis doesn't have the data
+        const user = await User.findById(decoded.userId, { status: 1 }).lean();
+        if (!user || user.status === STATUS.BLOCKED) {
+          throwError({
+            status: STATUS_CODES.NOT_AUTHORIZED,
+            message: t("USER_ACCOUNT_BLOCKED", lang),
+          });
+        }
+        // Re-populate Redis for future requests
+        await redisClient.set(redisKey, "1");
+      }
+    }
+  } catch (err) {
+    if (err.status) throw err;
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("AUTH_TOKEN_INVALID", lang),
+    });
+  }
 };
 module.exports = {
   hashPassword,

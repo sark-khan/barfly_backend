@@ -56,7 +56,7 @@ module.exports.getEntities = async (req) => {
   console.log(req.headers["token"], "token");
   const token = req.headers["token"];
   if (token != null && typeof token === "string" && token.trim().length > 0) {
-    verifyTokenWithoutResponse(req);
+    await verifyTokenWithoutResponse(req);
   }
 
   const userId = req.id || req.userId;

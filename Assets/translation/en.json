@@ -208,6 +208,7 @@
   "LOCATION_FETCH_SUCCESS": "Location fetched successfully.",
   "LOGS_NOT_FOUND": "logs not found.",
   "AUTH_TOKEN_INVALID": "Invalid token",
+  "USER_ACCOUNT_BLOCKED": "Your account has been blocked. Please contact support.",
   "AUTH_TOKEN_MISSING": "No token provided",
   "CUSTOMER_ALREADY_REGISTERED_EMAIL": "Apologies! user already registered with this email.",
   "CUSTOMER_DELETE_ACCOUNT_ERROR": "Error while deleting the account.",
