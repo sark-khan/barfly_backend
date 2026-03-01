@@ -11,6 +11,9 @@ const { createMail, sendSMS } = require("../../../Utils/mailer");
 const {
   getVerificationCodeTemplate,
 } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getOwnerWelcomeTemplate,
+} = require("../../../Utils/emailTemplates/ownerWelcomeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -208,6 +211,20 @@ module.exports.register = async (req) => {
     console.log("Default categories created:", defaultCategories);
   } catch (err) {
     console.error("Error creating default categories:", err.message);
+  }
+
+  // Send welcome email to owner (non-blocking)
+  try {
+    if (email) {
+      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "Owner");
+      createMail({
+        to: email,
+        subject: "Welcome to Countr! 🎉",
+        html: welcomeHtml,
+      });
+    }
+  } catch (err) {
+    console.error("Owner welcome email error:", err.message);
   }
 
   // Send Firebase notification to customer_entity topic for new entity (non-blocking)

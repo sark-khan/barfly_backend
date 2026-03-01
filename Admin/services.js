@@ -24,6 +24,12 @@ const crypto = require("crypto");
 const {
   getVerificationCodeTemplate,
 } = require("../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getAccountStatusTemplate,
+} = require("../Utils/emailTemplates/accountStatusTemplate");
+const {
+  getAdminWelcomeTemplate,
+} = require("../Utils/emailTemplates/adminWelcomeTemplate");
 const { io } = require("../app");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
 const {
@@ -70,7 +76,23 @@ const addAdmin = async (req) => {
     isAdmin: true,
   };
 
-  return Admin.create(adminObj);
+  const newAdmin = await Admin.create(adminObj);
+
+  // Send welcome email to new admin (non-blocking)
+  try {
+    if (email) {
+      const welcomeHtml = getAdminWelcomeTemplate(firstName || "Admin");
+      createMail({
+        to: email,
+        subject: "Welcome to Countr! 🎉",
+        html: welcomeHtml,
+      });
+    }
+  } catch (err) {
+    console.error("Admin welcome email error:", err.message);
+  }
+
+  return newAdmin;
 };
 
 const loginAdmin = async (req) => {
@@ -124,7 +146,7 @@ const getAdmins = async (req) => {
     ];
   }
 
-  const admins = await Admin.find(query).skip(skip).limit(pageLimit).lean();
+  const admins = await Admin.find(query).sort({ _id: -1 }).skip(skip).limit(pageLimit).lean();
   admins.forEach((pass) => {
     delete pass.password;
   });
@@ -465,9 +487,11 @@ const editRestaurantsOrUsers = async (req) => {
   let message = "";
   const blockUnblockDate = new Date();
   let statusCode = STATUS_CODES.OK;
+  let entity = null;
+  let user = null;
 
   if (entityId) {
-    const entity = await EntityDetails.findOne({
+    entity = await EntityDetails.findOne({
       _id: entityId,
       status: { $in: [STATUS.ACTIVE, STATUS.BLOCKED] },
     }).lean();
@@ -512,7 +536,7 @@ const editRestaurantsOrUsers = async (req) => {
   }
 
   if (userId) {
-    const user = await User.findOne({
+    user = await User.findOne({
       _id: userId,
       status: { $in: [STATUS.ACTIVE, STATUS.BLOCKED] },
       role: ROLES.CUSTOMER,
@@ -547,6 +571,43 @@ const editRestaurantsOrUsers = async (req) => {
   }
 
   await Promise.all(updateOperations);
+
+  // Send email notification about account status change
+  try {
+    if (entityId && entity) {
+      const owner = entity.userId
+        ? await User.findOne({ _id: entity.userId }, { email: 1, firstName: 1 }).lean()
+        : null;
+      if (owner?.email) {
+        const html = getAccountStatusTemplate(
+          entity.entityName || owner.firstName || "User",
+          status,
+          "entity",
+        );
+        await createMail({
+          to: owner.email,
+          subject: `Countr - Your entity has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+          html,
+        });
+      }
+    }
+
+    if (userId && user?.email) {
+      const html = getAccountStatusTemplate(
+        user.firstName || "User",
+        status,
+        "account",
+      );
+      await createMail({
+        to: user.email,
+        subject: `Countr - Your account has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+        html,
+      });
+    }
+  } catch (err) {
+    console.error("Status change email error:", err.message);
+  }
+
   return { statusCode };
 };
 
