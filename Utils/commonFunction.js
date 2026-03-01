@@ -417,18 +417,17 @@ const genrateCustomerOrderReport = async (req) => {
         });
 
         // Get user's email to send the PDF
-        const User = require("../Models/User");
         const { createMail } = require("./mailer");
 
-        console.log("User found:", user);
+        console.log("User found:", currentUser);
 
-        if (user && user.email) {
+        if (currentUser && currentUser.email) {
           // Send email with PDF attachment
           const mailData = {
-            to: user.email, // Send to actual user email
+            to: currentUser.email,
             subject: "Your Order Report",
             text: `Dear ${
-              user.fullName || "Customer"
+              currentUser.fullName || "Customer"
             },\n\nPlease find your order report attached.\n\nThank you for using our service!\n\nBest regards,\nCountr App Team`,
             attachments: [
               {
@@ -443,11 +442,11 @@ const genrateCustomerOrderReport = async (req) => {
             const emailResult = await createMail(mailData);
             if (emailResult) {
               console.log(
-                `✅ Order report email sent successfully to: ${user.email}`
+                `✅ Order report email sent successfully to: ${currentUser.email}`
               );
             } else {
               console.warn(
-                `⚠️ Failed to send email to: ${user.email}, but PDF was generated successfully`
+                `⚠️ Failed to send email to: ${currentUser.email}, but PDF was generated successfully`
               );
             }
           } catch (emailError) {
