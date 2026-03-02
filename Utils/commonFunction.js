@@ -401,8 +401,8 @@ const genrateCustomerOrderReport = async (req) => {
       try {
         const pdfBuffer = Buffer.concat(buffers);
         const timestamp = Date.now();
-        const fileKey = `orders/${userId}/customer_trades_${timestamp}.pdf`;
-        const filename = `customer_trades_${timestamp}.pdf`;
+        const fileKey = `orders/${userId}/order_report_${timestamp}.pdf`;
+        const filename = `order_report_${timestamp}.pdf`;
 
         const s3Upload = await uploadBufferToS3(pdfBuffer, fileKey);
         const signedUrl = generatePresignedUrl(fileKey);
