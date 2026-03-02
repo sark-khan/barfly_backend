@@ -1002,7 +1002,7 @@ module.exports.getCounterMenuCategory = async (req) => {
 module.exports.getMenuItems = async (req) => {
   let { menuCategoryId, searchTerm, counterId, entityId } = req.query;
 
-  let filter = { inStock: true, counterId: counterId, entityId };
+  let filter = { counterId: counterId, entityId };
 
   if (searchTerm && searchTerm.trim()) {
     filter.itemName = { $regex: searchTerm, $options: "i" };

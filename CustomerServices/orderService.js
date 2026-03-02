@@ -96,7 +96,7 @@ const createOrder = async (req, session) => {
   const lastOrder = await Order.find(
     { entityId },
     { tokenNumber: 1 },
-    { sort: { _id: -1 } },
+    { sort: { _id: -1 } }
   ).limit(1);
   let tokenNumber = lastOrder[0] ? lastOrder[0].tokenNumber + 1 : 1;
 
@@ -299,7 +299,7 @@ const updateStatusOfOrder = async (req) => {
   const updatedOrder = await Order.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
-    { new: true },
+    { new: true }
   ).populate("userId");
 
   io.to(order.entityId.toString()).emit("orderStatusUpdate", {
@@ -517,7 +517,7 @@ const getEntityOrders = async (req) => {
 
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
-      { _id: 1 },
+      { _id: 1 }
     ).lean();
 
     if (matchingItems.length > 0) {
@@ -626,7 +626,7 @@ const getOfflineOrders = async (req) => {
 
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
-      { _id: 1 },
+      { _id: 1 }
     ).lean();
 
     if (matchingItems.length > 0) {
@@ -711,7 +711,7 @@ const updateOfflineOrders = async (req) => {
   const updatedOrder = await OfflineOrders.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
-    { new: true },
+    { new: true }
   ).populate("userId");
 
   // Emit socket event for offline order status update
@@ -891,7 +891,7 @@ const particularOrderDetailsCustomer = async (req) => {
       finalAmount: 1,
       discountAmount: 1,
       platformFees: 1,
-    },
+    }
   )
     .populate({
       path: "items.itemId",
@@ -914,7 +914,7 @@ const particularOrderDetailsCustomer = async (req) => {
   }
   if (orderDetails.entityId && orderDetails.entityId.image) {
     orderDetails.entityId.image = generatePresignedUrl(
-      orderDetails.entityId.image,
+      orderDetails.entityId.image
     );
     orderDetails.finalAmount = orderDetails.finalAmount;
   }
@@ -935,7 +935,7 @@ const getRestaurantOrdersAndCount = async (req) => {
         $lt: new Date(`${year}-12-31T23:59:59.999Z`),
       },
     },
-    { entityId: 1 },
+    { entityId: 1 }
   );
 
   if (orders.length === 0) return [];
@@ -1004,7 +1004,7 @@ const getOrderGroupByYears = async (req) => {
 
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
-    { entityName: 1, entityType: 1 },
+    { entityName: 1, entityType: 1 }
   ).lean();
 
   const entityMapper = {};
@@ -1046,11 +1046,11 @@ const getOrderGroupByMonths = async (req) => {
 
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
-    { entityName: 1, entityType: 1 },
+    { entityName: 1, entityType: 1 }
   ).lean();
 
   const entityMapper = Object.fromEntries(
-    entities.map((doc) => [doc._id.toString(), doc]),
+    entities.map((doc) => [doc._id.toString(), doc])
   );
 
   const ordersByMonthAndEntity = await Order.aggregate([
@@ -1139,7 +1139,7 @@ const getOrderGroupByYearsForEntity = async (req) => {
   const entityIds = [];
   let allOrders = await Order.find(
     { entityId },
-    { items: 1, tokenNumber: 1, updatedAt: 1, status: 1 },
+    { items: 1, tokenNumber: 1, updatedAt: 1, status: 1 }
   ).lean();
   allOrders.forEach((doc) => {
     doc.items.forEach((item) => {
@@ -1187,7 +1187,7 @@ const pastTicketYears = async (req) => {
   const orderList = await Order.find(
     { userId },
     { createdAt: 1 },
-    { sort: { _id: -1 } },
+    { sort: { _id: -1 } }
   );
   const yearList = [];
   orderList.map((orders) => {
@@ -1234,7 +1234,7 @@ const cancelOrder = async (req) => {
 
   await Order.updateOne(
     { _id: orderId },
-    { $set: { status: ORDER_STATUS.CANCELLED } },
+    { $set: { status: ORDER_STATUS.CANCELLED } }
   );
   console.log({ id: order.entityId });
   io.to(order.entityId._id.toString()).emit("cancelOrder", {
@@ -1329,7 +1329,7 @@ const cancelOrder = async (req) => {
       if (failedTokens.length) {
         await User.updateOne(
           { _id: order.entityId.userId._id },
-          { $pull: { fcmToken: { $in: failedTokens } } },
+          { $pull: { fcmToken: { $in: failedTokens } } }
         );
       }
     }
@@ -1556,7 +1556,7 @@ const getEventOrderSummary = async (req) => {
   orderDetails
     .filter(
       (order) =>
-        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status),
+        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status)
     )
     .forEach((order) => {
       const orderHour = getDateHourKey(order.createdAt);
