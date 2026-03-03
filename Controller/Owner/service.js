@@ -3785,25 +3785,37 @@ module.exports.addingTables = async (req) => {
 
 module.exports.getCountersForTableManagement = async (req) => {
   const { entityId } = req;
+  const { tableId } = req.query;
 
   const tableManagement = await Tables.find({ entityId }).lean();
 
-  const counterIds = new Set();
+  const assignedCounterIds = new Set();
+  let currentTableCounterIds = [];
 
   tableManagement.forEach((table) => {
     if (table.status == STATUS.DELETED) return;
-    table.counterIds.forEach((counterId) => {
-      counterIds.add(counterId);
-    });
+    const isCurrentTable = tableId && table._id.toString() === tableId;
+    if (isCurrentTable) {
+      currentTableCounterIds = table.counterIds.map((id) => id.toString());
+    } else {
+      table.counterIds.forEach((counterId) => {
+        assignedCounterIds.add(counterId.toString());
+      });
+    }
   });
 
   const counterList = await Counter.find({
-    _id: { $nin: Array.from(counterIds) },
+    _id: { $nin: Array.from(assignedCounterIds) },
     entityId: entityId,
     status: STATUS.ACTIVE,
   });
 
-  return counterList;
+  return counterList.map((counter) => ({
+    ...counter.toObject(),
+    isAssignedToCurrentTable: currentTableCounterIds.includes(
+      counter._id.toString()
+    ),
+  }));
 };
 
 module.exports.getCountersForEvents = async (req) => {
