@@ -169,6 +169,7 @@ const genrateCustomerOrderReport = async (req) => {
     .fillColor("#888888")
     .text("Page 1", 0, pageHeight - 30, { align: "center", width: pageWidth })
     .fillColor("#000000");
+  doc.y = topMargin + 90;
 
   const user = await EntityDetails.findOne({ _id: entityId }).populate({
     path: "userId",

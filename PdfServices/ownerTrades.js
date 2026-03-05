@@ -1,4 +1,5 @@
 const PDFDocument = require("pdfkit");
+const mongoose = require("mongoose");
 
 const { ORDER_STATUS, STATUS_CODES } = require("../Utils/globalConstants");
 const Order = require("../Models/Order");
@@ -25,17 +26,27 @@ module.exports.ownerTrades = async (req) => {
   end.setHours(23, 59, 59, 999);
 
   const payload = { status: ORDER_STATUS.COMPLETED };
-  const doc = new PDFDocument({ size: [595, 842], margins: { top: 72, bottom: 0, left: 72, right: 72 } });
+  const doc = new PDFDocument({
+    size: [595, 842],
+    margins: { top: 72, bottom: 0, left: 72, right: 72 },
+  });
   const buffers = [];
 
   doc.on("data", (chunk) => buffers.push(chunk));
+
+  let entityNameForFile = "";
 
   const finished = new Promise((resolve, reject) => {
     doc.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(buffers);
         const timestamp = Date.now();
-        const fileKey = `reports/${userId}/owner_trades_${timestamp}.pdf`;
+        const safeName = (entityNameForFile || "entity")
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+        const filename = `Entity_${safeName}_${timestamp}.pdf`;
+        const fileKey = `reports/${userId}/${filename}`;
 
         const s3Upload = await uploadBufferToS3(pdfBuffer, fileKey);
         const signedUrl = await generatePresignedUrl(fileKey);
@@ -45,7 +56,7 @@ module.exports.ownerTrades = async (req) => {
           entityId,
           fromDate,
           toDate,
-          filename: `owner_trades_${timestamp}.pdf`,
+          filename,
           filePath: s3Upload.Location,
         });
 
@@ -133,12 +144,14 @@ module.exports.ownerTrades = async (req) => {
     .fillColor("#888888")
     .text("Page 1", 0, pageHeight - 30, { align: "center", width: pageWidth })
     .fillColor("#000000");
+  doc.y = topMargin + 90;
 
   const user = await EntityDetails.findOne({ userId }).populate({
     path: "userId",
     select: "fullName",
     model: "User",
   });
+  entityNameForFile = user?.entityName || "";
 
   doc
     .fontSize(12)
@@ -188,7 +201,7 @@ module.exports.ownerTrades = async (req) => {
       $gte: start,
       $lte: end,
     },
-  });
+  }); // no populate — keep raw itemId ObjectId so deleted items aren't lost
 
   const counterMap = {};
   for (const order of orders) {
@@ -230,33 +243,52 @@ module.exports.ownerTrades = async (req) => {
       );
   }
 
-  // ── Item-wise analysis ──────────────────────────────────────────────
+  // ── Item-wise analysis ───────────────────────────────────────────────
+  console.log("[ownerTrades] total orders:", orders.length);
+
+  // Collect all unique raw itemIds (ObjectId preserved, not null-ed by populate)
+  const allItemIds = new Set();
+  for (const order of orders) {
+    for (const orderItem of order.items || []) {
+      const id = orderItem.itemId?.toString();
+      if (id) allItemIds.add(id);
+    }
+  }
+
+  // Batch fetch live item details
+  const itemDetailsMap = {};
+  if (allItemIds.size > 0) {
+    const objectIds = [...allItemIds].map((id) => new mongoose.Types.ObjectId(id));
+    const itemDocs = await ItemDetails.find({ _id: { $in: objectIds } }, "itemName price").lean();
+    console.log("[ownerTrades] itemDocs fetched:", itemDocs.length);
+    for (const doc of itemDocs) {
+      itemDetailsMap[doc._id.toString()] = doc;
+    }
+  }
+
   const itemMap = {};
   for (const order of orders) {
     for (const orderItem of order.items || []) {
       const itemId = orderItem.itemId?.toString();
       if (!itemId) continue;
+      const liveDoc = itemDetailsMap[itemId];
+      // Prefer live data; fall back to snapshot stored at order creation
+      const itemName = liveDoc?.itemName || orderItem.itemName;
+      const itemPrice = liveDoc?.price ?? orderItem.itemPrice ?? 0;
+      console.log(`[ownerTrades] order ${order._id} item:`, JSON.stringify({ itemId, itemName, itemPrice, fromSnapshot: !liveDoc }));
       if (!itemMap[itemId]) {
-        itemMap[itemId] = { quantity: 0, totalAmount: 0, itemDoc: null };
+        itemMap[itemId] = { quantity: 0, totalAmount: 0, itemName, itemPrice, lastOrderedAt: order.createdAt };
       }
       itemMap[itemId].quantity += orderItem.quantity || 1;
+      itemMap[itemId].totalAmount = itemMap[itemId].itemPrice * itemMap[itemId].quantity;
+      if (order.createdAt > itemMap[itemId].lastOrderedAt) {
+        itemMap[itemId].lastOrderedAt = order.createdAt;
+      }
     }
   }
+  console.log("[ownerTrades] itemMap:", JSON.stringify(Object.entries(itemMap).map(([id, e]) => ({ id, itemName: e.itemName, quantity: e.quantity, totalAmount: e.totalAmount }))));
 
-  // Fetch item details for all unique itemIds in one query
-  const itemIds = Object.keys(itemMap);
-  if (itemIds.length > 0) {
-    const itemDocs = await ItemDetails.find(
-      { _id: { $in: itemIds } },
-      "itemName price"
-    ).lean();
-
-    for (const item of itemDocs) {
-      const entry = itemMap[item._id.toString()];
-      entry.itemDoc = item;
-      entry.totalAmount = (item.price || 0) * entry.quantity;
-    }
-
+  if (Object.keys(itemMap).length > 0) {
     // Divider
     doc
       .moveTo(leftMargin + 12, doc.y + 30)
@@ -269,7 +301,7 @@ module.exports.ownerTrades = async (req) => {
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
-      .text("Item name", leftMargin + 12, doc.y + 15)
+      .text("Item name", leftMargin + 12, doc.y + 50)
       .text("Item price", leftMargin + 200, doc.y - 15)
       .text("Orders", leftMargin + 320, doc.y - 15)
       .text(
@@ -278,15 +310,16 @@ module.exports.ownerTrades = async (req) => {
         doc.y - 28
       );
 
-    // Table rows
-    for (const [, entry] of Object.entries(itemMap)) {
-      if (!entry.itemDoc) continue;
-      const { itemName, price } = entry.itemDoc;
+    // Table rows — sorted by most recently ordered first
+    const sortedItems = Object.values(itemMap).sort(
+      (a, b) => new Date(b.lastOrderedAt) - new Date(a.lastOrderedAt)
+    );
+    for (const entry of sortedItems) {
       doc
         .fontSize(12)
         .font("Helveticaneue-Light")
-        .text(itemName || "[Item]", leftMargin + 12, doc.y + 20)
-        .text(`${(price || 0).toFixed(2)}`, leftMargin + 200, doc.y - 15)
+        .text(entry.itemName || "[Item]", leftMargin + 12, doc.y + 20)
+        .text(`${(entry.itemPrice || 0).toFixed(2)}`, leftMargin + 200, doc.y - 15)
         .text(entry.quantity.toString(), leftMargin + 330, doc.y - 12)
         .text(
           entry.totalAmount.toFixed(2),
