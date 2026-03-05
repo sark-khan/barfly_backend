@@ -317,12 +317,26 @@ const updateStatusOfOrder = async (req) => {
     status,
   });
 
+  const statusKeyMap = {
+    [ORDER_STATUS.WAITING]: "ORDER_STATUS_WAITING",
+    [ORDER_STATUS.IN_PROGRESS]: "ORDER_STATUS_IN_PROGRESS",
+    [ORDER_STATUS.READY]: "ORDER_STATUS_READY",
+    [ORDER_STATUS.COMPLETED]: "ORDER_STATUS_COMPLETED",
+    [ORDER_STATUS.CANCELLED]: "ORDER_STATUS_CANCELLED",
+  };
+  const statusLabel = statusKeyMap[status]
+    ? t(statusKeyMap[status], lang)
+    : status;
+
   // Send Firebase notification to owner app for order status update
   sendFirebaseNotification({
     topic: `owner_entity_${order.entityId}`,
     showNotification: true,
-    title: "Order Status Updated",
-    body: `Order #${order.tokenNumber} is now ${status}.`,
+    title: t("ORDER_STATUS_UPDATE_TITLE", lang),
+    body: t("ORDER_STATUS_UPDATE_BODY_OWNER", lang, {
+      orderNo: order.tokenNumber,
+      status: statusLabel,
+    }),
     data: {
       action: "order_status_update",
       screen: "order_screen",
@@ -339,8 +353,11 @@ const updateStatusOfOrder = async (req) => {
   sendFirebaseNotification({
     topic: `user_${userId}`,
     showNotification: true,
-    title: "Order Status Updated",
-    body: `Order No: ${orderNo} is ${status}!`,
+    title: t("ORDER_STATUS_UPDATE_TITLE", lang),
+    body: t("ORDER_STATUS_UPDATE_BODY_CUSTOMER", lang, {
+      orderNo,
+      status: statusLabel,
+    }),
     data: {
       orderId: orderId,
       status: status,
