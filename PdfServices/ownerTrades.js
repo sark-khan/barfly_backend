@@ -91,8 +91,16 @@ module.exports.ownerTrades = async (req) => {
       )
       .fontSize(11)
       .font("Helveticaneue-Light")
-      .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130)
-      .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130);
+      .text(
+        "www.countr-app.ch",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 42
+      )
+      .text(
+        "info@countr-app.ch",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 56
+      );
   };
 
   let pageNum = 1;
@@ -131,11 +139,11 @@ module.exports.ownerTrades = async (req) => {
   doc
     .fontSize(12)
     .font("Helvetica-Bold")
-    .text(user.entityName || "[Restaurant Name]", leftMargin + 12, doc.y + 50)
+    .text(user?.entityName || "[Restaurant Name]", leftMargin + 12, doc.y + 50)
     .font("Helveticaneue-Light")
-    .text(user.userId.fullName || "[Account Owner Name]")
-    .text(`${user.location || "[Street]"} ${user.buildingName || ""}`.trim())
-    .text(`${user.zipcode || "ZIP"} ${user.city || "City"}`);
+    .text(user?.userId?.fullName || "[Account Owner Name]")
+    .text(`${user?.location || "[Street]"} ${user?.buildingName || ""}`.trim())
+    .text(`${user?.zipcode || "ZIP"} ${user?.city || "City"}`);
 
   doc
     .fontSize(20)

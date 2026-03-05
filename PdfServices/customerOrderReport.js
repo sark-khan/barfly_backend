@@ -121,8 +121,8 @@ const genrateCustomerOrderReport = async (req) => {
       .text("countr app", pageWidth - leftMargin - rightMargin - 130, topMargin + 25)
       .fontSize(11)
       .font("Helveticaneue-Light")
-      .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130)
-      .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130);
+      .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130, topMargin + 42)
+      .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130, topMargin + 56);
   };
 
   let pageNum = 1;
@@ -182,7 +182,7 @@ const genrateCustomerOrderReport = async (req) => {
       leftMargin + 12,
       doc.y + 3
     )
-    .text(`${currentUser.email}`, leftMargin + 350, doc.y - 19.5);
+    .text(`${currentUser?.email || ""}`, leftMargin + 350, doc.y - 19.5);
 
   doc
     .moveTo(leftMargin + 12, doc.y + 20)
@@ -260,7 +260,7 @@ const genrateCustomerOrderReport = async (req) => {
     .font("Helvetica-Bold")
     .text("Total Amount (including tax):", leftMargin + 190, doc.y + 15)
     .text(
-      `${orders.finalAmount.toFixed(2)} CHF`,
+      `${(orders.finalAmount || 0).toFixed(2)} CHF`,
       pageWidth - leftMargin - rightMargin - 130,
       doc.y - 16.5
     );
