@@ -25,7 +25,7 @@ module.exports.ownerTrades = async (req) => {
   end.setHours(23, 59, 59, 999);
 
   const payload = { status: ORDER_STATUS.COMPLETED };
-  const doc = new PDFDocument({ size: [595, 842] });
+  const doc = new PDFDocument({ size: [595, 842], margins: { top: 72, bottom: 0, left: 72, right: 72 } });
   const buffers = [];
 
   doc.on("data", (chunk) => buffers.push(chunk));
@@ -104,9 +104,12 @@ module.exports.ownerTrades = async (req) => {
   };
 
   let pageNum = 1;
+  let isInPageAdded = false;
 
   // Draw header + page number on every new page
   doc.on("pageAdded", () => {
+    if (isInPageAdded) return; // prevent infinite recursion
+    isInPageAdded = true;
     pageNum++;
     drawHeader();
     doc
@@ -118,7 +121,8 @@ module.exports.ownerTrades = async (req) => {
         width: pageWidth,
       })
       .fillColor("#000000");
-    doc.moveDown(5);
+    doc.y = topMargin + 90;
+    isInPageAdded = false;
   });
 
   // Draw header + page 1 footer

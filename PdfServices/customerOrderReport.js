@@ -13,7 +13,10 @@ const genrateCustomerOrderReport = async (req) => {
   const { userId, entityId, orders, mode = "Online" } = req;
 
   console.log({ userId, entityId, orders, mode });
-  const doc = new PDFDocument({ size: [595, 842] });
+  const doc = new PDFDocument({
+    size: [595, 842],
+    margins: { top: 72, bottom: 0, left: 72, right: 72 },
+  });
   const buffers = [];
   const currentUser = await User.findById(userId).select("email fullName");
 
@@ -118,25 +121,44 @@ const genrateCustomerOrderReport = async (req) => {
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
-      .text("countr app", pageWidth - leftMargin - rightMargin - 130, topMargin + 25)
+      .text(
+        "countr app",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 25
+      )
       .fontSize(11)
       .font("Helveticaneue-Light")
-      .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130, topMargin + 42)
-      .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130, topMargin + 56);
+      .text(
+        "www.countr-app.ch",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 42
+      )
+      .text(
+        "info@countr-app.ch",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 56
+      );
   };
 
   let pageNum = 1;
+  let isInPageAdded = false;
 
   doc.on("pageAdded", () => {
+    if (isInPageAdded) return; // prevent infinite recursion
+    isInPageAdded = true;
     pageNum++;
     drawHeader();
     doc
       .fontSize(10)
       .font("Helveticaneue-Light")
       .fillColor("#888888")
-      .text(`Page ${pageNum}`, 0, pageHeight - 30, { align: "center", width: pageWidth })
+      .text(`Page ${pageNum}`, 0, pageHeight - 30, {
+        align: "center",
+        width: pageWidth,
+      })
       .fillColor("#000000");
-    doc.moveDown(5);
+    doc.y = topMargin + 90;
+    isInPageAdded = false;
   });
 
   // Page 1 header + footer
