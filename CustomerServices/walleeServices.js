@@ -922,22 +922,24 @@ const handleWalleeWebhook = async (req) => {
                   .join(", ")}`
               );
 
-              // Update all orders for this event
-              // Note: Orders remain in WAITING status - payment completion doesn't change order status
-              // Order status changes when restaurant processes the order (IN_PROGRESS -> READY -> COMPLETED)
-              // But we can add payment confirmation metadata if needed
+              // Extract actual payment method name from Wallee transaction object
+              // paymentConnectorConfiguration.paymentMethodConfiguration.name holds the real name (e.g. "TWINT", "VISA", "Mastercard")
+              const paymentMethod =
+                transaction.paymentConnectorConfiguration?.paymentMethodConfiguration?.name ||
+                transaction.paymentConnectorConfiguration?.name ||
+                null;
 
-              // For now, we'll just log that payment is confirmed
-              // If you need to track payment status separately, add a paymentStatus field to Order model
-              console.log(
-                `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}`
+              console.log(`💳 Payment method from Wallee: ${paymentMethod || "unknown"}`);
+
+              // Save payment method on all orders for this event
+              await Order.updateMany(
+                { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
+                { $set: { ...(paymentMethod && { paymentMethod }) } }
               );
 
-              // Optional: You can add a payment confirmation timestamp or status field here
-              // await Order.updateMany(
-              //   { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
-              //   { $set: { paymentConfirmedAt: new Date(), paymentTransactionId: transaction.id } }
-              // );
+              console.log(
+                `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}${paymentMethod ? ` via ${paymentMethod}` : ""}`
+              );
             } else {
               console.log(`ℹ️ No orders found for event ${eventId}`);
               console.log(

@@ -48,6 +48,7 @@ const orderSchme = new Schema(
     couponCode: { type: String },
     tax: { type: Number },
     platformFees: { type: Number },
+    paymentMethod: { type: String },
   },
   { timestamps: true, minimize: false }
 );

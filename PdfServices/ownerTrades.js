@@ -9,6 +9,7 @@ const {
   generatePresignedUrl,
 } = require("../Controller/aws-service");
 const SalesReport = require("../Models/SalesReport");
+const ItemDetails = require("../Models/ItemDetails");
 
 module.exports.ownerTrades = async (req) => {
   const {
@@ -73,24 +74,53 @@ module.exports.ownerTrades = async (req) => {
 
   const logoPath = "Assets/countr_logo.png";
   const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
   const leftMargin = 25;
   const rightMargin = 20;
   const topMargin = 30;
 
-  doc.image(logoPath, leftMargin, topMargin, { width: 250, height: 70 });
+  const drawHeader = () => {
+    doc.image(logoPath, leftMargin, topMargin, { width: 250, height: 70 });
+    doc
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text(
+        "countr app",
+        pageWidth - leftMargin - rightMargin - 130,
+        topMargin + 25
+      )
+      .fontSize(11)
+      .font("Helveticaneue-Light")
+      .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130)
+      .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130);
+  };
 
+  let pageNum = 1;
+
+  // Draw header + page number on every new page
+  doc.on("pageAdded", () => {
+    pageNum++;
+    drawHeader();
+    doc
+      .fontSize(10)
+      .font("Helveticaneue-Light")
+      .fillColor("#888888")
+      .text(`Page ${pageNum}`, 0, pageHeight - 30, {
+        align: "center",
+        width: pageWidth,
+      })
+      .fillColor("#000000");
+    doc.moveDown(5);
+  });
+
+  // Draw header + page 1 footer
+  drawHeader();
   doc
-    .fontSize(12)
-    .font("Helvetica-Bold")
-    .text(
-      "countr app",
-      pageWidth - leftMargin - rightMargin - 130,
-      topMargin + 25
-    )
-    .fontSize(11)
+    .fontSize(10)
     .font("Helveticaneue-Light")
-    .text("www.countr-app.ch", pageWidth - leftMargin - rightMargin - 130)
-    .text("info@countr-app.ch", pageWidth - leftMargin - rightMargin - 130);
+    .fillColor("#888888")
+    .text("Page 1", 0, pageHeight - 30, { align: "center", width: pageWidth })
+    .fillColor("#000000");
 
   const user = await EntityDetails.findOne({ userId }).populate({
     path: "userId",
@@ -104,6 +134,7 @@ module.exports.ownerTrades = async (req) => {
     .text(user.entityName || "[Restaurant Name]", leftMargin + 12, doc.y + 50)
     .font("Helveticaneue-Light")
     .text(user.userId.fullName || "[Account Owner Name]")
+    .text(`${user.location || "[Street]"} ${user.buildingName || ""}`.trim())
     .text(`${user.zipcode || "ZIP"} ${user.city || "City"}`);
 
   doc
@@ -185,6 +216,72 @@ module.exports.ownerTrades = async (req) => {
         pageWidth - leftMargin - rightMargin - 130,
         doc.y - 14
       );
+  }
+
+  // ── Item-wise analysis ──────────────────────────────────────────────
+  const itemMap = {};
+  for (const order of orders) {
+    for (const orderItem of order.items || []) {
+      const itemId = orderItem.itemId?.toString();
+      if (!itemId) continue;
+      if (!itemMap[itemId]) {
+        itemMap[itemId] = { quantity: 0, totalAmount: 0, itemDoc: null };
+      }
+      itemMap[itemId].quantity += orderItem.quantity || 1;
+    }
+  }
+
+  // Fetch item details for all unique itemIds in one query
+  const itemIds = Object.keys(itemMap);
+  if (itemIds.length > 0) {
+    const itemDocs = await ItemDetails.find(
+      { _id: { $in: itemIds } },
+      "itemName price"
+    ).lean();
+
+    for (const item of itemDocs) {
+      const entry = itemMap[item._id.toString()];
+      entry.itemDoc = item;
+      entry.totalAmount = (item.price || 0) * entry.quantity;
+    }
+
+    // Divider
+    doc
+      .moveTo(leftMargin + 12, doc.y + 30)
+      .lineTo(pageWidth - rightMargin - 40, doc.y + 30)
+      .lineWidth(1)
+      .strokeColor("#000000")
+      .stroke();
+
+    // Table headers
+    doc
+      .fontSize(12)
+      .font("Helvetica-Bold")
+      .text("Item name", leftMargin + 12, doc.y + 15)
+      .text("Item price", leftMargin + 200, doc.y - 15)
+      .text("Orders", leftMargin + 320, doc.y - 15)
+      .text(
+        "Total Amount\n[CHF]",
+        pageWidth - leftMargin - rightMargin - 130,
+        doc.y - 28
+      );
+
+    // Table rows
+    for (const [, entry] of Object.entries(itemMap)) {
+      if (!entry.itemDoc) continue;
+      const { itemName, price } = entry.itemDoc;
+      doc
+        .fontSize(12)
+        .font("Helveticaneue-Light")
+        .text(itemName || "[Item]", leftMargin + 12, doc.y + 20)
+        .text(`${(price || 0).toFixed(2)}`, leftMargin + 200, doc.y - 15)
+        .text(entry.quantity.toString(), leftMargin + 330, doc.y - 12)
+        .text(
+          entry.totalAmount.toFixed(2),
+          pageWidth - leftMargin - rightMargin - 130,
+          doc.y - 14
+        );
+    }
   }
 
   doc.fillColor("#000000");
