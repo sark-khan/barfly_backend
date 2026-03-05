@@ -320,7 +320,7 @@ const updateStatusOfOrder = async (req) => {
   // Send Firebase notification to owner app for order status update
   sendFirebaseNotification({
     topic: `owner_entity_${order.entityId}`,
-    showNotification: false,
+    showNotification: true,
     title: "Order Status Updated",
     body: `Order #${order.tokenNumber} is now ${status}.`,
     data: {
