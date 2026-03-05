@@ -114,9 +114,19 @@ const createOrder = async (req, session) => {
     parseFloat(discountAmount) +
     parseFloat(platformFees);
 
+  // Attach itemName + itemPrice snapshot so data survives item deletion
+  const itemsWithSnapshot = items.map((doc) => {
+    const menuItem = itemNameMapper[`${doc.itemId}`];
+    return {
+      ...doc,
+      itemName: menuItem?.itemName,
+      itemPrice: menuItem?.price,
+    };
+  });
+
   const orderData = {
     status: ORDER_STATUS.WAITING,
-    items,
+    items: itemsWithSnapshot,
     counterId,
     entityId,
     tokenNumber,

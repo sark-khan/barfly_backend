@@ -13,6 +13,8 @@ const orderSchme = new Schema(
           itemId: { type: ObjectId, ref: "ItemDetails" },
           quantity: { type: Number },
           note: { type: String, default: "" },
+          itemName: { type: String },  // snapshot at order time
+          itemPrice: { type: Number }, // snapshot at order time
         },
       ],
     },
