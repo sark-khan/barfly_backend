@@ -2384,7 +2384,6 @@ module.exports.getCounterAndCategory = async (req) => {
 };
 
 module.exports.getMenuCategory = async (req) => {
-  const lang = getLanguageFromRequest(req);
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 },
@@ -2396,14 +2395,6 @@ module.exports.getMenuCategory = async (req) => {
       select: "counterName status",
       model: "Counter",
     });
-
-  // Map of all known default category names (in any language) to their translation keys
-  const defaultCategoryKeyMap = {
-    Food: "DEFAULT_CATEGORY_FOOD",
-    Speisen: "DEFAULT_CATEGORY_FOOD",
-    "Soft Drinks": "DEFAULT_CATEGORY_SOFT_DRINKS",
-    "Alkoholfreie Getränke": "DEFAULT_CATEGORY_SOFT_DRINKS",
-  };
 
   // Group categories by name and collect all linked counters
   const categoryMap = {};
@@ -2433,16 +2424,7 @@ module.exports.getMenuCategory = async (req) => {
     }
   }
 
-  // Translate default category names based on request language
-  const result = Object.values(categoryMap).map((category) => {
-    const translationKey = defaultCategoryKeyMap[category.categoryName];
-    if (translationKey) {
-      category.categoryName = t(translationKey, lang);
-    }
-    return category;
-  });
-
-  return result;
+  return Object.values(categoryMap);
 };
 
 module.exports.editCategory = async (req) => {
