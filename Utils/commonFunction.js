@@ -5,6 +5,7 @@ const SECRET_KEY = "BARFLY@WEBMOB456";
 const Event = require("../Models/Event");
 const { STATUS, ROLES, STATUS_CODES } = require("./globalConstants");
 const Discount = require("../Models/Discount");
+const User = require("../Models/User");
 const crypto = require("crypto");
 const { messaging, messagingPlus } = require("../firebaseAdmin");
 const { getLanguageFromRequest, t } = require("./translator");
@@ -203,7 +204,7 @@ const decrypt = (encryptedText) => {
   const decipher = crypto.createDecipheriv(
     algorithm,
     Buffer.from(secretKey),
-    Buffer.from(ivHex, "hex")
+    Buffer.from(ivHex, "hex"),
   );
   let decrypted = decipher.update(encrypted, "hex", "utf8");
   decrypted += decipher.final("utf8");
@@ -413,10 +414,14 @@ const verifyTokenWithoutResponse = async (req) => {
       const redisKey = `${KEY_TYPE_PREFIXES.USER_TOKEN}:${decoded.userId}`;
       const sessionExists = await redisClient.get(redisKey);
       if (!sessionExists) {
-        throwError({
-          status: STATUS_CODES.NOT_AUTHORIZED,
-          message: t("USER_ACCOUNT_BLOCKED", lang),
-        });
+        const user = await User.findById(decoded.userId, { status: 1 }).lean();
+        if (user?.status === STATUS.BLOCKED) {
+          throwError({
+            status: STATUS_CODES.NOT_AUTHORIZED,
+            message: t("USER_ACCOUNT_BLOCKED", lang),
+          });
+        }
+        await redisClient.set(redisKey, "1");
       }
     }
   } catch (err) {

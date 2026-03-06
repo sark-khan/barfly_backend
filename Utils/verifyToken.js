@@ -4,9 +4,11 @@ const {
   STATUS_CODES,
   ROLES,
   KEY_TYPE_PREFIXES,
+  STATUS,
 } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("./translator");
 const redisClient = require("../redis");
+const User = require("../Models/User");
 
 const verifyToken = async (req, res, next) => {
   const token = req.headers["token"];
@@ -35,9 +37,13 @@ const verifyToken = async (req, res, next) => {
       const redisKey = `${KEY_TYPE_PREFIXES.USER_TOKEN}:${decoded.userId}`;
       const sessionExists = await redisClient.get(redisKey);
       if (!sessionExists) {
-        return res.status(STATUS_CODES.NOT_AUTHORIZED).json({
-          message: t("USER_ACCOUNT_BLOCKED", lang),
-        });
+        const user = await User.findById(decoded.userId, { status: 1 }).lean();
+        if (user?.status === STATUS.BLOCKED) {
+          return res.status(STATUS_CODES.NOT_AUTHORIZED).json({
+            message: t("USER_ACCOUNT_BLOCKED", lang),
+          });
+        }
+        await redisClient.set(redisKey, "1");
       }
     }
 
