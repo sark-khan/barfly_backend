@@ -162,9 +162,6 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
         <div class="email-footer">
             <p><strong>Countr</strong></p>
             <p>Thank you for using our service!</p>
-            <p style="margin-top: 15px;">
-                <a href="mailto:support@countr-plus.ch">Contact Support</a>
-            </p>
         </div>
     </div>
 </body>

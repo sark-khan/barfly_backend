@@ -185,7 +185,7 @@ module.exports.createCounter = async (req) => {
 
   sendFirebaseNotification({
     topic: `owner_entity_${newCounter.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Counter Added",
     body: "You have a new counter added. Tap to view.",
     data: {
@@ -199,7 +199,7 @@ module.exports.createCounter = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${newCounter.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Counter Added",
     body: "You have a new counter added. Tap to view.",
     data: {
@@ -343,7 +343,7 @@ module.exports.createCounterMenuCategory = async (req) => {
 
   sendFirebaseNotification({
     topic: `owner_entity_${createdCategories[0].entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Category Added",
     body: "You have a new category added. Tap to view.",
     data: {
@@ -357,7 +357,7 @@ module.exports.createCounterMenuCategory = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${createdCategories[0].entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Category Added",
     body: "You have a new category added. Tap to view.",
     data: {
@@ -678,7 +678,7 @@ module.exports.createMenuItem = async (req) => {
 
   sendFirebaseNotification({
     topic: `owner_entity_${req.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Item Added",
     body: "You have a new item added. Tap to view.",
     data: {
@@ -693,7 +693,7 @@ module.exports.createMenuItem = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${req.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Item Added",
     body: "You have a new item added. Tap to view.",
     data: {
@@ -759,6 +759,7 @@ module.exports.updateMenuItem = async (req) => {
       isAlcohol18,
       isAlcohol16,
       isVegan,
+      removeImage,
     },
   } = req;
 
@@ -864,6 +865,97 @@ module.exports.updateMenuItem = async (req) => {
     }
   }
 
+  // When adding a new counter to an existing item, create ItemDetails for the new counter(s)
+  // so the item is displayed on the customer side (items are queried by counterId)
+  const counterIdsArray = Array.isArray(counterIds)
+    ? counterIds
+    : counterIds
+      ? [counterIds]
+      : [];
+
+  if (action === EDIT_ACTION.EDIT && counterIdsArray.length > 0) {
+    const existingCounterIds = items
+      .map((i) => i.counterId?.toString())
+      .filter(Boolean);
+    const newCounterIds = counterIdsArray.filter(
+      (cid) => cid && !existingCounterIds.includes(cid.toString()),
+    );
+
+    if (newCounterIds.length > 0) {
+      const referenceItem = items[0];
+      const categoryToUse = await MenuCategory.findById(
+        referenceItem.menuCategoryId,
+        { categoryName: 1 },
+      ).lean();
+      const itemCategoryName = categoryName ?? categoryToUse?.categoryName;
+
+      if (itemCategoryName) {
+        const newCategories = await MenuCategory.find({
+          entityId: req.entityId,
+          counterId: { $in: newCounterIds },
+          categoryName: itemCategoryName,
+        }).lean();
+
+        const createdItems = [];
+        for (const newCat of newCategories) {
+          const newItem = await ItemDetails.create({
+            itemName: itemName ?? referenceItem.itemName,
+            price: price ?? referenceItem.price,
+            description: description ?? referenceItem.description,
+            nutritionType: nutritionType ?? referenceItem.nutritionType,
+            currency: currency ?? referenceItem.currency,
+            quantity: quantity ?? referenceItem.quantity,
+            menuCategoryId: newCat._id,
+            entityId: req.entityId,
+            counterIds: counterIdsArray,
+            counterId: newCat.counterId,
+            image: fileName ?? referenceItem.image ?? "",
+            isVegan: isVegan ?? referenceItem.isVegan ?? false,
+            isAlcohol18: isAlcohol18 ?? referenceItem.isAlcohol18 ?? false,
+            isAlcohol16: isAlcohol16 ?? referenceItem.isAlcohol16 ?? false,
+            unit: unit ?? referenceItem.unit,
+            inStock: inStock ?? referenceItem.inStock ?? true,
+          });
+          createdItems.push(newItem);
+        }
+
+        if (createdItems.length > 0) {
+          const entityIdForEmit = referenceItem.entityId;
+          io.to(entityIdForEmit.toString()).emit("newItem", createdItems);
+          io.to(`entity_${entityIdForEmit}`).emit("itemUpdate", {
+            action: "create",
+            items: createdItems,
+            entityId: entityIdForEmit.toString(),
+          });
+          sendFirebaseNotification({
+            topic: `owner_entity_${entityIdForEmit}`,
+            showNotification: false,
+            title: "Item Added to Counter",
+            body: "An item has been added to a new counter. Tap to view.",
+            data: {
+              action: "item_update",
+              screen: "item_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+              topic: `owner_entity_${entityIdForEmit}`,
+            },
+          });
+          sendFirebaseNotification({
+            topic: `entity_${entityIdForEmit}`,
+            showNotification: false,
+            title: "Item Added to Counter",
+            body: "An item has been added to a new counter. Tap to view.",
+            data: {
+              action: "item_update",
+              screen: "item_screen",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+              topic: `entity_${entityIdForEmit}`,
+            },
+          });
+        }
+      }
+    }
+  }
+
   if (isCounterRemove) {
     if (action === EDIT_ACTION.EDIT) {
       if (itemName !== undefined) item.itemName = itemName;
@@ -877,6 +969,7 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
+      else if (removeImage === "true" || removeImage === true) item.image = "";
       if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
       if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
@@ -891,7 +984,7 @@ module.exports.updateMenuItem = async (req) => {
       });
       sendFirebaseNotification({
         topic: `owner_entity_${item.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Updated",
         body: "An item has been updated. Tap to view.",
         data: {
@@ -905,7 +998,7 @@ module.exports.updateMenuItem = async (req) => {
       // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Updated",
         body: "An item has been updated. Tap to view.",
         data: {
@@ -930,7 +1023,7 @@ module.exports.updateMenuItem = async (req) => {
       });
       sendFirebaseNotification({
         topic: `owner_entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
         data: {
@@ -944,7 +1037,7 @@ module.exports.updateMenuItem = async (req) => {
       // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
         data: {
@@ -971,6 +1064,7 @@ module.exports.updateMenuItem = async (req) => {
       if (inStock !== undefined) item.inStock = inStock;
       if (unit !== undefined) item.unit = unit;
       if (fileName) item.image = fileName;
+      else if (removeImage === "true" || removeImage === true) item.image = "";
       if (isAlcohol18 !== undefined) item.isAlcohol18 = isAlcohol18;
       if (isAlcohol16 !== undefined) item.isAlcohol16 = isAlcohol16;
       if (isVegan !== undefined) item.isVegan = isVegan;
@@ -985,7 +1079,7 @@ module.exports.updateMenuItem = async (req) => {
       });
       sendFirebaseNotification({
         topic: `owner_entity_${item.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Updated",
         body: "An item has been updated. Tap to view.",
         data: {
@@ -999,7 +1093,7 @@ module.exports.updateMenuItem = async (req) => {
       // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${item.entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Updated",
         body: "An item has been updated. Tap to view.",
         data: {
@@ -1024,7 +1118,7 @@ module.exports.updateMenuItem = async (req) => {
       });
       sendFirebaseNotification({
         topic: `owner_entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
         data: {
@@ -1038,7 +1132,7 @@ module.exports.updateMenuItem = async (req) => {
       // Send same notification to entity_ topic for customer app
       sendFirebaseNotification({
         topic: `entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "Item Deleted",
         body: "An item has been deleted. Tap to view.",
         data: {
@@ -1057,7 +1151,6 @@ module.exports.getCreatedItems = async (req) => {
     entityId,
     query: {
       itemId,
-      menuCategoryId,
       pageNo = 1,
       pageLimit = 8,
       inStock,
@@ -1094,23 +1187,30 @@ module.exports.getCreatedItems = async (req) => {
   }
   let menuCategoryIds;
   if (menuCategoryName) {
+    console.log("menuCategoryName received:", menuCategoryName);
+    console.log("entityId:", entityId);
     const categories = await MenuCategory.find(
-      { categoryName: menuCategoryName },
+      {
+        categoryName: {
+          $regex: new RegExp(`^\\s*${menuCategoryName.trim()}\\s*$`, "i"),
+        },
+        entityId,
+      },
       { _id: 1 },
     );
+    console.log("categories found:", categories);
     menuCategoryIds = categories.map((cat) => cat._id);
+    console.log("menuCategoryIds:", menuCategoryIds);
+    if (!menuCategoryIds.length) {
+      console.log("No categories found, returning empty");
+      return { itemsList: [], totalCount: 0 };
+    }
   }
-
-  console.log({ menuCategoryIds });
 
   const query = { entityId };
 
-  if (searchedId && !menuCategoryId) {
+  if (searchedId) {
     query._id = { $ne: searchedId };
-  }
-
-  if (menuCategoryId) {
-    query.menuCategoryId = menuCategoryId;
   }
 
   if (menuCategoryName && menuCategoryIds?.length) {
@@ -1340,7 +1440,7 @@ module.exports.createEvent = async (req) => {
   // Send Firebase notification to owner app for new event
   sendFirebaseNotification({
     topic: `owner_entity_${req.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Event Added",
     body: `A new event "${eventName}" has been added.`,
     data: {
@@ -1356,7 +1456,7 @@ module.exports.createEvent = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${req.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Event Added",
     body: `A new event "${eventName}" has been added.`,
     data: {
@@ -1372,7 +1472,7 @@ module.exports.createEvent = async (req) => {
   // Send Firebase notification to customer app for new event
   sendFirebaseNotification({
     topic: "customer_entity",
-    showNotification: true,
+    showNotification: false,
     title: "New Event Added",
     body: `A new event "${eventName}" has been added.`,
     data: {
@@ -1435,7 +1535,7 @@ module.exports.deleteEvent = async (req) => {
   // Send Firebase notification to owner app for deleted event
   sendFirebaseNotification({
     topic: `owner_entity_${entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "Event Deleted",
     body: `The event "${eventName}" has been removed.`,
     data: {
@@ -1451,7 +1551,7 @@ module.exports.deleteEvent = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "Event Deleted",
     body: `The event "${eventName}" has been removed.`,
     data: {
@@ -1467,7 +1567,7 @@ module.exports.deleteEvent = async (req) => {
   // Send Firebase notification to customer app for deleted event
   sendFirebaseNotification({
     topic: "customer_entity",
-    showNotification: true,
+    showNotification: false,
     title: "Event Deleted",
     body: `The event "${eventName}" has been removed.`,
     data: {
@@ -2284,7 +2384,6 @@ module.exports.getCounterAndCategory = async (req) => {
 };
 
 module.exports.getMenuCategory = async (req) => {
-  const lang = getLanguageFromRequest(req);
   const menuCategories = await MenuCategory.find(
     { entityId: req.entityId },
     { entityId: 0, createdAt: 0, updatedAt: 0 },
@@ -2296,14 +2395,6 @@ module.exports.getMenuCategory = async (req) => {
       select: "counterName status",
       model: "Counter",
     });
-
-  // Map of all known default category names (in any language) to their translation keys
-  const defaultCategoryKeyMap = {
-    Food: "DEFAULT_CATEGORY_FOOD",
-    Speisen: "DEFAULT_CATEGORY_FOOD",
-    "Soft Drinks": "DEFAULT_CATEGORY_SOFT_DRINKS",
-    "Alkoholfreie Getränke": "DEFAULT_CATEGORY_SOFT_DRINKS",
-  };
 
   // Group categories by name and collect all linked counters
   const categoryMap = {};
@@ -2333,16 +2424,7 @@ module.exports.getMenuCategory = async (req) => {
     }
   }
 
-  // Translate default category names based on request language
-  const result = Object.values(categoryMap).map((category) => {
-    const translationKey = defaultCategoryKeyMap[category.categoryName];
-    if (translationKey) {
-      category.categoryName = t(translationKey, lang);
-    }
-    return category;
-  });
-
-  return result;
+  return Object.values(categoryMap);
 };
 
 module.exports.editCategory = async (req) => {
@@ -2437,7 +2519,7 @@ module.exports.editCategory = async (req) => {
     // Send Firebase notification to entity_{entityId} topic for category edit
     sendFirebaseNotification({
       topic: `owner_entity_${req.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Category Updated",
       body: `Category "${categoryName}" has been updated.`,
       data: {
@@ -2454,7 +2536,7 @@ module.exports.editCategory = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Category Updated",
       body: `Category "${categoryName}" has been updated.`,
       data: {
@@ -2528,7 +2610,7 @@ module.exports.editCategory = async (req) => {
     // Send Firebase notification to entity_{entityId} topic for category delete
     sendFirebaseNotification({
       topic: `owner_entity_${req.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Category Deleted",
       body: `Category "${categoryName}" has been removed.`,
       data: {
@@ -2544,7 +2626,7 @@ module.exports.editCategory = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${req.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Category Deleted",
       body: `Category "${categoryName}" has been removed.`,
       data: {
@@ -2840,7 +2922,7 @@ module.exports.updateCounterSettings = async (req) => {
     });
     sendFirebaseNotification({
       topic: `owner_entity_${counter.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Counter Updated",
       body: "A counter has been updated. Tap to view.",
       data: {
@@ -2854,7 +2936,7 @@ module.exports.updateCounterSettings = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Counter Updated",
       body: "A counter has been updated. Tap to view.",
       data: {
@@ -2886,24 +2968,36 @@ module.exports.updateCounterSettings = async (req) => {
         });
       }
 
-      const existingTable = await Tables.findOne({
+      let existingTable = await Tables.findOne({
         counterIds: counter._id,
         status: { $ne: STATUS.DELETED },
       });
 
-      if (!existingTable) {
-        throwError({
-          status: STATUS_CODES.BAD_REQUEST,
-          message: t("OWNER_TABLE_FOR_COUNTER_NOT_FOUND", lang),
+      if (existingTable) {
+        existingTable.tableCount = counter.tableCount;
+        if (tableSectionName !== undefined) {
+          existingTable.tableSectionName = tableSectionName;
+        }
+        await existingTable.save();
+      } else {
+        // Table service was just enabled - create new table record
+        const lastTable = await Tables.findOne(
+          { entityId: counter.entityId },
+          { tableSetionNo: 1 },
+        ).sort({ createdAt: -1 });
+
+        const newTableSectionNo = lastTable ? lastTable.tableSetionNo + 1 : 1;
+
+        await Tables.create({
+          tableCount: counter.tableCount,
+          tableSectionName: counter.tableSectionName || tableSectionName || "",
+          userId: req.userId,
+          entityId: counter.entityId,
+          counterIds: [counter._id],
+          tableSetionNo: newTableSectionNo,
+          status: STATUS.ACTIVE,
         });
       }
-
-      existingTable.tableCount = counter.tableCount;
-      if (tableSectionName !== undefined) {
-        existingTable.tableSectionName = tableSectionName;
-      }
-
-      await existingTable.save();
     }
 
     // return {
@@ -2969,7 +3063,7 @@ module.exports.updateCounterSettings = async (req) => {
     });
     sendFirebaseNotification({
       topic: `owner_entity_${counter.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Counter Deleted",
       body: "A counter has been removed",
       data: {
@@ -2983,7 +3077,7 @@ module.exports.updateCounterSettings = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${counter.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Counter Deleted",
       body: "A counter has been removed",
       data: {
@@ -3334,7 +3428,7 @@ module.exports.editBusinessDetails = async (req) => {
     io.to(entityId.toString()).emit("passwordUpdated", { message });
     sendFirebaseNotification({
       topic: `owner_entity_${entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "New Profile Details Added",
       body: "You have a new entity details added. Tap to view.",
       data: {
@@ -3392,7 +3486,7 @@ module.exports.editBusinessDetails = async (req) => {
     io.to(entityId.toString()).emit("entityDetailsUpdated", updateEntityFields);
     sendFirebaseNotification({
       topic: `owner_entity_${entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "New Profile Updated",
       body: "You have a new entity details added. Tap to view.",
       data: {
@@ -3402,7 +3496,6 @@ module.exports.editBusinessDetails = async (req) => {
         topic: `owner_entity_${entityId}`,
       },
     });
-
   }
 
   const unifiedContactNumber = contactNumber || entityContactNumber;
@@ -3462,7 +3555,7 @@ module.exports.editBusinessDetails = async (req) => {
 
       sendFirebaseNotification({
         topic: `owner_entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "New Profile Updated",
         body: "You have a new entity details added. Tap to view.",
         data: {
@@ -3531,7 +3624,7 @@ module.exports.editBusinessDetails = async (req) => {
       io.to(entityId.toString()).emit("emailUpdated", { email });
       sendFirebaseNotification({
         topic: `owner_entity_${entityId}`,
-        showNotification: true,
+        showNotification: false,
         title: "New Profile Updated",
         body: "You have a new entity details added. Tap to view.",
         data: {
@@ -3655,7 +3748,7 @@ module.exports.addingTables = async (req) => {
   io.to(newTable.entityId.toString()).emit("newTable", newTable);
   sendFirebaseNotification({
     topic: `owner_entity_${newTable.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Profile Updated",
     body: "You have a new table added. Tap to view.",
     data: {
@@ -3669,7 +3762,7 @@ module.exports.addingTables = async (req) => {
   // Send same notification to entity_ topic for customer app
   sendFirebaseNotification({
     topic: `entity_${newTable.entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Profile Updated",
     body: "You have a new table added. Tap to view.",
     data: {
@@ -3686,6 +3779,7 @@ module.exports.addingTables = async (req) => {
       $set: {
         tableSectionName,
         tableCount: tableNumbers,
+        isTableService: true,
       },
     },
   );
@@ -3695,25 +3789,37 @@ module.exports.addingTables = async (req) => {
 
 module.exports.getCountersForTableManagement = async (req) => {
   const { entityId } = req;
+  const { tableId } = req.query;
 
   const tableManagement = await Tables.find({ entityId }).lean();
 
-  const counterIds = new Set();
+  const assignedCounterIds = new Set();
+  let currentTableCounterIds = [];
 
   tableManagement.forEach((table) => {
     if (table.status == STATUS.DELETED) return;
-    table.counterIds.forEach((counterId) => {
-      counterIds.add(counterId);
-    });
+    const isCurrentTable = tableId && table._id.toString() === tableId;
+    if (isCurrentTable) {
+      currentTableCounterIds = table.counterIds.map((id) => id.toString());
+    } else {
+      table.counterIds.forEach((counterId) => {
+        assignedCounterIds.add(counterId.toString());
+      });
+    }
   });
 
   const counterList = await Counter.find({
-    _id: { $nin: Array.from(counterIds) },
+    _id: { $nin: Array.from(assignedCounterIds) },
     entityId: entityId,
     status: STATUS.ACTIVE,
   });
 
-  return counterList;
+  return counterList.map((counter) => ({
+    ...counter.toObject(),
+    isAssignedToCurrentTable: currentTableCounterIds.includes(
+      counter._id.toString(),
+    ),
+  }));
 };
 
 module.exports.getCountersForEvents = async (req) => {
@@ -3780,16 +3886,19 @@ module.exports.editTable = async (req) => {
   }
 
   if (action === EDIT_ACTION.EDIT) {
-    if (
-      tableSectionName !== undefined &&
-      tableData.tableSectionName === tableSectionName
-    ) {
-      throwError({
-        status: STATUS_CODES.BAD_REQUEST,
-        message: t("OWNER_TABLE_NAME_EXISTS", lang),
-      });
-    }
     if (tableSectionName !== undefined) {
+      const duplicate = await Tables.findOne({
+        entityId: tableData.entityId,
+        tableSectionName,
+        _id: { $ne: tableId },
+        status: { $ne: STATUS.DELETED },
+      });
+      if (duplicate) {
+        throwError({
+          status: STATUS_CODES.BAD_REQUEST,
+          message: t("OWNER_TABLE_NAME_EXISTS", lang),
+        });
+      }
       tableData.tableSectionName = tableSectionName;
     }
 
@@ -3847,7 +3956,7 @@ module.exports.editTable = async (req) => {
     io.to(tableData.entityId.toString()).emit("tableUpdate", { tableId });
     sendFirebaseNotification({
       topic: `owner_entity_${tableData.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "New Profile Updated",
       body: "You have a new table added. Tap to view.",
       data: {
@@ -3861,7 +3970,7 @@ module.exports.editTable = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${tableData.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "New Profile Updated",
       body: "You have a new table added. Tap to view.",
       data: {
@@ -3915,7 +4024,7 @@ module.exports.editTable = async (req) => {
     // Send Firebase notification for table delete
     sendFirebaseNotification({
       topic: `owner_entity_${tableData.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Table Deleted",
       body: "A table has been removed.",
       data: {
@@ -3931,7 +4040,7 @@ module.exports.editTable = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${tableData.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Table Deleted",
       body: "A table has been removed.",
       data: {
@@ -4455,7 +4564,7 @@ module.exports.addFeedbackQuestions = async (req) => {
   io.to(entityId.toString()).emit("newFeedbackQuestions", feedback);
   sendFirebaseNotification({
     topic: `owner_entity_${entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "New Profile Updated",
     body: "You have a new feedback added. Tap to view.",
     data: {
@@ -4541,7 +4650,7 @@ module.exports.deleteFeedbackQuestions = async (req) => {
   // Send Firebase notification for feedback question delete
   sendFirebaseNotification({
     topic: `owner_entity_${entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "Feedback Question Deleted",
     body: "A feedback question has been removed.",
     data: {
@@ -4553,7 +4662,6 @@ module.exports.deleteFeedbackQuestions = async (req) => {
       topic: `owner_entity_${entityId}`,
     },
   });
-
 };
 
 module.exports.restaurantOpen = async (req) => {
@@ -4641,6 +4749,37 @@ module.exports.deleteEntityAccount = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("OWNER_ENTITY_NOT_ASSOCIATED", lang),
+    });
+  }
+
+  // Check for active orders (online + offline)
+  const [activeOrder, activeOfflineOrder] = await Promise.all([
+    Order.findOne({
+      entityId,
+      status: {
+        $in: [
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.IN_PROGRESS,
+          ORDER_STATUS.READY,
+        ],
+      },
+    }),
+    OfflineOrder.findOne({
+      entityId,
+      status: {
+        $in: [
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.IN_PROGRESS,
+          ORDER_STATUS.READY,
+        ],
+      },
+    }),
+  ]);
+
+  if (activeOrder || activeOfflineOrder) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("CANNOT_DELETE_ACCOUNT_ACTIVE_ORDERS", lang),
     });
   }
 
@@ -4842,7 +4981,6 @@ module.exports.restaurantCancelOrder = async (req) => {
       topic: `owner_entity_${order.entityId}`,
     },
   });
-
 };
 
 module.exports.getSalesReportHistory = async (req) => {
@@ -4887,6 +5025,7 @@ module.exports.editEvent = async (req) => {
       counterIds,
       location,
       isAllDay,
+      removeImage,
     },
   } = req;
 
@@ -4956,6 +5095,8 @@ module.exports.editEvent = async (req) => {
         message: t("FILE_UPLOAD_FAILED", lang),
       });
     }
+  } else if (removeImage === "true" || removeImage === true) {
+    event.image = "";
   }
 
   // Parse repetitiveDays if provided (same as createEvent)
@@ -5032,7 +5173,7 @@ module.exports.editEvent = async (req) => {
     // Send Firebase notification to owner app for updated event
     sendFirebaseNotification({
       topic: `owner_entity_${event.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Event Updated",
       body: `The event "${event.eventName}" has been updated.`,
       data: {
@@ -5048,7 +5189,7 @@ module.exports.editEvent = async (req) => {
     // Send same notification to entity_ topic for customer app
     sendFirebaseNotification({
       topic: `entity_${event.entityId}`,
-      showNotification: true,
+      showNotification: false,
       title: "Event Updated",
       body: `The event "${event.eventName}" has been updated.`,
       data: {

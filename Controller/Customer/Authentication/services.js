@@ -118,6 +118,8 @@ module.exports.register = async (req) => {
   delete userObj.password;
 
   const token = getJwtToken(userObj, true);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userObj._id}`, "1");
   return { userObj, token };
 };
 
@@ -135,14 +137,21 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email: emailLower, status: STATUS.ACTIVE, role: ROLES.CUSTOMER },
-    userProjection,
+    { email: emailLower, role: ROLES.CUSTOMER },
+    { ...userProjection, status: 1 },
   ).lean();
 
   if (!user) {
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: t("CUSTOMER_NOT_FOUND", lang),
+    });
+  }
+
+  if (user.status === STATUS.BLOCKED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("CUSTOMER_BLOCKED_BY_ADMIN", lang),
     });
   }
 
@@ -162,6 +171,8 @@ module.exports.login = async (req) => {
   }
 
   const token = getJwtToken(user, true);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${user._id}`, "1");
   delete user.password;
   return { user, token };
 };
@@ -212,9 +223,8 @@ module.exports.checkAndProvideCountRTag = async (req) => {
 
 module.exports.logoutUser = async (req) => {
   const { userId } = req;
-  const user = await User.findById(userId, { _id: 1 });
   const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-  await redisClient.del(`${prefix}:${user._id}`);
+  await redisClient.del(`${prefix}:${userId}`);
 };
 
 module.exports.deleteAccount = async (req) => {
@@ -225,6 +235,25 @@ module.exports.deleteAccount = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("CUSTOMER_DOES_NOT_EXIST", lang),
+    });
+  }
+
+  // Check for active orders
+  const activeOrder = await Order.findOne({
+    userId,
+    status: {
+      $in: [
+        globalConstants.ORDER_STATUS.WAITING,
+        globalConstants.ORDER_STATUS.IN_PROGRESS,
+        globalConstants.ORDER_STATUS.READY,
+      ],
+    },
+  });
+
+  if (activeOrder) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("CANNOT_DELETE_ACCOUNT_ACTIVE_ORDERS", lang),
     });
   }
 

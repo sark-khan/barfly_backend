@@ -1,16 +1,16 @@
 /**
- * Email Template for Welcome Email
- * @param {string} firstName - The user's first name
+ * Email Template for Admin Welcome Email
+ * @param {string} firstName - The admin's first name
  * @returns {string} HTML email template
  */
-const getWelcomeTemplate = (firstName) => {
+const getAdminWelcomeTemplate = (firstName) => {
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Countr Customer</title>
+    <title>Welcome to Countr Admin</title>
     <style>
         * {
             margin: 0;
@@ -130,46 +130,46 @@ const getWelcomeTemplate = (firstName) => {
     <div class="email-container">
         <div class="email-body">
             <p class="greeting">Hello ${firstName}!</p>
-            
+
             <div class="welcome-message">
-                Welcome to Countr Customer! 🎉
+                Welcome to the Countr Admin Panel! 🎉
             </div>
-            
+
             <p class="message">
-                We're thrilled to have you join our community! Your account has been successfully created, and you're all set to start exploring everything Countr has to offer.
+                Your admin account has been successfully created. You now have access to the Countr Admin Panel to manage and oversee the platform.
             </p>
-            
+
             <div class="highlight-box">
-                <p>✨ You're now a Countr Customer!</p>
-                <p>Order things at your fingertips like never before!</p>
+                <p>🔐 You're now a Countr Administrator!</p>
+                <p>Manage the platform with full control and visibility.</p>
             </div>
-            
+
             <p class="message">
-                Here's what you can do with your Countr account:
+                Here's what you can do with your Admin account:
             </p>
-            
+
             <ul class="features-list">
-                <li>📱 Browse and discover exciting events and products</li>
-                <li>🛒 Make secure payments with multiple payment options</li>
-                <li>📊 Track your orders and purchase history</li>
-                <li>⭐ Share feedback and help improve our services</li>
+                <li>👥 Manage users and restaurant accounts</li>
+                <li>📊 View dashboard analytics and reports</li>
+                <li>💰 Monitor transactions and revenue</li>
+                <li>🔧 Configure platform fees and settings</li>
             </ul>
-            
+
             <div class="cta-section">
                 <p><strong>🚀 Ready to get started?</strong></p>
-                <p>Log in to your account and start exploring all the amazing features we have in store for you!</p>
+                <p>Log in to the Admin Panel and start managing the Countr platform!</p>
             </div>
-            
+
             <div class="divider"></div>
-            
+
             <p class="message" style="font-size: 14px; color: #999; text-align: center;">
-                If you have any questions or need assistance, our support team is here to help!
+                If you have any questions or need assistance, please reach out to the support team.
             </p>
         </div>
-        
+
         <div class="email-footer">
             <p><strong>Countr</strong></p>
-            <p>Thank you for choosing us!</p>
+            <p>Thank you for being part of the team!</p>
         </div>
     </div>
 </body>
@@ -178,5 +178,5 @@ const getWelcomeTemplate = (firstName) => {
 };
 
 module.exports = {
-  getWelcomeTemplate,
+  getAdminWelcomeTemplate,
 };

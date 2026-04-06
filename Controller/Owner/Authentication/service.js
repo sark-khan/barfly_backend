@@ -11,6 +11,9 @@ const { createMail, sendSMS } = require("../../../Utils/mailer");
 const {
   getVerificationCodeTemplate,
 } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getOwnerWelcomeTemplate,
+} = require("../../../Utils/emailTemplates/ownerWelcomeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -210,11 +213,25 @@ module.exports.register = async (req) => {
     console.error("Error creating default categories:", err.message);
   }
 
+  // Send welcome email to owner (non-blocking)
+  try {
+    if (email) {
+      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "Owner");
+      createMail({
+        to: email,
+        subject: "Welcome to Countr! 🎉",
+        html: welcomeHtml,
+      });
+    }
+  } catch (err) {
+    console.error("Owner welcome email error:", err.message);
+  }
+
   // Send Firebase notification to customer_entity topic for new entity (non-blocking)
   try {
     sendFirebaseNotification({
       topic: "customer_entity",
-      showNotification: true,
+      showNotification: false,
       title: "New Entity Added",
       body: `A new entity "${entityName}" has been added.`,
       data: {
@@ -245,6 +262,8 @@ module.exports.register = async (req) => {
 
   userDetails.entityDetails = entityDetails;
   const token = getJwtToken(userDetails, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userDetails._id}`, "1");
 
   return {
     message: t("OWNER_REGISTRATION_SUCCESS", lang),
@@ -258,7 +277,7 @@ module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
-  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  const query = { role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
   if (!Object.keys(query)) {
@@ -275,6 +294,13 @@ module.exports.login = async (req) => {
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: t("OWNER_INVALID_IDENTIFIER", lang),
     });
+
+  if (user.status === STATUS.BLOCKED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("OWNER_BLOCKED_BY_ADMIN", lang),
+    });
+  }
 
   const entityDetails = await EntityDetails.findOne(
     {
@@ -308,15 +334,22 @@ module.exports.login = async (req) => {
   user.entityDetails = entityDetails;
 
   const token = getJwtToken(user, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${user._id}`, "1");
 
   return { user, entityDetails, token };
 };
 
 module.exports.logoutEntity = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId, { _id: 1 });
-  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-  await redisClient.del(`${prefix}:${entity._id}`);
+  let userId = req.userId || req.id;
+  if (!userId && req.entityId) {
+    const entity = await EntityDetails.findById(req.entityId, { userId: 1 }).lean();
+    userId = entity?.userId;
+  }
+  if (userId) {
+    const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+    await redisClient.del(`${prefix}:${userId}`);
+  }
 };
 
 /**

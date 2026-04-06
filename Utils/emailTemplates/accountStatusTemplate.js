@@ -1,16 +1,25 @@
 /**
- * Email Template for Welcome Email
- * @param {string} firstName - The user's first name
+ * Email Template for Account Status Change (Blocked/Unblocked)
+ * @param {string} name - The user's or entity's name
+ * @param {string} status - "Blocked" or "Active"
+ * @param {string} type - "account" or "entity"
  * @returns {string} HTML email template
  */
-const getWelcomeTemplate = (firstName) => {
+const getAccountStatusTemplate = (name, status, type = "account") => {
+  const isBlocked = status === "Blocked";
+  const statusText = isBlocked ? "blocked" : "unblocked";
+  const statusColor = isBlocked ? "#dc3545" : "#28a745";
+  const statusIcon = isBlocked ? "🚫" : "✅";
+  const statusBg = isBlocked ? "#f8d7da" : "#d4edda";
+  const statusBorder = isBlocked ? "#dc3545" : "#28a745";
+
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Countr Customer</title>
+    <title>Account Status Update - Countr</title>
     <style>
         * {
             margin: 0;
@@ -40,12 +49,6 @@ const getWelcomeTemplate = (firstName) => {
             margin-bottom: 20px;
             font-weight: 600;
         }
-        .welcome-message {
-            font-size: 18px;
-            color: #667eea;
-            margin-bottom: 30px;
-            font-weight: 600;
-        }
         .message {
             font-size: 16px;
             color: #555555;
@@ -53,31 +56,25 @@ const getWelcomeTemplate = (firstName) => {
             margin: 20px 0;
             text-align: left;
         }
-        .highlight-box {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border-radius: 12px;
-            padding: 30px;
+        .status-box {
+            background-color: ${statusBg};
+            border-left: 4px solid ${statusBorder};
+            border-radius: 8px;
+            padding: 25px;
             margin: 30px 0;
-            border: 2px solid #667eea;
+            text-align: center;
         }
-        .highlight-box p {
-            font-size: 16px;
-            color: #333333;
-            margin: 10px 0;
-            font-weight: 500;
+        .status-box .status-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
         }
-        .features-list {
-            text-align: left;
-            margin: 25px 0;
-            padding-left: 20px;
+        .status-box .status-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: ${statusColor};
+            text-transform: uppercase;
         }
-        .features-list li {
-            font-size: 15px;
-            color: #555555;
-            line-height: 1.8;
-            margin: 10px 0;
-        }
-        .cta-section {
+        .info-box {
             background-color: #f8f9fa;
             border-left: 4px solid #667eea;
             padding: 20px;
@@ -85,7 +82,7 @@ const getWelcomeTemplate = (firstName) => {
             border-radius: 4px;
             text-align: left;
         }
-        .cta-section p {
+        .info-box p {
             font-size: 15px;
             color: #333333;
             margin: 5px 0;
@@ -120,56 +117,46 @@ const getWelcomeTemplate = (firstName) => {
             .greeting {
                 font-size: 20px;
             }
-            .welcome-message {
-                font-size: 16px;
-            }
         }
     </style>
 </head>
 <body>
     <div class="email-container">
         <div class="email-body">
-            <p class="greeting">Hello ${firstName}!</p>
-            
-            <div class="welcome-message">
-                Welcome to Countr Customer! 🎉
-            </div>
-            
+            <p class="greeting">Dear ${name},</p>
+
             <p class="message">
-                We're thrilled to have you join our community! Your account has been successfully created, and you're all set to start exploring everything Countr has to offer.
+                We are writing to inform you that the Countr Admin has <strong>${statusText}</strong> your ${type}.
             </p>
-            
-            <div class="highlight-box">
-                <p>✨ You're now a Countr Customer!</p>
-                <p>Order things at your fingertips like never before!</p>
+
+            <div class="status-box">
+                <div class="status-icon">${statusIcon}</div>
+                <div class="status-text">Your ${type} has been ${statusText}</div>
             </div>
-            
-            <p class="message">
-                Here's what you can do with your Countr account:
-            </p>
-            
-            <ul class="features-list">
-                <li>📱 Browse and discover exciting events and products</li>
-                <li>🛒 Make secure payments with multiple payment options</li>
-                <li>📊 Track your orders and purchase history</li>
-                <li>⭐ Share feedback and help improve our services</li>
-            </ul>
-            
-            <div class="cta-section">
-                <p><strong>🚀 Ready to get started?</strong></p>
-                <p>Log in to your account and start exploring all the amazing features we have in store for you!</p>
-            </div>
-            
+
+            ${
+              isBlocked
+                ? `<div class="info-box">
+                <p><strong>What does this mean?</strong></p>
+                <p>Your ${type} has been temporarily suspended. You will not be able to access the platform until your ${type} is reactivated by the admin.</p>
+                <p>If you believe this is a mistake, please contact our support team.</p>
+            </div>`
+                : `<div class="info-box">
+                <p><strong>Welcome back!</strong></p>
+                <p>Your ${type} has been reactivated. You can now log in and continue using the platform as usual.</p>
+            </div>`
+            }
+
             <div class="divider"></div>
-            
+
             <p class="message" style="font-size: 14px; color: #999; text-align: center;">
-                If you have any questions or need assistance, our support team is here to help!
+                If you have any questions or need assistance, please don't hesitate to reach out to our support team.
             </p>
         </div>
-        
+
         <div class="email-footer">
             <p><strong>Countr</strong></p>
-            <p>Thank you for choosing us!</p>
+            <p>Thank you for being part of our community!</p>
         </div>
     </div>
 </body>
@@ -178,5 +165,5 @@ const getWelcomeTemplate = (firstName) => {
 };
 
 module.exports = {
-  getWelcomeTemplate,
+  getAccountStatusTemplate,
 };

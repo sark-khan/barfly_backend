@@ -16,10 +16,7 @@ const {
   KEY_TYPE_PREFIXES,
 } = require("../Utils/globalConstants");
 const throwError = require("./../Utils/throwError");
-const {
-  comparePassword,
-  getJwtToken,
-} = require("../Utils/commonFunction");
+const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
@@ -27,6 +24,12 @@ const crypto = require("crypto");
 const {
   getVerificationCodeTemplate,
 } = require("../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getAccountStatusTemplate,
+} = require("../Utils/emailTemplates/accountStatusTemplate");
+const {
+  getAdminWelcomeTemplate,
+} = require("../Utils/emailTemplates/adminWelcomeTemplate");
 const { io } = require("../app");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
 const {
@@ -73,7 +76,23 @@ const addAdmin = async (req) => {
     isAdmin: true,
   };
 
-  return Admin.create(adminObj);
+  const newAdmin = await Admin.create(adminObj);
+
+  // Send welcome email to new admin (non-blocking)
+  try {
+    if (email) {
+      const welcomeHtml = getAdminWelcomeTemplate(firstName || "Admin");
+      createMail({
+        to: email,
+        subject: "Welcome to Countr! 🎉",
+        html: welcomeHtml,
+      });
+    }
+  } catch (err) {
+    console.error("Admin welcome email error:", err.message);
+  }
+
+  return newAdmin;
 };
 
 const loginAdmin = async (req) => {
@@ -87,7 +106,8 @@ const loginAdmin = async (req) => {
       email: 1,
       phoneNumber: 1,
       password: 1,
-    }
+      isAdmin: 1,
+    },
   ).lean();
   if (!admin) {
     throwError({
@@ -126,7 +146,7 @@ const getAdmins = async (req) => {
     ];
   }
 
-  const admins = await Admin.find(query).skip(skip).limit(pageLimit).lean();
+  const admins = await Admin.find(query).sort({ _id: -1 }).skip(skip).limit(pageLimit).lean();
   admins.forEach((pass) => {
     delete pass.password;
   });
@@ -331,12 +351,11 @@ const getTransactionLogs = async (req) => {
       const txService = getWalleeTransactionsService();
       if (txService && merchantSpaceId && walleeTransactionId) {
         try {
-          const transaction =
-            await txService.getPaymentTransactionsId({
-              space: Number(merchantSpaceId),
-              id: Number(walleeTransactionId),
-              expand: new Set(["paymentConnectorConfiguration"]),
-            });
+          const transaction = await txService.getPaymentTransactionsId({
+            space: Number(merchantSpaceId),
+            id: Number(walleeTransactionId),
+            expand: new Set(["paymentConnectorConfiguration"]),
+          });
           const connectorName =
             transaction.paymentConnectorConfiguration?.name || null;
           walleeDetails = {
@@ -364,7 +383,7 @@ const getTransactionLogs = async (req) => {
         } catch (err) {
           console.error(
             `Failed to fetch Wallee transaction ${walleeTransactionId}:`,
-            err.message
+            err.message,
           );
           // Fallback to commission metadata
           walleeDetails = {
@@ -404,7 +423,7 @@ const getTransactionLogs = async (req) => {
         createdAt: commission.createdAt,
         ...walleeDetails,
       };
-    })
+    }),
   );
 
   return { transactions, totalCount };
@@ -426,6 +445,7 @@ const getTransactionLogs = async (req) => {
 const getAdminUserDetails = async (req) => {
   const { userId } = req;
   const adminDetails = await Admin.findOne({ _id: userId }).lean();
+  adminDetails.platformFees = global.PLATFORM_FEES;
   delete adminDetails.password;
   return adminDetails;
 };
@@ -467,9 +487,11 @@ const editRestaurantsOrUsers = async (req) => {
   let message = "";
   const blockUnblockDate = new Date();
   let statusCode = STATUS_CODES.OK;
+  let entity = null;
+  let user = null;
 
   if (entityId) {
-    const entity = await EntityDetails.findOne({
+    entity = await EntityDetails.findOne({
       _id: entityId,
       status: { $in: [STATUS.ACTIVE, STATUS.BLOCKED] },
     }).lean();
@@ -483,17 +505,24 @@ const editRestaurantsOrUsers = async (req) => {
     updateOperations.push(
       EntityDetails.updateOne(
         { _id: entityId },
-        { $set: { status, blockUnblockDate } }
-      )
+        { $set: { status, blockUnblockDate } },
+      ),
     );
 
     if (entity.userId) {
       updateOperations.push(
         User.updateOne(
           { _id: entity.userId },
-          { $set: { status } } // Set to either ACTIVE or BLOCKED
-        )
+          { $set: { status } }, // Set to either ACTIVE or BLOCKED
+        ),
       );
+      // Invalidate owner's session when entity is blocked
+      if (status === STATUS.BLOCKED) {
+        const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+        updateOperations.push(
+          redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${entity.userId}`),
+        );
+      }
     }
 
     statusCode =
@@ -507,7 +536,7 @@ const editRestaurantsOrUsers = async (req) => {
   }
 
   if (userId) {
-    const user = await User.findOne({
+    user = await User.findOne({
       _id: userId,
       status: { $in: [STATUS.ACTIVE, STATUS.BLOCKED] },
       role: ROLES.CUSTOMER,
@@ -521,7 +550,7 @@ const editRestaurantsOrUsers = async (req) => {
     }
 
     updateOperations.push(
-      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } })
+      User.updateOne({ _id: userId }, { $set: { status, blockUnblockDate } }),
     );
     statusCode =
       status === STATUS.BLOCKED
@@ -531,9 +560,54 @@ const editRestaurantsOrUsers = async (req) => {
       status: status,
       statusCode,
     });
+
+    // Invalidate user's session/token when blocked so they are logged out immediately
+    if (status === STATUS.BLOCKED) {
+      const { KEY_TYPE_PREFIXES } = require("../Utils/globalConstants");
+      updateOperations.push(
+        redisClient.del(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userId}`),
+      );
+    }
   }
 
   await Promise.all(updateOperations);
+
+  // Send email notification about account status change
+  try {
+    if (entityId && entity) {
+      const owner = entity.userId
+        ? await User.findOne({ _id: entity.userId }, { email: 1, firstName: 1 }).lean()
+        : null;
+      if (owner?.email) {
+        const html = getAccountStatusTemplate(
+          entity.entityName || owner.firstName || "User",
+          status,
+          "entity",
+        );
+        await createMail({
+          to: owner.email,
+          subject: `Countr - Your entity has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+          html,
+        });
+      }
+    }
+
+    if (userId && user?.email) {
+      const html = getAccountStatusTemplate(
+        user.firstName || "User",
+        status,
+        "account",
+      );
+      await createMail({
+        to: user.email,
+        subject: `Countr - Your account has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+        html,
+      });
+    }
+  } catch (err) {
+    console.error("Status change email error:", err.message);
+  }
+
   return { statusCode };
 };
 
@@ -594,7 +668,6 @@ const resetPassword = async (req) => {
 };
 
 const logoutAdmin = async (req) => {
-  const lang = getLanguageFromRequest(req);
   const { userId } = req;
   const admin = await Admin.findById(userId, { _id: 1, status: 1 });
   if (admin.status === STATUS.DELETED) {
@@ -677,7 +750,7 @@ const sendEmailOtp = async (req) => {
   // Check admin exists with this email
   const adminUser = await Admin.findOne(
     { email: trimmedEmail, status: STATUS.ACTIVE },
-    { _id: 1 }
+    { _id: 1 },
   );
 
   if (!adminUser) {

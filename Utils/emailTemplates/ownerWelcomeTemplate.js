@@ -1,16 +1,16 @@
 /**
- * Email Template for Welcome Email
- * @param {string} firstName - The user's first name
+ * Email Template for Owner Welcome Email
+ * @param {string} firstName - The owner's first name
  * @returns {string} HTML email template
  */
-const getWelcomeTemplate = (firstName) => {
+const getOwnerWelcomeTemplate = (firstName) => {
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Countr Customer</title>
+    <title>Welcome to Countr Owner</title>
     <style>
         * {
             margin: 0;
@@ -130,46 +130,48 @@ const getWelcomeTemplate = (firstName) => {
     <div class="email-container">
         <div class="email-body">
             <p class="greeting">Hello ${firstName}!</p>
-            
+
             <div class="welcome-message">
-                Welcome to Countr Customer! 🎉
+                Welcome to Countr Owner! 🎉
             </div>
-            
+
             <p class="message">
-                We're thrilled to have you join our community! Your account has been successfully created, and you're all set to start exploring everything Countr has to offer.
+                Your owner account has been successfully created. You're now ready to set up and manage your restaurant on the Countr platform.
             </p>
-            
+
             <div class="highlight-box">
-                <p>✨ You're now a Countr Customer!</p>
-                <p>Order things at your fingertips like never before!</p>
+                <p>🏪 You're now a Countr Owner!</p>
+                <p>Manage your restaurant and start serving customers right away!</p>
             </div>
-            
+
             <p class="message">
-                Here's what you can do with your Countr account:
+                Here's what you can do with your Countr Owner account:
             </p>
-            
+
             <ul class="features-list">
-                <li>📱 Browse and discover exciting events and products</li>
-                <li>🛒 Make secure payments with multiple payment options</li>
-                <li>📊 Track your orders and purchase history</li>
-                <li>⭐ Share feedback and help improve our services</li>
+                <li>🍽️ Create and manage your menu items and categories</li>
+                <li>📋 Handle customer orders and track sales</li>
+                <li>🎉 Create and manage events for your restaurant</li>
+                <li>🪑 Set up and manage tables for dine-in and reservations</li>
+                <li>📊 View sales reports and download history</li>
+                <li>⭐ Collect and review customer feedback</li>
             </ul>
-            
+
             <div class="cta-section">
                 <p><strong>🚀 Ready to get started?</strong></p>
-                <p>Log in to your account and start exploring all the amazing features we have in store for you!</p>
+                <p>Log in to the Countr Owner app and start setting up your restaurant!</p>
             </div>
-            
+
             <div class="divider"></div>
-            
+
             <p class="message" style="font-size: 14px; color: #999; text-align: center;">
-                If you have any questions or need assistance, our support team is here to help!
+                If you have any questions or need assistance, please reach out to the support team.
             </p>
         </div>
-        
+
         <div class="email-footer">
             <p><strong>Countr</strong></p>
-            <p>Thank you for choosing us!</p>
+            <p>Thank you for partnering with us!</p>
         </div>
     </div>
 </body>
@@ -178,5 +180,5 @@ const getWelcomeTemplate = (firstName) => {
 };
 
 module.exports = {
-  getWelcomeTemplate,
+  getOwnerWelcomeTemplate,
 };
