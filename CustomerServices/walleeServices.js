@@ -19,6 +19,7 @@ const Commission = require("../Models/Commission");
 const Order = require("../Models/Order");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
+const { io } = require("../app");
 
 // Wallee Configuration
 const spaceId = Number(process.env.WALLEE_SPACE_ID);
@@ -117,9 +118,13 @@ const createWalleeTransaction = async (req) => {
 
   // Get platform fees (commission percentage)
   const platformFeesPercent = global.PLATFORM_FEES || 2; // e.g., 1 for 1%
-  const totalAmount = Number(amount);
-  const platformCommission = (totalAmount * platformFeesPercent) / 100;
-  const merchantAmount = totalAmount - platformCommission;
+  const totalAmount = parseFloat(Number(amount).toFixed(2));
+  const platformCommission = parseFloat(
+    ((totalAmount * platformFeesPercent) / 100).toFixed(2)
+  );
+  const merchantAmount = parseFloat(
+    (totalAmount - platformCommission).toFixed(2)
+  );
 
   // IMPORTANT: Process payment in MERCHANT'S space
   // In this model, each merchant owns their own Wallee space
@@ -180,7 +185,7 @@ const createWalleeTransaction = async (req) => {
         uniqueId: `order-${reqUserId}-${eventId}-${Date.now()}`,
         sku: `event-${eventId}`,
         quantity: 1,
-        amountIncludingTax: totalAmount, // Full amount to merchant
+        amountIncludingTax: totalAmount, // already rounded to 2 decimal places
         type: "PRODUCT",
       },
     ];
@@ -760,30 +765,36 @@ const handleWalleeWebhook = async (req) => {
 
             const commissionStartTime = Date.now();
 
-            // Create commission record for later collection
-            // Merchant receives full payment in their Wallee space
-            // Platform commission is tracked and will be invoiced/collected separately
-            const commissionRecord = await Commission.create({
-              entityId: entityIdObj,
-              eventId: eventIdObj,
-              userId: userIdObj,
-              walleeTransactionId: transaction.id,
-              totalAmount: totalAmount,
-              platformCommission: platformCommission,
-              merchantAmount: merchantAmount || totalAmount, // Merchant receives full amount
-              platformFeesPercent: metadata.platformFeesPercent
-                ? Number(metadata.platformFeesPercent)
-                : 0,
-              currency: transaction.currency,
-              status: "PENDING", // Will be invoiced/collected later
-              metadata: {
-                transactionState: transaction.state,
-                completedOn: transaction.completedOn,
-                paymentFlow: "MERCHANT_FULL_PAYMENT",
-                merchantSpaceId: merchantSpaceId, // Store merchant's space ID
-                transactionSpaceId: merchantSpaceId, // Space where payment was processed
+            // Upsert commission record — one record per transaction
+            // Webhook fires for each state change (AUTHORIZED → CONFIRMED → FULFILL)
+            // We only want one commission record, updated with the latest state
+            const commissionRecord = await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount,
+                  platformCommission: platformCommission,
+                  merchantAmount: merchantAmount || totalAmount,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "PENDING",
+                  metadata: {
+                    transactionState: transaction.state,
+                    completedOn: transaction.completedOn,
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
               },
-            });
+              { upsert: true, new: true }
+            );
 
             const commissionDuration = Date.now() - commissionStartTime;
             console.log(
@@ -829,6 +840,20 @@ const handleWalleeWebhook = async (req) => {
             console.log(`   Transaction ID: ${transaction.id}`);
             console.log(`   Created At: ${new Date().toISOString()}`);
             console.log(`✅ Commission tracking completed successfully`);
+
+            // Notify admin dashboard — revenue changed
+            try {
+              io.to("admin_room").emit("adminDashboardUpdate", {
+                action: "revenue_update",
+                transactionId: transaction.id,
+                amount: totalAmount,
+                platformCommission: platformCommission,
+                currency: transaction.currency,
+                entityId: entityIdFromMetadata,
+              });
+            } catch (err) {
+              console.error("Admin socket emit error:", err.message);
+            }
           } catch (commissionError) {
             console.error("\n❌❌❌ ERROR CREATING COMMISSION RECORD ❌❌❌");
             console.error("Error:", commissionError.message);
@@ -897,22 +922,24 @@ const handleWalleeWebhook = async (req) => {
                   .join(", ")}`
               );
 
-              // Update all orders for this event
-              // Note: Orders remain in WAITING status - payment completion doesn't change order status
-              // Order status changes when restaurant processes the order (IN_PROGRESS -> READY -> COMPLETED)
-              // But we can add payment confirmation metadata if needed
+              // Extract actual payment method name from Wallee transaction object
+              // paymentConnectorConfiguration.paymentMethodConfiguration.name holds the real name (e.g. "TWINT", "VISA", "Mastercard")
+              const paymentMethod =
+                transaction.paymentConnectorConfiguration?.paymentMethodConfiguration?.name ||
+                transaction.paymentConnectorConfiguration?.name ||
+                null;
 
-              // For now, we'll just log that payment is confirmed
-              // If you need to track payment status separately, add a paymentStatus field to Order model
-              console.log(
-                `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}`
+              console.log(`💳 Payment method from Wallee: ${paymentMethod || "unknown"}`);
+
+              // Save payment method on all orders for this event
+              await Order.updateMany(
+                { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
+                { $set: { ...(paymentMethod && { paymentMethod }) } }
               );
 
-              // Optional: You can add a payment confirmation timestamp or status field here
-              // await Order.updateMany(
-              //   { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
-              //   { $set: { paymentConfirmedAt: new Date(), paymentTransactionId: transaction.id } }
-              // );
+              console.log(
+                `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}${paymentMethod ? ` via ${paymentMethod}` : ""}`
+              );
             } else {
               console.log(`ℹ️ No orders found for event ${eventId}`);
               console.log(
@@ -960,6 +987,56 @@ const handleWalleeWebhook = async (req) => {
           transaction.failureReason || "Not provided"
         );
         console.log("📅 Failed On:", transaction.failedOn || "Not specified");
+
+        // Track failed transaction in Commission for transaction logs
+        if (entityIdFromMetadata) {
+          try {
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
+
+            await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount || 0,
+                  platformCommission: 0,
+                  merchantAmount: 0,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "CANCELLED",
+                  metadata: {
+                    transactionState: transaction.state,
+                    failedOn: transaction.failedOn,
+                    failureReason: transaction.failureReason,
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
+            console.log("✅ Commission record upserted for FAILED transaction");
+          } catch (err) {
+            console.error(
+              "❌ Error upserting commission for FAILED:",
+              err.message
+            );
+          }
+        }
         break;
 
       case "VOIDED":
@@ -970,6 +1047,55 @@ const handleWalleeWebhook = async (req) => {
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: VOIDED");
         console.log("ℹ️ Payment was voided/cancelled");
+
+        // Track voided transaction in Commission for transaction logs
+        if (entityIdFromMetadata) {
+          try {
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
+
+            await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount || 0,
+                  platformCommission: 0,
+                  merchantAmount: 0,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "CANCELLED",
+                  metadata: {
+                    transactionState: transaction.state,
+                    voidedOn: new Date().toISOString(),
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
+            console.log("✅ Commission record upserted for VOIDED transaction");
+          } catch (err) {
+            console.error(
+              "❌ Error upserting commission for VOIDED:",
+              err.message
+            );
+          }
+        }
         break;
 
       case "DECLINE":
@@ -980,6 +1106,57 @@ const handleWalleeWebhook = async (req) => {
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: DECLINE");
         console.log("❌ Payment was declined by payment provider");
+
+        // Track declined transaction in Commission for transaction logs
+        if (entityIdFromMetadata) {
+          try {
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
+
+            await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount || 0,
+                  platformCommission: 0,
+                  merchantAmount: 0,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "CANCELLED",
+                  metadata: {
+                    transactionState: transaction.state,
+                    declinedOn: new Date().toISOString(),
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
+            console.log(
+              "✅ Commission record upserted for DECLINE transaction"
+            );
+          } catch (err) {
+            console.error(
+              "❌ Error upserting commission for DECLINE:",
+              err.message
+            );
+          }
+        }
         break;
 
       case "PENDING":
@@ -990,6 +1167,56 @@ const handleWalleeWebhook = async (req) => {
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: PENDING");
         console.log("ℹ️ Payment is still pending processing");
+
+        // Track pending transaction in Commission for transaction logs
+        if (entityIdFromMetadata) {
+          try {
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
+
+            await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount || 0,
+                  platformCommission: 0,
+                  merchantAmount: 0,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "PENDING",
+                  metadata: {
+                    transactionState: transaction.state,
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
+            console.log(
+              "✅ Commission record upserted for PENDING transaction"
+            );
+          } catch (err) {
+            console.error(
+              "❌ Error upserting commission for PENDING:",
+              err.message
+            );
+          }
+        }
         break;
 
       case "PROCESSING":
@@ -1000,6 +1227,56 @@ const handleWalleeWebhook = async (req) => {
         console.log("🆔 Transaction ID:", transaction.id);
         console.log("📊 State: PROCESSING");
         console.log("ℹ️ Payment is currently being processed");
+
+        // Track processing transaction in Commission for transaction logs
+        if (entityIdFromMetadata) {
+          try {
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
+
+            await Commission.findOneAndUpdate(
+              { walleeTransactionId: transaction.id },
+              {
+                $set: {
+                  entityId: entityIdObj,
+                  eventId: eventIdObj,
+                  userId: userIdObj,
+                  walleeTransactionId: transaction.id,
+                  totalAmount: totalAmount || 0,
+                  platformCommission: 0,
+                  merchantAmount: 0,
+                  platformFeesPercent: metadata.platformFeesPercent
+                    ? Number(metadata.platformFeesPercent)
+                    : 0,
+                  currency: transaction.currency,
+                  status: "PENDING",
+                  metadata: {
+                    transactionState: transaction.state,
+                    paymentFlow: "MERCHANT_FULL_PAYMENT",
+                    merchantSpaceId: merchantSpaceId,
+                    transactionSpaceId: merchantSpaceId,
+                  },
+                },
+              },
+              { upsert: true, new: true }
+            );
+            console.log(
+              "✅ Commission record upserted for PROCESSING transaction"
+            );
+          } catch (err) {
+            console.error(
+              "❌ Error upserting commission for PROCESSING:",
+              err.message
+            );
+          }
+        }
         break;
 
       default:

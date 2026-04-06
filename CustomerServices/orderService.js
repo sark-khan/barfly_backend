@@ -96,7 +96,7 @@ const createOrder = async (req, session) => {
   const lastOrder = await Order.find(
     { entityId },
     { tokenNumber: 1 },
-    { sort: { _id: -1 } }
+    { sort: { _id: -1 } },
   ).limit(1);
   let tokenNumber = lastOrder[0] ? lastOrder[0].tokenNumber + 1 : 1;
 
@@ -114,9 +114,19 @@ const createOrder = async (req, session) => {
     parseFloat(discountAmount) +
     parseFloat(platformFees);
 
+  // Attach itemName + itemPrice snapshot so data survives item deletion
+  const itemsWithSnapshot = items.map((doc) => {
+    const menuItem = itemNameMapper[`${doc.itemId}`];
+    return {
+      ...doc,
+      itemName: menuItem?.itemName,
+      itemPrice: menuItem?.price,
+    };
+  });
+
   const orderData = {
     status: ORDER_STATUS.WAITING,
-    items,
+    items: itemsWithSnapshot,
     counterId,
     entityId,
     tokenNumber,
@@ -152,6 +162,8 @@ const createOrder = async (req, session) => {
   //     topic: topic,
   //   },
   // });
+
+  // Note: Socket emit "newOrder" is handled in orderController.js after transaction commits
 
   // Send Firebase notification to owner_entity_{entityId} topic for new order
   sendFirebaseNotification({
@@ -219,7 +231,7 @@ const createOfflineOrder = async (req) => {
     }
   });
 
-  const offlineOrderObj = await OfflineOrders.create({
+  const offlineOrderObjCreated = await OfflineOrders.create({
     items,
     counterId,
     internalNumber,
@@ -227,13 +239,41 @@ const createOfflineOrder = async (req) => {
     entityId,
     userId,
     totalAmount: amount,
+    // finalAmount: amount,
     status: ORDER_STATUS.IN_PROGRESS,
+  });
+  const offlineOrderObj = await OfflineOrders.findOne({
+    _id: offlineOrderObjCreated._id,
+  }).lean();
+  // off
+
+  // Send Firebase data message to owner for real-time update
+  sendFirebaseNotification({
+    topic: `owner_entity_${entityId}`,
+    showNotification: true,
+    title: "New Offline Order",
+    body: "A new offline order has been placed.",
+    data: {
+      action: "offline_order_create",
+      screen: "order_screen",
+      orderId: offlineOrderObj._id.toString(),
+      entityId: entityId.toString(),
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${entityId}`,
+    },
+  });
+
+  // Socket emit to owner for real-time UI update
+  io.to(entityId.toString()).emit("offlineOrderUpdate", {
+    action: "create",
+    order: offlineOrderObj,
+    entityId: entityId.toString(),
   });
 
   genrateCustomerOrderReport({
     userId: userId,
     entityId: entityId,
-    orders: offlineOrderObj,
+    orders: { ...offlineOrderObj, finalAmount: amount },
     mode: "Offline",
   });
   return offlineOrderObj;
@@ -269,7 +309,7 @@ const updateStatusOfOrder = async (req) => {
   const updatedOrder = await Order.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
-    { new: true }
+    { new: true },
   ).populate("userId");
 
   io.to(order.entityId.toString()).emit("orderStatusUpdate", {
@@ -277,17 +317,21 @@ const updateStatusOfOrder = async (req) => {
     status,
   });
 
-  // sendFirebaseNotification({
-  //   topic: `entity_${tableData.entityId}`,
-  //   showNotification: true,
-  //   title: "New Profile Updated",
-  //   body: "You have a new feedback added. Tap to view.",
-  //   data: {
-  //         action:"feedback_update",
-  //         screen: "feedback_screen",
-  //         click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //       },
-  // });
+  // Send Firebase notification to owner app for order status update
+  sendFirebaseNotification({
+    topic: `owner_entity_${order.entityId}`,
+    showNotification: false,
+    title: "Order Status Updated",
+    body: `Order #${order.tokenNumber} is now ${status}.`,
+    data: {
+      action: "order_status_update",
+      screen: "order_screen",
+      orderId: orderId.toString(),
+      status: status,
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${order.entityId}`,
+    },
+  });
 
   const userId = updatedOrder?.userId?._id;
   const orderNo = updatedOrder?.tokenNumber || order?.tokenNumber;
@@ -301,7 +345,7 @@ const updateStatusOfOrder = async (req) => {
       orderId: orderId,
       status: status,
       action: "order_status_update",
-      screen: "order_status",
+      screen: "status",
       orderNo: orderNo?.toString() || "",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `user_${userId}`,
@@ -483,7 +527,7 @@ const getEntityOrders = async (req) => {
 
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
-      { _id: 1 }
+      { _id: 1 },
     ).lean();
 
     if (matchingItems.length > 0) {
@@ -592,7 +636,7 @@ const getOfflineOrders = async (req) => {
 
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
-      { _id: 1 }
+      { _id: 1 },
     ).lean();
 
     if (matchingItems.length > 0) {
@@ -677,7 +721,7 @@ const updateOfflineOrders = async (req) => {
   const updatedOrder = await OfflineOrders.findOneAndUpdate(
     { _id: orderId },
     { $set: { status } },
-    { new: true }
+    { new: true },
   ).populate("userId");
 
   // Emit socket event for offline order status update
@@ -685,6 +729,23 @@ const updateOfflineOrders = async (req) => {
     orderId: orderId,
     status,
     isOffline: true,
+  });
+
+  // Send Firebase notification to owner app for offline order status update
+  sendFirebaseNotification({
+    topic: `owner_entity_${entityId}`,
+    showNotification: true,
+    title: "Order Status Updated",
+    body: `Offline order status is now ${status}.`,
+    data: {
+      action: "order_status_update",
+      screen: "order_screen",
+      orderId: orderId.toString(),
+      status: status,
+      isOffline: "true",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      topic: `owner_entity_${entityId}`,
+    },
   });
 
   const userId = updatedOrder?.userId?._id;
@@ -698,7 +759,7 @@ const updateOfflineOrders = async (req) => {
       orderId: orderId,
       status: status,
       action: "order_status_update",
-      screen: "order_status",
+      screen: "status",
       isOffline: "true",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
       topic: `user_${userId}`,
@@ -820,6 +881,7 @@ const particularOrderDetailsCustomer = async (req) => {
           ORDER_STATUS.IN_PROGRESS,
           ORDER_STATUS.READY,
           ORDER_STATUS.COMPLETED,
+          ORDER_STATUS.CANCELLED,
         ],
       },
       _id: orderId,
@@ -838,7 +900,8 @@ const particularOrderDetailsCustomer = async (req) => {
       note: 1,
       finalAmount: 1,
       discountAmount: 1,
-    }
+      platformFees: 1,
+    },
   )
     .populate({
       path: "items.itemId",
@@ -861,7 +924,7 @@ const particularOrderDetailsCustomer = async (req) => {
   }
   if (orderDetails.entityId && orderDetails.entityId.image) {
     orderDetails.entityId.image = generatePresignedUrl(
-      orderDetails.entityId.image
+      orderDetails.entityId.image,
     );
     orderDetails.finalAmount = orderDetails.finalAmount;
   }
@@ -882,7 +945,7 @@ const getRestaurantOrdersAndCount = async (req) => {
         $lt: new Date(`${year}-12-31T23:59:59.999Z`),
       },
     },
-    { entityId: 1 }
+    { entityId: 1 },
   );
 
   if (orders.length === 0) return [];
@@ -951,7 +1014,7 @@ const getOrderGroupByYears = async (req) => {
 
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
-    { entityName: 1, entityType: 1 }
+    { entityName: 1, entityType: 1 },
   ).lean();
 
   const entityMapper = {};
@@ -993,11 +1056,11 @@ const getOrderGroupByMonths = async (req) => {
 
   const entities = await EntityDetails.find(
     { _id: { $in: entityIds } },
-    { entityName: 1, entityType: 1 }
+    { entityName: 1, entityType: 1 },
   ).lean();
 
   const entityMapper = Object.fromEntries(
-    entities.map((doc) => [doc._id.toString(), doc])
+    entities.map((doc) => [doc._id.toString(), doc]),
   );
 
   const ordersByMonthAndEntity = await Order.aggregate([
@@ -1086,7 +1149,7 @@ const getOrderGroupByYearsForEntity = async (req) => {
   const entityIds = [];
   let allOrders = await Order.find(
     { entityId },
-    { items: 1, tokenNumber: 1, updatedAt: 1, status: 1 }
+    { items: 1, tokenNumber: 1, updatedAt: 1, status: 1 },
   ).lean();
   allOrders.forEach((doc) => {
     doc.items.forEach((item) => {
@@ -1134,7 +1197,7 @@ const pastTicketYears = async (req) => {
   const orderList = await Order.find(
     { userId },
     { createdAt: 1 },
-    { sort: { _id: -1 } }
+    { sort: { _id: -1 } },
   );
   const yearList = [];
   orderList.map((orders) => {
@@ -1181,13 +1244,43 @@ const cancelOrder = async (req) => {
 
   await Order.updateOne(
     { _id: orderId },
-    { $set: { status: ORDER_STATUS.CANCELLED } }
+    { $set: { status: ORDER_STATUS.CANCELLED } },
   );
   console.log({ id: order.entityId });
   io.to(order.entityId._id.toString()).emit("cancelOrder", {
     orderId: order._id,
     status: ORDER_STATUS.CANCELLED,
   });
+
+  // Notify owner (restaurant) via Firebase topic so FE can refetch orders
+  sendFirebaseNotification({
+    topic: `owner_entity_${order.entityId._id}`,
+    showNotification: true,
+    title: "Order Cancelled",
+    body: `A customer has cancelled order #${order.tokenNumber || order._id}.`,
+    data: {
+      orderId: `${order._id}`,
+      status: ORDER_STATUS.CANCELLED,
+      action: "order_cancelled",
+      screen: "landing_home",
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+  });
+
+  // Notify customer who cancelled via Firebase topic so their FE can refetch
+  // sendFirebaseNotification({
+  //   topic: `user_${order.userId}`,
+  //   showNotification: false,
+  //   title: "Order Cancelled",
+  //   body: "Your order has been cancelled.",
+  //   data: {
+  //     orderId: `${order._id}`,
+  //     status: ORDER_STATUS.CANCELLED,
+  //     action: "order_cancelled",
+  //     screen: "landing_home",
+  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+  //   },
+  // });
 
   const tokens = Array.isArray(order.entityId.userId.fcmToken)
     ? order.entityId.userId.fcmToken.filter(Boolean)
@@ -1201,6 +1294,7 @@ const cancelOrder = async (req) => {
     data: {
       orderId: `${order._id}`,
       data: JSON.stringify(order),
+      action: "order_cancelled",
       screen: "landing_home",
       click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
@@ -1245,7 +1339,7 @@ const cancelOrder = async (req) => {
       if (failedTokens.length) {
         await User.updateOne(
           { _id: order.entityId.userId._id },
-          { $pull: { fcmToken: { $in: failedTokens } } }
+          { $pull: { fcmToken: { $in: failedTokens } } },
         );
       }
     }
@@ -1472,7 +1566,7 @@ const getEventOrderSummary = async (req) => {
   orderDetails
     .filter(
       (order) =>
-        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status)
+        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status),
     )
     .forEach((order) => {
       const orderHour = getDateHourKey(order.createdAt);

@@ -53,9 +53,10 @@ module.exports.getEntities = async (req) => {
     isPopular,
   } = req.query;
   const now = new Date();
-
-  if (req.headers["token"] != null) {
-    verifyTokenWithoutResponse(req);
+  console.log(req.headers["token"], "token");
+  const token = req.headers["token"];
+  if (token != null && typeof token === "string" && token.trim().length > 0) {
+    await verifyTokenWithoutResponse(req);
   }
 
   const userId = req.id || req.userId;
@@ -986,7 +987,11 @@ module.exports.counterList = async (req) => {
 module.exports.getCounterMenuCategory = async (req) => {
   const { counterId, searchTerm } = req.query;
 
-  const query = { ...(counterId && { counterId }) };
+  const query = {
+    ...(counterId
+      ? { counterId }
+      : { counterId: { $exists: true, $ne: null } }),
+  };
   if (searchTerm) {
     query.name = { $regex: searchTerm, $options: "i" };
   }
@@ -997,12 +1002,15 @@ module.exports.getCounterMenuCategory = async (req) => {
 module.exports.getMenuItems = async (req) => {
   let { menuCategoryId, searchTerm, counterId, entityId } = req.query;
 
-  let filter = { inStock: true, counterId: counterId, entityId };
+  let filter = { counterId: counterId, entityId };
 
   if (searchTerm && searchTerm.trim()) {
     filter.itemName = { $regex: searchTerm, $options: "i" };
   }
   const menuCategory = await MenuCategory.find({ _id: menuCategoryId });
+  if (!menuCategory || menuCategory.length === 0) {
+    return [];
+  }
   const categoryName = menuCategory[0].categoryName;
   const menuItems1 = await ItemDetails.find(filter)
     .populate("menuCategoryId")
@@ -1386,7 +1394,7 @@ module.exports.updateUserDetails = async (req) => {
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });
 
       message = t("OTP_SENT_NEW_EMAIL", lang);
-      return message; 
+      return message;
     } else {
       const otpRecord = await Otp.findOne({ email });
       if (
@@ -1702,6 +1710,7 @@ exports.newlyAddedEntities = async () => {
 
   const entities = await EntityDetails.find({
     createdAt: { $gte: fortyEightHoursago },
+    status: STATUS.ACTIVE,
   }).sort({ createdAt: -1 });
 
   entities.map((entity) => {
@@ -1713,7 +1722,7 @@ exports.newlyAddedEntities = async () => {
 
 exports.popularEntities = async () => {
   const popular = await EntityDetails.find(
-    {},
+    { status: STATUS.ACTIVE },
     { entityName: 1, city: 1, views: 1, country: 1, status: 1, image: 1 }
   )
     .sort({ views: -1 })
@@ -1889,12 +1898,18 @@ module.exports.getUserAppFeedbackAnswers = async (req) => {
 
 module.exports.getTablesUserSide = async (req) => {
   const { entityId, counterId } = req.query;
-  const query = { entityId, counterIds: counterId };
+  const query = {
+    entityId,
+    counterIds: counterId,
+    status: { $ne: STATUS.DELETED },
+  };
 
   const tables = await Tables.findOne(query, {
     tableCount: 1,
     counterIds: 1,
     entityId: 1,
+    tableSectionName: 1,
+    tableSetionNo: 1,
   })
     .populate({
       path: "counterIds",
@@ -1911,13 +1926,18 @@ module.exports.getTablesUserSide = async (req) => {
   //   return tables;
   // }
 
-  console.log({ tables });
   const tablesRes = [];
+  const counterIdStr = String(counterId);
   tables.counterIds.forEach((counter) => {
-    if (counter._id == counterId && counter.isTableService == true) {
-      tablesRes.push(tables);
+    const cId = counter?._id?.toString?.() ?? counter?.toString?.();
+    if (cId === counterIdStr && counter?.isTableService === true) {
+      tablesRes.push({
+        tableCount: tables.tableCount ?? [],
+        tableSectionName: tables.tableSectionName,
+        tableSetionNo: tables.tableSetionNo,
+        entityId: tables.entityId,
+      });
     }
-    // return false;
   });
 
   return tablesRes;
@@ -1950,4 +1970,12 @@ module.exports.updateNotificationSettings = async (req) => {
     { upsert: true }
   );
   return;
+};
+
+module.exports.getPlatformFee = async (req) => {
+  const { entityId, eventId } = req.query;
+  const raw = global.PLATFORM_FEES ?? 0;
+  // If stored as percentage (e.g. 5 for 5%), convert to decimal (0.05) for frontend
+  const platformFee = raw > 1 ? raw / 100 : raw;
+  return { platformFee };
 };

@@ -8,7 +8,12 @@ const {
 const crypto = require("crypto");
 const OtpSession = require("../../../Models/sessions");
 const { createMail, sendSMS } = require("../../../Utils/mailer");
-const { getVerificationCodeTemplate } = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getVerificationCodeTemplate,
+} = require("../../../Utils/emailTemplates/verificationCodeTemplate");
+const {
+  getOwnerWelcomeTemplate,
+} = require("../../../Utils/emailTemplates/ownerWelcomeTemplate");
 const redisClient = require("./../../../redis");
 
 const User = require("../../../Models/User");
@@ -25,6 +30,7 @@ const MenuCategory = require("../../../Models/MenuCategory");
 const { uploadBufferToS3 } = require("../../aws-service");
 const NotificationSettings = require("../../../Models/notificationSettings");
 const { t, getLanguageFromRequest } = require("../../../Utils/translator");
+const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
@@ -76,7 +82,7 @@ module.exports.register = async (req) => {
     otpRecord = await Otp.findOneAndUpdate(
       { contactNumber },
       { otp, expiresAt },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
@@ -193,12 +199,32 @@ module.exports.register = async (req) => {
   // Create default categories for the new entity
   try {
     const defaultCategories = await MenuCategory.insertMany([
-      { categoryName: t("DEFAULT_CATEGORY_FOOD", lang), entityId: entityDetails._id },
-      { categoryName: t("DEFAULT_CATEGORY_SOFT_DRINKS", lang), entityId: entityDetails._id },
+      {
+        categoryName: t("DEFAULT_CATEGORY_FOOD", lang),
+        entityId: entityDetails._id,
+      },
+      {
+        categoryName: t("DEFAULT_CATEGORY_SOFT_DRINKS", lang),
+        entityId: entityDetails._id,
+      },
     ]);
     console.log("Default categories created:", defaultCategories);
   } catch (err) {
     console.error("Error creating default categories:", err.message);
+  }
+
+  // Send welcome email to owner (non-blocking)
+  try {
+    if (email) {
+      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "Owner");
+      createMail({
+        to: email,
+        subject: "Welcome to Countr! 🎉",
+        html: welcomeHtml,
+      });
+    }
+  } catch (err) {
+    console.error("Owner welcome email error:", err.message);
   }
 
   // Send Firebase notification to customer_entity topic for new entity (non-blocking)
@@ -222,8 +248,22 @@ module.exports.register = async (req) => {
     console.error("Firebase notification error:", err.message);
   }
 
+  // Notify admin dashboard — new entity/restaurant added
+  try {
+    io.to("admin_room").emit("adminDashboardUpdate", {
+      action: "new_entity",
+      entityId: entityDetails._id.toString(),
+      entityName: entityName,
+      entityType: entityType,
+    });
+  } catch (err) {
+    console.error("Admin socket emit error:", err.message);
+  }
+
   userDetails.entityDetails = entityDetails;
   const token = getJwtToken(userDetails, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${userDetails._id}`, "1");
 
   return {
     message: t("OWNER_REGISTRATION_SUCCESS", lang),
@@ -237,7 +277,7 @@ module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
-  const query = { status: STATUS.ACTIVE, role: ROLES.STORE_OWNER };
+  const query = { role: ROLES.STORE_OWNER };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
   if (!Object.keys(query)) {
@@ -255,12 +295,19 @@ module.exports.login = async (req) => {
       message: t("OWNER_INVALID_IDENTIFIER", lang),
     });
 
+  if (user.status === STATUS.BLOCKED) {
+    throwError({
+      status: STATUS_CODES.NOT_AUTHORIZED,
+      message: t("OWNER_BLOCKED_BY_ADMIN", lang),
+    });
+  }
+
   const entityDetails = await EntityDetails.findOne(
     {
       userId: user._id,
       status: STATUS.ACTIVE,
     },
-    { _id: 1 }
+    { _id: 1 },
   );
 
   if (!entityDetails)
@@ -287,15 +334,22 @@ module.exports.login = async (req) => {
   user.entityDetails = entityDetails;
 
   const token = getJwtToken(user, false);
+  const { KEY_TYPE_PREFIXES } = require("../../../Utils/globalConstants");
+  await redisClient.set(`${KEY_TYPE_PREFIXES.USER_TOKEN}:${user._id}`, "1");
 
   return { user, entityDetails, token };
 };
 
 module.exports.logoutEntity = async (req) => {
-  const { entityId } = req;
-  const entity = await EntityDetails.findById(entityId, { _id: 1 });
-  const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
-  await redisClient.del(`${prefix}:${entity._id}`);
+  let userId = req.userId || req.id;
+  if (!userId && req.entityId) {
+    const entity = await EntityDetails.findById(req.entityId, { userId: 1 }).lean();
+    userId = entity?.userId;
+  }
+  if (userId) {
+    const prefix = KEY_TYPE_PREFIXES.USER_TOKEN;
+    await redisClient.del(`${prefix}:${userId}`);
+  }
 };
 
 /**
@@ -308,7 +362,7 @@ module.exports.logoutEntity = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr"
+  subject = "Your Verification Code - Countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
