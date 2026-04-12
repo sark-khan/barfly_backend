@@ -2172,7 +2172,13 @@ module.exports.getOngoingEventDetails = async (req) => {
 
   const orders = await Order.find({
     eventId: { $in: Array.from(eventDetailsMap.keys()) },
-    status: { $nin: [globalConstants.ORDER_STATUS.WAITING] },
+    status: {
+      $nin: [
+        globalConstants.ORDER_STATUS.WAITING,
+        globalConstants.ORDER_STATUS.PAYMENT_PROCESSING,
+        globalConstants.ORDER_STATUS.PAYMENT_FAILED,
+      ],
+    },
   });
 
   orders.forEach((order) => {
@@ -2796,6 +2802,8 @@ module.exports.updateCounterSettings = async (req) => {
         $nin: [
           globalConstants.ORDER_STATUS.COMPLETED,
           globalConstants.ORDER_STATUS.CANCELLED,
+          globalConstants.ORDER_STATUS.PAYMENT_FAILED,
+          globalConstants.ORDER_STATUS.PAYMENT_PROCESSING
         ],
       },
     });
@@ -3013,6 +3021,8 @@ module.exports.updateCounterSettings = async (req) => {
         $nin: [
           globalConstants.ORDER_STATUS.COMPLETED,
           globalConstants.ORDER_STATUS.CANCELLED,
+          globalConstants.ORDER_STATUS.PAYMENT_FAILED,
+          globalConstants.ORDER_STATUS.PAYMENT_PROCESSING 
         ],
       },
     });
@@ -4684,6 +4694,7 @@ module.exports.restaurantOpen = async (req) => {
         $nin: [
           globalConstants.ORDER_STATUS.COMPLETED,
           globalConstants.ORDER_STATUS.CANCELLED,
+          globalConstants.ORDER_STATUS.PAYMENT_FAILED,
         ],
       },
     });
@@ -5060,6 +5071,8 @@ module.exports.editEvent = async (req) => {
       $nin: [
         globalConstants.ORDER_STATUS.COMPLETED,
         globalConstants.ORDER_STATUS.CANCELLED,
+        globalConstants.ORDER_STATUS.PAYMENT_PROCESSING,
+        globalConstants.ORDER_STATUS.PAYMENT_FAILED,
       ],
     },
   });

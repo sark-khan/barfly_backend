@@ -269,6 +269,7 @@
   "ORDER_STATUS_UPDATE_ERROR": "Error while updating order status",
   "ORDER_STATUS_UPDATE_SUCCESS": "Status of order updated successfully.",
   "ORDER_STATUS_INVALID": "Not a valid status.",
+  "ORDER_PAYMENT_NOT_CONFIRMED": "Cannot update this order. Payment has not been confirmed yet.",
   "ENTITY_ITEMS_UPDATE_SUCCESS": "Updated all the doc",
   "TRADE_PDF_GENERATION_ERROR": "PDF creation failed",
   "FCM_TOKEN_REGISTER_SUCCESS": "FCM token registered successfully",

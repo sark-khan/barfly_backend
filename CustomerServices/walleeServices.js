@@ -20,6 +20,10 @@ const Order = require("../Models/Order");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
 const { io } = require("../app");
+const { sendFirebaseNotification } = require("../Utils/commonFunction");
+const {
+  genrateCustomerOrderReport,
+} = require("../PdfServices/customerOrderReport");
 
 // Wallee Configuration
 const spaceId = Number(process.env.WALLEE_SPACE_ID);
@@ -893,10 +897,16 @@ const handleWalleeWebhook = async (req) => {
             const eventIdObj = new mongoose.Types.ObjectId(eventId);
 
             const orderLookupStartTime = Date.now();
-            // Find orders for this event that are still in WAITING status
+            // Find orders for this event that are still in PAYMENT_PROCESSING status
+            // Also check WAITING for backward compatibility during deployment transition
             const orders = await Order.find({
               eventId: eventIdObj,
-              status: ORDER_STATUS.WAITING, // Only update orders that are waiting
+              status: {
+                $in: [
+                  ORDER_STATUS.PAYMENT_PROCESSING,
+                  ORDER_STATUS.WAITING,
+                ],
+              },
             });
             const orderLookupDuration = Date.now() - orderLookupStartTime;
 
@@ -927,15 +937,64 @@ const handleWalleeWebhook = async (req) => {
 
               console.log(`💳 Payment method from Wallee: ${paymentMethod || "unknown"}`);
 
-              // Save payment method on all orders for this event
+              // Transition orders to WAITING and save payment method
               await Order.updateMany(
-                { eventId: eventIdObj, status: ORDER_STATUS.WAITING },
-                { $set: { ...(paymentMethod && { paymentMethod }) } }
+                {
+                  eventId: eventIdObj,
+                  status: {
+                    $in: [
+                      ORDER_STATUS.PAYMENT_PROCESSING,
+                      ORDER_STATUS.WAITING,
+                    ],
+                  },
+                },
+                {
+                  $set: {
+                    status: ORDER_STATUS.WAITING,
+                    ...(paymentMethod && { paymentMethod }),
+                  },
+                }
               );
 
               console.log(
                 `✅ Payment confirmed for ${orders.length} order(s) linked to event ${eventId}${paymentMethod ? ` via ${paymentMethod}` : ""}`
               );
+
+              // Now that payment is confirmed, notify the owner via socket + Firebase
+              orders.forEach((o) => {
+                o.status = ORDER_STATUS.WAITING;
+              });
+
+              for (const order of orders) {
+                io.to(order.entityId.toString()).emit("newOrder", [order]);
+              }
+
+              // Firebase notification to owner
+              const entityIdStr = orders[0].entityId.toString();
+              sendFirebaseNotification({
+                topic: `owner_entity_${entityIdStr}`,
+                showNotification: true,
+                title: "New Order Created",
+                body: `Payment confirmed. ${orders.length} new order(s).`,
+                data: {
+                  action: "order_create",
+                  screen: "order_screen",
+                  orderId: orders[0]._id.toString(),
+                  entityId: entityIdStr,
+                  click_action: "FLUTTER_NOTIFICATION_CLICK",
+                  topic: `owner_entity_${entityIdStr}`,
+                },
+              });
+
+              // Generate customer order report now that payment is confirmed
+              for (const order of orders) {
+                genrateCustomerOrderReport({
+                  userId: order.userId,
+                  entityId: order.entityId,
+                  orders: order,
+                  mode: "Online",
+                });
+              }
             } else {
               console.log(`ℹ️ No orders found for event ${eventId}`);
               console.log(
@@ -1033,6 +1092,46 @@ const handleWalleeWebhook = async (req) => {
             );
           }
         }
+
+        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (eventId) {
+          try {
+            const eventIdObj = new mongoose.Types.ObjectId(eventId);
+            const failedOrders = await Order.find({
+              eventId: eventIdObj,
+              status: ORDER_STATUS.PAYMENT_PROCESSING,
+            });
+            if (failedOrders.length > 0) {
+              await Order.updateMany(
+                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+                { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
+              );
+              console.log(
+                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED`
+              );
+              for (const order of failedOrders) {
+                sendFirebaseNotification({
+                  topic: `user_${order.userId}`,
+                  showNotification: true,
+                  title: "Payment Failed",
+                  body: `Your payment for order #${order.tokenNumber} has failed.`,
+                  data: {
+                    orderId: order._id.toString(),
+                    status: ORDER_STATUS.PAYMENT_FAILED,
+                    action: "payment_failed",
+                    screen: "status",
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                  },
+                });
+              }
+            }
+          } catch (err) {
+            console.error(
+              "❌ Error updating orders to PAYMENT_FAILED:",
+              err.message
+            );
+          }
+        }
         break;
 
       case "VOIDED":
@@ -1088,6 +1187,46 @@ const handleWalleeWebhook = async (req) => {
           } catch (err) {
             console.error(
               "❌ Error upserting commission for VOIDED:",
+              err.message
+            );
+          }
+        }
+
+        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (eventId) {
+          try {
+            const eventIdObj = new mongoose.Types.ObjectId(eventId);
+            const failedOrders = await Order.find({
+              eventId: eventIdObj,
+              status: ORDER_STATUS.PAYMENT_PROCESSING,
+            });
+            if (failedOrders.length > 0) {
+              await Order.updateMany(
+                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+                { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
+              );
+              console.log(
+                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED (VOIDED)`
+              );
+              for (const order of failedOrders) {
+                sendFirebaseNotification({
+                  topic: `user_${order.userId}`,
+                  showNotification: true,
+                  title: "Payment Failed",
+                  body: `Your payment for order #${order.tokenNumber} has failed.`,
+                  data: {
+                    orderId: order._id.toString(),
+                    status: ORDER_STATUS.PAYMENT_FAILED,
+                    action: "payment_failed",
+                    screen: "status",
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                  },
+                });
+              }
+            }
+          } catch (err) {
+            console.error(
+              "❌ Error updating orders to PAYMENT_FAILED (VOIDED):",
               err.message
             );
           }
@@ -1149,6 +1288,46 @@ const handleWalleeWebhook = async (req) => {
           } catch (err) {
             console.error(
               "❌ Error upserting commission for DECLINE:",
+              err.message
+            );
+          }
+        }
+
+        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (eventId) {
+          try {
+            const eventIdObj = new mongoose.Types.ObjectId(eventId);
+            const failedOrders = await Order.find({
+              eventId: eventIdObj,
+              status: ORDER_STATUS.PAYMENT_PROCESSING,
+            });
+            if (failedOrders.length > 0) {
+              await Order.updateMany(
+                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+                { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
+              );
+              console.log(
+                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED (DECLINE)`
+              );
+              for (const order of failedOrders) {
+                sendFirebaseNotification({
+                  topic: `user_${order.userId}`,
+                  showNotification: true,
+                  title: "Payment Declined",
+                  body: `Your payment for order #${order.tokenNumber} was declined.`,
+                  data: {
+                    orderId: order._id.toString(),
+                    status: ORDER_STATUS.PAYMENT_FAILED,
+                    action: "payment_failed",
+                    screen: "status",
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                  },
+                });
+              }
+            }
+          } catch (err) {
+            console.error(
+              "❌ Error updating orders to PAYMENT_FAILED (DECLINE):",
               err.message
             );
           }
