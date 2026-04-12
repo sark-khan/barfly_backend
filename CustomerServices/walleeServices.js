@@ -19,7 +19,7 @@ const Commission = require("../Models/Commission");
 const Order = require("../Models/Order");
 const { ORDER_STATUS } = require("../Utils/globalConstants");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
-const { io } = require("../app");
+const { getIo } = require("../Utils/socket");
 const { sendFirebaseNotification } = require("../Utils/commonFunction");
 const {
   genrateCustomerOrderReport,
@@ -843,7 +843,7 @@ const handleWalleeWebhook = async (req) => {
 
             // Notify admin dashboard — revenue changed
             try {
-              io.to("admin_room").emit("adminDashboardUpdate", {
+              getIo()?.to("admin_room").emit("adminDashboardUpdate", {
                 action: "revenue_update",
                 transactionId: transaction.id,
                 amount: totalAmount,
@@ -966,7 +966,7 @@ const handleWalleeWebhook = async (req) => {
               });
 
               for (const order of orders) {
-                io.to(order.entityId.toString()).emit("newOrder", [order]);
+                getIo()?.to(order.entityId.toString()).emit("newOrder", [order]);
               }
 
               // Firebase notification to owner
