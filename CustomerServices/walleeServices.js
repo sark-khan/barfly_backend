@@ -70,7 +70,7 @@ const createWalleeTransaction = async (req) => {
   const lang = getLanguageFromRequest(req);
   const {
     userId: reqUserId,
-    body: { amount, currency, eventId },
+    body: { amount, currency, eventId, orderId },
     email,
   } = req;
 
@@ -206,6 +206,7 @@ const createWalleeTransaction = async (req) => {
       metaData: {
         userId: reqUserId,
         eventId: eventId,
+        orderId: orderId || undefined,
         entityId: entityId.toString(), // Use validated entityId
         merchantSpaceId: merchantSpaceIdNumber.toString(), // Use validated spaceId number
         totalAmount: totalAmount.toString(),
@@ -662,6 +663,7 @@ const handleWalleeWebhook = async (req) => {
       : transaction.authorizationAmount;
     const eventId = metadata.eventId;
     const userId = metadata.userId;
+    const orderId = metadata.orderId;
     const entityIdFromMetadata = metadata.entityId;
 
     // Use space ID from webhook (merchant's space) - this is the actual space where payment was processed
@@ -891,23 +893,17 @@ const handleWalleeWebhook = async (req) => {
           "─────────────────────────────────────────────────────────────"
         );
 
-        if (eventId) {
+        if (orderId) {
           try {
-            console.log("🔍 Looking up orders for event:", eventId);
-            const eventIdObj = new mongoose.Types.ObjectId(eventId);
+            console.log("🔍 Looking up order by orderId:", orderId);
 
             const orderLookupStartTime = Date.now();
-            // Find orders for this event that are still in PAYMENT_PROCESSING status
-            // Also check WAITING for backward compatibility during deployment transition
-            const orders = await Order.find({
-              eventId: eventIdObj,
-              status: {
-                $in: [
-                  ORDER_STATUS.PAYMENT_PROCESSING,
-                  ORDER_STATUS.WAITING,
-                ],
-              },
+            // Find the exact order by its _id from Wallee metadata
+            const order = await Order.findOne({
+              _id: new mongoose.Types.ObjectId(orderId),
+              status: ORDER_STATUS.PAYMENT_PROCESSING,
             });
+            const orders = order ? [order] : [];
             const orderLookupDuration = Date.now() - orderLookupStartTime;
 
             console.log("⏱️ Order lookup took:", orderLookupDuration, "ms");
@@ -937,16 +933,11 @@ const handleWalleeWebhook = async (req) => {
 
               console.log(`💳 Payment method from Wallee: ${paymentMethod || "unknown"}`);
 
-              // Transition orders to WAITING and save payment method
-              await Order.updateMany(
+              // Transition order to WAITING and save payment method
+              await Order.updateOne(
                 {
-                  eventId: eventIdObj,
-                  status: {
-                    $in: [
-                      ORDER_STATUS.PAYMENT_PROCESSING,
-                      ORDER_STATUS.WAITING,
-                    ],
-                  },
+                  _id: new mongoose.Types.ObjectId(orderId),
+                  status: ORDER_STATUS.PAYMENT_PROCESSING,
                 },
                 {
                   $set: {
@@ -996,7 +987,7 @@ const handleWalleeWebhook = async (req) => {
                 });
               }
             } else {
-              console.log(`ℹ️ No orders found for event ${eventId}`);
+              console.log(`ℹ️ No order found for orderId ${orderId}`);
               console.log(
                 `   This is normal if orders are created after payment verification`
               );
@@ -1005,7 +996,7 @@ const handleWalleeWebhook = async (req) => {
             console.error("\n❌❌❌ ERROR LOOKING UP ORDERS ❌❌❌");
             console.error("Error:", orderUpdateError.message);
             console.error("Error stack:", orderUpdateError.stack);
-            console.error("Event ID that failed:", eventId);
+            console.error("Order ID that failed:", orderId);
             // Don't fail the webhook - log error for manual review
             console.warn(
               "⚠️ Webhook processing continues despite order lookup error"
@@ -1013,7 +1004,7 @@ const handleWalleeWebhook = async (req) => {
           }
         } else {
           console.log(
-            "⚠️ Event ID missing from metadata - cannot lookup orders"
+            "⚠️ Order ID missing from metadata - cannot lookup order"
           );
         }
 
@@ -1093,21 +1084,22 @@ const handleWalleeWebhook = async (req) => {
           }
         }
 
-        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
-        if (eventId) {
+        // Update order from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (orderId) {
           try {
-            const eventIdObj = new mongoose.Types.ObjectId(eventId);
-            const failedOrders = await Order.find({
-              eventId: eventIdObj,
+            const orderIdObj = new mongoose.Types.ObjectId(orderId);
+            const failedOrder = await Order.findOne({
+              _id: orderIdObj,
               status: ORDER_STATUS.PAYMENT_PROCESSING,
             });
+            const failedOrders = failedOrder ? [failedOrder] : [];
             if (failedOrders.length > 0) {
-              await Order.updateMany(
-                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+              await Order.updateOne(
+                { _id: orderIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
                 { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
               );
               console.log(
-                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED`
+                `✅ Updated order ${orderId} to PAYMENT_FAILED`
               );
               for (const order of failedOrders) {
                 sendFirebaseNotification({
@@ -1192,21 +1184,22 @@ const handleWalleeWebhook = async (req) => {
           }
         }
 
-        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
-        if (eventId) {
+        // Update order from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (orderId) {
           try {
-            const eventIdObj = new mongoose.Types.ObjectId(eventId);
-            const failedOrders = await Order.find({
-              eventId: eventIdObj,
+            const orderIdObj = new mongoose.Types.ObjectId(orderId);
+            const failedOrder = await Order.findOne({
+              _id: orderIdObj,
               status: ORDER_STATUS.PAYMENT_PROCESSING,
             });
+            const failedOrders = failedOrder ? [failedOrder] : [];
             if (failedOrders.length > 0) {
-              await Order.updateMany(
-                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+              await Order.updateOne(
+                { _id: orderIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
                 { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
               );
               console.log(
-                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED (VOIDED)`
+                `✅ Updated order ${orderId} to PAYMENT_FAILED (VOIDED)`
               );
               for (const order of failedOrders) {
                 sendFirebaseNotification({
@@ -1293,21 +1286,22 @@ const handleWalleeWebhook = async (req) => {
           }
         }
 
-        // Update orders from PAYMENT_PROCESSING to PAYMENT_FAILED
-        if (eventId) {
+        // Update order from PAYMENT_PROCESSING to PAYMENT_FAILED
+        if (orderId) {
           try {
-            const eventIdObj = new mongoose.Types.ObjectId(eventId);
-            const failedOrders = await Order.find({
-              eventId: eventIdObj,
+            const orderIdObj = new mongoose.Types.ObjectId(orderId);
+            const failedOrder = await Order.findOne({
+              _id: orderIdObj,
               status: ORDER_STATUS.PAYMENT_PROCESSING,
             });
+            const failedOrders = failedOrder ? [failedOrder] : [];
             if (failedOrders.length > 0) {
-              await Order.updateMany(
-                { eventId: eventIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
+              await Order.updateOne(
+                { _id: orderIdObj, status: ORDER_STATUS.PAYMENT_PROCESSING },
                 { $set: { status: ORDER_STATUS.PAYMENT_FAILED } }
               );
               console.log(
-                `✅ Updated ${failedOrders.length} order(s) to PAYMENT_FAILED (DECLINE)`
+                `✅ Updated order ${orderId} to PAYMENT_FAILED (DECLINE)`
               );
               for (const order of failedOrders) {
                 sendFirebaseNotification({
