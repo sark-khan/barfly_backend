@@ -708,7 +708,6 @@ const handleWalleeWebhook = async (req) => {
     switch (transaction.state) {
       case "FULFILL":
       case "COMPLETED":
-      case "CONFIRMED":
       case "AUTHORIZED":
         console.log(
           "\n╔══════════════════════════════════════════════════════════════╗"
@@ -1326,6 +1325,18 @@ const handleWalleeWebhook = async (req) => {
             );
           }
         }
+        break;
+
+      case "CONFIRMED":
+        console.log("\n✅ PAYMENT CONFIRMED (auto-confirmation)");
+        console.log(
+          "─────────────────────────────────────────────────────────────"
+        );
+        console.log("🆔 Transaction ID:", transaction.id);
+        console.log("📊 State: CONFIRMED");
+        console.log(
+          "ℹ️ Auto-confirmation fired — awaiting actual payment completion"
+        );
         break;
 
       case "PENDING":
