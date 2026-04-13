@@ -256,6 +256,7 @@
   "ORDER_STATUS_UPDATE_ERROR": "Fehler beim Aktualisieren des Bestellstatus",
   "ORDER_STATUS_UPDATE_SUCCESS": "Bestellstatus erfolgreich aktualisiert",
   "ORDER_STATUS_INVALID": "Kein gültiger Status",
+  "ORDER_PAYMENT_NOT_CONFIRMED": "Diese Bestellung kann nicht aktualisiert werden. Die Zahlung wurde noch nicht bestätigt.",
   "ENTITY_ITEMS_UPDATE_SUCCESS": "Alle Dokumente erfolgreich aktualisiert",
   "TRADE_PDF_GENERATION_ERROR": "PDF-Erstellung fehlgeschlagen",
   "FCM_TOKEN_REGISTER_SUCCESS": "FCM-Token erfolgreich registriert",

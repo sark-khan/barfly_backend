@@ -243,6 +243,7 @@ module.exports.deleteAccount = async (req) => {
     userId,
     status: {
       $in: [
+        globalConstants.ORDER_STATUS.PAYMENT_PROCESSING,
         globalConstants.ORDER_STATUS.WAITING,
         globalConstants.ORDER_STATUS.IN_PROGRESS,
         globalConstants.ORDER_STATUS.READY,

@@ -23,6 +23,8 @@ const OfflineOrders = require("../Models/OfflineOrder");
 const User = require("../Models/User");
 const { t, getLanguageFromRequest } = require("../Utils/translator");
 
+const PAYMENT_PROCESSING_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 const createOrder = async (req, session) => {
   const lang = getLanguageFromRequest(req);
   const {
@@ -144,7 +146,7 @@ const createOrder = async (req, session) => {
   });
 
   const orderData = {
-    status: ORDER_STATUS.WAITING,
+    status: ORDER_STATUS.PAYMENT_PROCESSING,
     items: itemsWithSnapshot,
     counterId,
     entityId,
@@ -187,28 +189,8 @@ const createOrder = async (req, session) => {
 
   // Note: Socket emit "newOrder" is handled in orderController.js after transaction commits
 
-  // Send Firebase notification to owner_entity_{entityId} topic for new order
-  sendFirebaseNotification({
-    topic: `owner_entity_${entityDetails._id}`,
-    showNotification: true,
-    title: "New Order Created",
-    body: "A new order has been placed.",
-    data: {
-      action: "order_create",
-      screen: "order_screen",
-      orderId: createdOrder[0]._id.toString(),
-      entityId: entityDetails._id.toString(),
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `owner_entity_${entityDetails._id}`,
-    },
-  });
-
-  genrateCustomerOrderReport({
-    userId: req.userId,
-    entityId: entityId,
-    orders: createdOrder[0],
-    mode: "Online",
-  });
+  // Owner notification and report generation are deferred until payment is confirmed
+  // via the Wallee webhook (walleeServices.js SUCCESS handler)
 
   return createdOrder;
 };
@@ -325,6 +307,16 @@ const updateStatusOfOrder = async (req) => {
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("ORDER_NOT_FOUND_FOR_ENTITY", lang),
+    });
+  }
+
+  if (
+    order.status === ORDER_STATUS.PAYMENT_PROCESSING ||
+    order.status === ORDER_STATUS.PAYMENT_FAILED
+  ) {
+    throwError({
+      status: STATUS_CODES.BAD_REQUEST,
+      message: t("ORDER_PAYMENT_NOT_CONFIRMED", lang),
     });
   }
 
@@ -795,6 +787,10 @@ const getLiveOrdersUsers = async (req) => {
     query: { searchTerm },
   } = req;
 
+  const paymentProcessingCutoff = new Date(
+    Date.now() - PAYMENT_PROCESSING_TTL_MS
+  );
+
   let searchConditions = [];
   if (searchTerm && searchTerm.trim() !== "") {
     searchConditions = [
@@ -817,10 +813,35 @@ const getLiveOrdersUsers = async (req) => {
 
   const liveOrders = await Order.find({
     userId,
-    status: {
-      $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY],
-    },
-    ...(searchConditions.length > 0 ? { $or: searchConditions } : {}),
+    $or: [
+      // Show PAYMENT_PROCESSING only if created within last 15 min
+      {
+        status: ORDER_STATUS.PAYMENT_PROCESSING,
+        createdAt: { $gte: paymentProcessingCutoff },
+      },
+      // Show PAYMENT_FAILED only if updated within last 15 min
+      {
+        status: ORDER_STATUS.PAYMENT_FAILED,
+        updatedAt: { $gte: paymentProcessingCutoff },
+      },
+      // Always show active order statuses
+      {
+        status: {
+          $in: [
+            ORDER_STATUS.WAITING,
+            ORDER_STATUS.IN_PROGRESS,
+            ORDER_STATUS.READY,
+          ],
+        },
+      },
+    ],
+    ...(searchConditions.length > 0
+      ? {
+          $and: [
+            { $or: searchConditions },
+          ],
+        }
+      : {}),
   })
     .populate({
       path: "items.itemId",
@@ -857,9 +878,16 @@ const particularOrderDetails = async (req) => {
     query: { entityId },
     userId,
   } = req;
+
   const orderDetails = await Order.find({
     userId,
-    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    status: {
+      $in: [
+        ORDER_STATUS.PAYMENT_PROCESSING,
+        ORDER_STATUS.WAITING,
+        ORDER_STATUS.IN_PROGRESS,
+      ],
+    },
     entityId,
   })
     .populate({
@@ -894,11 +922,14 @@ const particularOrderDetailsCustomer = async (req) => {
     userId,
     query: { orderId },
   } = req;
+
   const orderDetails = await Order.findOne(
     {
       userId,
       status: {
         $in: [
+          ORDER_STATUS.PAYMENT_PROCESSING,
+          ORDER_STATUS.PAYMENT_FAILED,
           ORDER_STATUS.WAITING,
           ORDER_STATUS.IN_PROGRESS,
           ORDER_STATUS.READY,
@@ -1237,7 +1268,13 @@ const cancelOrder = async (req) => {
 
   const order = await Order.findOne({
     _id: orderId,
-    status: { $in: [ORDER_STATUS.WAITING, ORDER_STATUS.IN_PROGRESS] },
+    status: {
+      $in: [
+
+        ORDER_STATUS.WAITING,
+        ORDER_STATUS.IN_PROGRESS,
+      ],
+    },
   }).populate({
     path: "entityId",
     select: "userId fcmToken",
@@ -1269,104 +1306,108 @@ const cancelOrder = async (req) => {
     { $set: { status: ORDER_STATUS.CANCELLED } },
   );
   console.log({ id: order.entityId });
-  io.to(order.entityId._id.toString()).emit("cancelOrder", {
-    orderId: order._id,
-    status: ORDER_STATUS.CANCELLED,
-  });
 
-  // Notify owner (restaurant) via Firebase topic so FE can refetch orders
-  sendFirebaseNotification({
-    topic: `owner_entity_${order.entityId._id}`,
-    showNotification: true,
-    title: "Order Cancelled",
-    body: `A customer has cancelled order #${order.tokenNumber || order._id}.`,
-    data: {
-      orderId: `${order._id}`,
+  // Only notify owner if the order was visible to them (not PAYMENT_PROCESSING)
+  if (order.status !== ORDER_STATUS.PAYMENT_PROCESSING) {
+    io.to(order.entityId._id.toString()).emit("cancelOrder", {
+      orderId: order._id,
       status: ORDER_STATUS.CANCELLED,
-      action: "order_cancelled",
-      screen: "landing_home",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-  });
+    });
 
-  // Notify customer who cancelled via Firebase topic so their FE can refetch
-  // sendFirebaseNotification({
-  //   topic: `user_${order.userId}`,
-  //   showNotification: false,
-  //   title: "Order Cancelled",
-  //   body: "Your order has been cancelled.",
-  //   data: {
-  //     orderId: `${order._id}`,
-  //     status: ORDER_STATUS.CANCELLED,
-  //     action: "order_cancelled",
-  //     screen: "landing_home",
-  //     click_action: "FLUTTER_NOTIFICATION_CLICK",
-  //   },
-  // });
-
-  const tokens = Array.isArray(order.entityId.userId.fcmToken)
-    ? order.entityId.userId.fcmToken.filter(Boolean)
-    : [];
-
-  const payload = {
-    notification: {
-      title: "Order Cancelled.",
-      body: `Order Cancelled. Tap to view details.`,
-    },
-    data: {
-      orderId: `${order._id}`,
-      data: JSON.stringify(order),
-      action: "order_cancelled",
-      screen: "landing_home",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-    },
-    android: {
-      priority: "high",
-      notification: {
+    // Notify owner (restaurant) via Firebase topic so FE can refetch orders
+    sendFirebaseNotification({
+      topic: `owner_entity_${order.entityId._id}`,
+      showNotification: true,
+      title: "Order Cancelled",
+      body: `A customer has cancelled order #${order.tokenNumber || order._id}.`,
+      data: {
+        orderId: `${order._id}`,
+        status: ORDER_STATUS.CANCELLED,
+        action: "order_cancelled",
+        screen: "landing_home",
         click_action: "FLUTTER_NOTIFICATION_CLICK",
       },
-    },
-    apns: {
-      payload: {
-        aps: {
-          content_available: true,
-          category: "FLUTTER_NOTIFICATION_CLICK",
-          mutableContent: 1,
-          alert: {
-            title: "Order Cancelled.",
-            body: `Order cancelled. Tap to view details.`,
+    });
+
+    // Notify customer who cancelled via Firebase topic so their FE can refetch
+    // sendFirebaseNotification({
+    //   topic: `user_${order.userId}`,
+    //   showNotification: false,
+    //   title: "Order Cancelled",
+    //   body: "Your order has been cancelled.",
+    //   data: {
+    //     orderId: `${order._id}`,
+    //     status: ORDER_STATUS.CANCELLED,
+    //     action: "order_cancelled",
+    //     screen: "landing_home",
+    //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+    //   },
+    // });
+
+    const tokens = Array.isArray(order.entityId.userId.fcmToken)
+      ? order.entityId.userId.fcmToken.filter(Boolean)
+      : [];
+
+    const payload = {
+      notification: {
+        title: "Order Cancelled.",
+        body: `Order Cancelled. Tap to view details.`,
+      },
+      data: {
+        orderId: `${order._id}`,
+        data: JSON.stringify(order),
+        action: "order_cancelled",
+        screen: "landing_home",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+      android: {
+        priority: "high",
+        notification: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            content_available: true,
+            category: "FLUTTER_NOTIFICATION_CLICK",
+            mutableContent: 1,
+            alert: {
+              title: "Order Cancelled.",
+              body: `Order cancelled. Tap to view details.`,
+            },
           },
         },
       },
-    },
-  };
+    };
 
-  try {
-    if (tokens.length > 0) {
-      const response = await messagingPlus.sendEachForMulticast({
-        tokens,
-        ...payload,
-      });
+    try {
+      if (tokens.length > 0) {
+        const response = await messagingPlus.sendEachForMulticast({
+          tokens,
+          ...payload,
+        });
 
-      console.info("Notification Pushed");
+        console.info("Notification Pushed");
 
-      // Remove invalid tokens
-      const failedTokens = [];
-      response.responses.forEach((resp, idx) => {
-        if (!resp.success) {
-          failedTokens.push(tokens[idx]);
+        // Remove invalid tokens
+        const failedTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            failedTokens.push(tokens[idx]);
+          }
+        });
+
+        if (failedTokens.length) {
+          await User.updateOne(
+            { _id: order.entityId.userId._id },
+            { $pull: { fcmToken: { $in: failedTokens } } },
+          );
         }
-      });
-
-      if (failedTokens.length) {
-        await User.updateOne(
-          { _id: order.entityId.userId._id },
-          { $pull: { fcmToken: { $in: failedTokens } } },
-        );
       }
+    } catch (err) {
+      console.error("Push Notification Error:", err.message);
     }
-  } catch (err) {
-    console.error("Push Notification Error:", err.message);
   }
 };
 
@@ -1527,7 +1568,14 @@ const getEventOrderSummary = async (req) => {
         };
       }
 
-      if (![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(status)) {
+      if (
+        ![
+          ORDER_STATUS.CANCELLED,
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.PAYMENT_PROCESSING,
+          ORDER_STATUS.PAYMENT_FAILED,
+        ].includes(status)
+      ) {
         counterSummary[counterKey].totalOrders += 1;
         counterSummary[counterKey].totalAmount += orderTotalAmount;
 
@@ -1588,7 +1636,12 @@ const getEventOrderSummary = async (req) => {
   orderDetails
     .filter(
       (order) =>
-        ![ORDER_STATUS.CANCELLED, ORDER_STATUS.WAITING].includes(order.status),
+        ![
+          ORDER_STATUS.CANCELLED,
+          ORDER_STATUS.WAITING,
+          ORDER_STATUS.PAYMENT_PROCESSING,
+          ORDER_STATUS.PAYMENT_FAILED,
+        ].includes(order.status),
     )
     .forEach((order) => {
       const orderHour = getDateHourKey(order.createdAt);
