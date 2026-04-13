@@ -149,7 +149,12 @@ const createWalleeTransaction = async (req) => {
   // Validate spaceId is a valid number
   const merchantSpaceIdNumber = Number(merchantSpaceId);
   if (isNaN(merchantSpaceIdNumber) || merchantSpaceIdNumber <= 0) {
-    console.error("Wallee: invalid space ID", merchantSpaceId, "for entity", entityId);
+    console.error(
+      "Wallee: invalid space ID",
+      merchantSpaceId,
+      "for entity",
+      entityId
+    );
     throwError({
       status: STATUS_CODES.BAD_REQUEST,
       message: t("WALLEE_INVALID_SPACE_ID", lang),
@@ -253,7 +258,10 @@ const getWalleeTransactionStatus = async (req) => {
         transactionSpaceId = entity.walleeSpaceId;
       }
     } catch (err) {
-      console.error("Error fetching entity for transaction status:", err.message);
+      console.error(
+        "Error fetching entity for transaction status:",
+        err.message
+      );
     }
   }
 
@@ -339,7 +347,10 @@ const handleWalleeWebhook = async (req) => {
     }
   } catch (verificationError) {
     if (verificationError.status) throw verificationError;
-    console.error("Webhook: signature verification error", verificationError.message);
+    console.error(
+      "Webhook: signature verification error",
+      verificationError.message
+    );
     throwError({
       status: STATUS_CODES.NOT_AUTHORIZED,
       message: "Webhook signature verification failed",
@@ -399,7 +410,13 @@ const handleWalleeWebhook = async (req) => {
         id: Number(entityId),
       });
     } catch (fetchError) {
-      console.error("Webhook: failed to fetch transaction", entityId, "from space", transactionSpaceIdNumber, fetchError.message);
+      console.error(
+        "Webhook: failed to fetch transaction",
+        entityId,
+        "from space",
+        transactionSpaceIdNumber,
+        fetchError.message
+      );
       throw fetchError;
     }
 
@@ -420,7 +437,11 @@ const handleWalleeWebhook = async (req) => {
     const entityIdFromMetadata = metadata.entityId;
     const merchantSpaceId = transactionSpaceIdNumber;
 
-    console.log(`Webhook: txn=${transaction.id} state=${transaction.state} orderId=${orderId || "N/A"} amount=${totalAmount} ${transaction.currency}`);
+    console.log(
+      `Webhook: txn=${transaction.id} state=${transaction.state} orderId=${
+        orderId || "N/A"
+      } amount=${totalAmount} ${transaction.currency}`
+    );
 
     // 8. Handle states
     switch (transaction.state) {
@@ -434,7 +455,9 @@ const handleWalleeWebhook = async (req) => {
           entityIdFromMetadata
         ) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
             const eventIdObj = eventId
               ? new mongoose.Types.ObjectId(eventId)
               : null;
@@ -484,7 +507,10 @@ const handleWalleeWebhook = async (req) => {
               console.error("Admin socket emit error:", err.message);
             }
           } catch (commissionError) {
-            console.error("Webhook: commission tracking error", commissionError.message);
+            console.error(
+              "Webhook: commission tracking error",
+              commissionError.message
+            );
           }
         }
 
@@ -499,7 +525,8 @@ const handleWalleeWebhook = async (req) => {
 
             if (orders.length > 0) {
               const paymentMethod =
-                transaction.paymentConnectorConfiguration?.paymentMethodConfiguration?.name ||
+                transaction.paymentConnectorConfiguration
+                  ?.paymentMethodConfiguration?.name ||
                 transaction.paymentConnectorConfiguration?.name ||
                 null;
 
@@ -516,14 +543,20 @@ const handleWalleeWebhook = async (req) => {
                 }
               );
 
-              console.log(`Webhook: order ${orderId} -> WAITING${paymentMethod ? ` via ${paymentMethod}` : ""}`);
+              console.log(
+                `Webhook: order ${orderId} -> WAITING${
+                  paymentMethod ? ` via ${paymentMethod}` : ""
+                }`
+              );
 
               orders.forEach((o) => {
                 o.status = ORDER_STATUS.WAITING;
               });
 
               for (const order of orders) {
-                getIo()?.to(order.entityId.toString()).emit("newOrder", [order]);
+                getIo()
+                  ?.to(order.entityId.toString())
+                  .emit("newOrder", [order]);
               }
 
               // Firebase notification to owner
@@ -554,21 +587,34 @@ const handleWalleeWebhook = async (req) => {
               }
             }
           } catch (orderUpdateError) {
-            console.error("Webhook: order update error", orderUpdateError.message);
+            console.error(
+              "Webhook: order update error",
+              orderUpdateError.message
+            );
           }
         }
         break;
       }
 
       case "FAILED": {
-        console.log(`Webhook: FAILED txn=${transaction.id} reason=${transaction.failureReason || "N/A"}`);
+        console.log(
+          `Webhook: FAILED txn=${transaction.id} reason=${
+            transaction.failureReason || "N/A"
+          }`
+        );
 
         // Track failed transaction in Commission
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -599,7 +645,10 @@ const handleWalleeWebhook = async (req) => {
               { upsert: true, new: true }
             );
           } catch (err) {
-            console.error("Webhook: commission upsert error (FAILED):", err.message);
+            console.error(
+              "Webhook: commission upsert error (FAILED):",
+              err.message
+            );
           }
         }
 
@@ -642,9 +691,15 @@ const handleWalleeWebhook = async (req) => {
 
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -674,7 +729,10 @@ const handleWalleeWebhook = async (req) => {
               { upsert: true, new: true }
             );
           } catch (err) {
-            console.error("Webhook: commission upsert error (VOIDED):", err.message);
+            console.error(
+              "Webhook: commission upsert error (VOIDED):",
+              err.message
+            );
           }
         }
 
@@ -716,9 +774,15 @@ const handleWalleeWebhook = async (req) => {
 
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -748,7 +812,10 @@ const handleWalleeWebhook = async (req) => {
               { upsert: true, new: true }
             );
           } catch (err) {
-            console.error("Webhook: commission upsert error (DECLINE):", err.message);
+            console.error(
+              "Webhook: commission upsert error (DECLINE):",
+              err.message
+            );
           }
         }
 
@@ -779,7 +846,10 @@ const handleWalleeWebhook = async (req) => {
               });
             }
           } catch (err) {
-            console.error("Webhook: order update error (DECLINE):", err.message);
+            console.error(
+              "Webhook: order update error (DECLINE):",
+              err.message
+            );
           }
         }
         break;
@@ -793,9 +863,15 @@ const handleWalleeWebhook = async (req) => {
         // Track pending transaction in Commission
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -824,7 +900,10 @@ const handleWalleeWebhook = async (req) => {
               { upsert: true, new: true }
             );
           } catch (err) {
-            console.error("Webhook: commission upsert error (PENDING):", err.message);
+            console.error(
+              "Webhook: commission upsert error (PENDING):",
+              err.message
+            );
           }
         }
         break;
@@ -834,9 +913,15 @@ const handleWalleeWebhook = async (req) => {
         // Track processing transaction in Commission
         if (entityIdFromMetadata) {
           try {
-            const entityIdObj = new mongoose.Types.ObjectId(entityIdFromMetadata);
-            const eventIdObj = eventId ? new mongoose.Types.ObjectId(eventId) : null;
-            const userIdObj = userId ? new mongoose.Types.ObjectId(userId) : null;
+            const entityIdObj = new mongoose.Types.ObjectId(
+              entityIdFromMetadata
+            );
+            const eventIdObj = eventId
+              ? new mongoose.Types.ObjectId(eventId)
+              : null;
+            const userIdObj = userId
+              ? new mongoose.Types.ObjectId(userId)
+              : null;
 
             await Commission.findOneAndUpdate(
               { walleeTransactionId: transaction.id },
@@ -865,14 +950,19 @@ const handleWalleeWebhook = async (req) => {
               { upsert: true, new: true }
             );
           } catch (err) {
-            console.error("Webhook: commission upsert error (PROCESSING):", err.message);
+            console.error(
+              "Webhook: commission upsert error (PROCESSING):",
+              err.message
+            );
           }
         }
         break;
       }
 
       default:
-        console.log(`Webhook: unhandled state ${transaction.state} for txn=${transaction.id}`);
+        console.log(
+          `Webhook: unhandled state ${transaction.state} for txn=${transaction.id}`
+        );
     }
 
     return {
