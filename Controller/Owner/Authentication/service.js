@@ -277,7 +277,7 @@ module.exports.login = async (req) => {
   const lang = getLanguageFromRequest(req);
   const { email, contactNumber, password } = req.body;
 
-  const query = { role: ROLES.STORE_OWNER };
+  const query = { role: ROLES.STORE_OWNER, status: STATUS.ACTIVE };
   if (email) query.email = email;
   if (contactNumber) query.contactNumber = contactNumber;
   if (!Object.keys(query)) {

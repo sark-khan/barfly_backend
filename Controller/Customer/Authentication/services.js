@@ -137,7 +137,7 @@ module.exports.login = async (req) => {
   };
 
   const user = await User.findOne(
-    { email: emailLower, role: ROLES.CUSTOMER },
+    { email: emailLower, role: ROLES.CUSTOMER, status: STATUS.ACTIVE },
     { ...userProjection, status: 1 },
   ).lean();
 
