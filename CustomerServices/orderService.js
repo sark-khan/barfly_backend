@@ -8,6 +8,7 @@ const {
 const throwError = require("../Utils/throwError");
 const mongoose = require("mongoose");
 const ItemDetails = require("../Models/ItemDetails");
+const Counter = require("../Models/Counter");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { ObjectId } = mongoose.Types;
 
@@ -539,18 +540,37 @@ const getEntityOrders = async (req) => {
       searchConditions.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
     }
 
+    // Search by tokenNumber if searchTerm is a valid number
+    const tokenNum = Number(searchTerm);
+    if (!isNaN(tokenNum)) {
+      searchConditions.push({ tokenNumber: tokenNum });
+    }
+
+    // Search by item name
     const matchingItems = await ItemDetails.find(
       { itemName: { $regex: searchRegex } },
       { _id: 1 },
     ).lean();
-
     if (matchingItems.length > 0) {
       const matchingItemIds = matchingItems.map((item) => item._id);
       searchConditions.push({ "items.itemId": { $in: matchingItemIds } });
     }
 
+    // Search by counter name
+    const matchingCounters = await Counter.find(
+      { counterName: { $regex: searchRegex }, entityId },
+      { _id: 1 },
+    ).lean();
+    if (matchingCounters.length > 0) {
+      const matchingCounterIds = matchingCounters.map((c) => c._id);
+      searchConditions.push({ counterId: { $in: matchingCounterIds } });
+    }
+
     if (searchConditions.length > 0) {
       query.$or = searchConditions;
+    } else {
+      // searchTerm provided but nothing matched → return no results
+      query._id = null;
     }
   }
 

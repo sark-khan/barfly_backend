@@ -18,6 +18,9 @@ const {
 const throwError = require("./../Utils/throwError");
 const { comparePassword, getJwtToken } = require("../Utils/commonFunction");
 const Order = require("../Models/Order");
+const ItemDetails = require("../Models/ItemDetails");
+const Counter = require("../Models/Counter");
+const mongoose = require("mongoose");
 const { generatePresignedUrl } = require("../Controller/aws-service");
 const { createMail } = require("../Utils/mailer");
 const crypto = require("crypto");
@@ -266,13 +269,51 @@ const getRestaurants = async (req) => {
 };
 
 const getRestaurantOrders = async (req) => {
-  let { entityId, pageNo = 1, pageLimit = 10 } = req.query;
+  let { entityId, pageNo = 1, pageLimit = 10, searchTerm } = req.query;
 
   pageNo = parseInt(pageNo, 10);
   pageLimit = parseInt(pageLimit, 10);
   const skip = (pageNo - 1) * pageLimit;
 
   const filter = entityId ? { entityId } : {};
+
+  if (searchTerm) {
+    const searchRegex = new RegExp(searchTerm, "i");
+    const searchConditions = [];
+
+    // Search by order _id if searchTerm is a valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(searchTerm)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(searchTerm) });
+    }
+
+    // Search by item name
+    const matchingItems = await ItemDetails.find(
+      { itemName: { $regex: searchRegex } },
+      { _id: 1 }
+    ).lean();
+    if (matchingItems.length > 0) {
+      const matchingItemIds = matchingItems.map((item) => item._id);
+      searchConditions.push({ "items.itemId": { $in: matchingItemIds } });
+    }
+
+    // Search by counter name (scoped to entity if entityId provided)
+    const counterQuery = { counterName: { $regex: searchRegex } };
+    if (entityId) counterQuery.entityId = entityId;
+    const matchingCounters = await Counter.find(counterQuery, {
+      _id: 1,
+    }).lean();
+    if (matchingCounters.length > 0) {
+      const matchingCounterIds = matchingCounters.map((c) => c._id);
+      searchConditions.push({ counterId: { $in: matchingCounterIds } });
+    }
+
+    if (searchConditions.length > 0) {
+      filter.$or = searchConditions;
+    } else {
+      // searchTerm provided but nothing matched → return empty
+      filter._id = null;
+    }
+  }
 
   const orders = await Order.find(filter)
     .populate({ path: "counterId", select: "counterName" })
