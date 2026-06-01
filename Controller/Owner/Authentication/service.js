@@ -216,10 +216,10 @@ module.exports.register = async (req) => {
   // Send welcome email to owner (non-blocking)
   try {
     if (email) {
-      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "Owner");
+      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "there", lang);
       createMail({
         to: email,
-        subject: "Welcome to Countr! 🎉",
+        subject: `${t("EMAIL_WELCOME_OWNER_SUBJECT", lang)} 🎉`,
         html: welcomeHtml,
       });
     }

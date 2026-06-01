@@ -91,12 +91,13 @@ module.exports.register = async (req) => {
 
   // Send welcome email
   try {
-    const welcomeHtmlTemplate = getWelcomeTemplate(firstName);
+    const safeName = firstName || "there";
+    const welcomeHtmlTemplate = getWelcomeTemplate(safeName, lang);
     createMail({
       to: emailLower,
-      subject: "Welcome to Countr! 🎉",
+      subject: `${t("EMAIL_WELCOME_CUSTOMER_SUBJECT", lang)} 🎉`,
       html: welcomeHtmlTemplate,
-      text: `Hello ${firstName}! Welcome to the Countr app. We're thrilled to have you join our community!`,
+      text: `${t("EMAIL_WELCOME_CUSTOMER_GREETING", lang)} ${safeName}! ${t("EMAIL_WELCOME_CUSTOMER_INTRO", lang)}`,
     });
     console.log(`✅ Welcome email sent successfully to: ${emailLower}`);
   } catch (error) {

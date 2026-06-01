@@ -81,10 +81,10 @@ const addAdmin = async (req) => {
   // Send welcome email to new admin (non-blocking)
   try {
     if (email) {
-      const welcomeHtml = getAdminWelcomeTemplate(firstName || "Admin");
+      const welcomeHtml = getAdminWelcomeTemplate(firstName || "there", lang);
       createMail({
         to: email,
-        subject: "Welcome to Countr! 🎉",
+        subject: `${t("EMAIL_WELCOME_ADMIN_SUBJECT", lang)} 🎉`,
         html: welcomeHtml,
       });
     }
