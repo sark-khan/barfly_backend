@@ -46,7 +46,7 @@ const genrateCustomerOrderReport = async (req) => {
             subject: "Your Order Report",
             text: `Dear ${
               currentUser.fullName || "Customer"
-            },\n\nPlease find your order report attached.\n\nThank you for using our service!\n\nBest regards,\nCountr App Team`,
+            },\n\nPlease find your order report attached.\n\nThank you for using our service!\n\nBest regards,\ncountr App Team`,
             attachments: [
               {
                 filename: filename,

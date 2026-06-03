@@ -3512,7 +3512,7 @@ module.exports.editBusinessDetails = async (req) => {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
-      const msg = `Your OTP for updating contact number on Countr is: ${otp} (Valid for 5 minutes)`;
+      const msg = `Your OTP for updating contact number on countr is: ${otp} (Valid for 5 minutes)`;
 
       await sendSMS({ toPhoneNumber: unifiedContactNumber, message: msg });
 
@@ -3595,8 +3595,8 @@ module.exports.editBusinessDetails = async (req) => {
 
       const mail_data = {
         to: email,
-        subject: "COUNTR: OTP for Email Update",
-        text: `Please use the below OTP to verify your identity for updating your email on Countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
+        subject: "countr: OTP for Email Update",
+        text: `Please use the below OTP to verify your identity for updating your email on countr: \n\n ${otp} \n\n (Valid for 5 minutes)`,
       };
       createMail(mail_data);
       await User.updateOne({ _id: userId }, { emailOtpVerified: false });

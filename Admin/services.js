@@ -81,7 +81,7 @@ const addAdmin = async (req) => {
   // Send welcome email to new admin (non-blocking)
   try {
     if (email) {
-      const welcomeHtml = getAdminWelcomeTemplate(firstName || "there", lang);
+      const welcomeHtml = getAdminWelcomeTemplate(firstName || "", lang);
       createMail({
         to: email,
         subject: `${t("EMAIL_WELCOME_ADMIN_SUBJECT", lang)} 🎉`,
@@ -586,7 +586,7 @@ const editRestaurantsOrUsers = async (req) => {
         );
         await createMail({
           to: owner.email,
-          subject: `Countr - Your entity has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+          subject: `countr - Your entity has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
           html,
         });
       }
@@ -600,7 +600,7 @@ const editRestaurantsOrUsers = async (req) => {
       );
       await createMail({
         to: user.email,
-        subject: `Countr - Your account has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
+        subject: `countr - Your account has been ${status === STATUS.BLOCKED ? "blocked" : "unblocked"}`,
         html,
       });
     }
@@ -770,7 +770,7 @@ const sendEmailOtp = async (req) => {
 
   const emailSent = await createMail({
     to: trimmedEmail,
-    subject: "Your Verification Code - Countr",
+    subject: "Your Verification Code - countr",
     html: htmlTemplate,
     text: `Your verification code is: ${generatedOtp}. It is valid for 2 minutes.`,
   });

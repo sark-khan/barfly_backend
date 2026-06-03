@@ -135,7 +135,7 @@ const getWelcomeTemplate = (firstName, lang = "en") => {
             <p class="greeting">${t(
               "EMAIL_WELCOME_CUSTOMER_GREETING",
               lang
-            )} ${firstName}!</p>
+            )}${firstName ? ` ${firstName}` : ""}!</p>
 
             <div class="welcome-message">
                 ${t("EMAIL_WELCOME_CUSTOMER_HEADLINE", lang)} 🎉
@@ -177,9 +177,9 @@ const getWelcomeTemplate = (firstName, lang = "en") => {
         </div>
 
         <div class="email-footer">
-            <p><strong>countr App KLG</strong></p>
-            <p><strong>Seat: Hombrechtikon</strong></p>
-            <p><strong>UID: CHE-298.114.272</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_KLG", lang)}</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_SEAT", lang)}</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_UID", lang)}</strong></p>
             <p>${t("EMAIL_WELCOME_CUSTOMER_FOOTER_CLOSING", lang)}</p>
         </div>
     </div>

@@ -91,13 +91,13 @@ module.exports.register = async (req) => {
 
   // Send welcome email
   try {
-    const safeName = firstName || "there";
+    const safeName = firstName || "";
     const welcomeHtmlTemplate = getWelcomeTemplate(safeName, lang);
     createMail({
       to: emailLower,
       subject: `${t("EMAIL_WELCOME_CUSTOMER_SUBJECT", lang)} 🎉`,
       html: welcomeHtmlTemplate,
-      text: `${t("EMAIL_WELCOME_CUSTOMER_GREETING", lang)} ${safeName}! ${t("EMAIL_WELCOME_CUSTOMER_INTRO", lang)}`,
+      text: `${t("EMAIL_WELCOME_CUSTOMER_GREETING", lang)}${safeName ? ` ${safeName}` : ""}! ${t("EMAIL_WELCOME_CUSTOMER_INTRO", lang)}`,
     });
     console.log(`✅ Welcome email sent successfully to: ${emailLower}`);
   } catch (error) {
@@ -296,7 +296,7 @@ module.exports.deleteAccount = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr",
+  subject = "Your Verification Code - countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();

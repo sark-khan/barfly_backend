@@ -132,7 +132,7 @@ const getAdminWelcomeTemplate = (firstName, lang = "en") => {
 <body>
     <div class="email-container">
         <div class="email-body">
-            <p class="greeting">${t("EMAIL_WELCOME_ADMIN_GREETING", lang)} ${firstName}!</p>
+            <p class="greeting">${t("EMAIL_WELCOME_ADMIN_GREETING", lang)}${firstName ? ` ${firstName}` : ""}!</p>
 
             <div class="welcome-message">
                 ${t("EMAIL_WELCOME_ADMIN_HEADLINE", lang)} 🎉
@@ -171,9 +171,9 @@ const getAdminWelcomeTemplate = (firstName, lang = "en") => {
         </div>
 
         <div class="email-footer">
-            <p><strong>countr App KLG</strong></p>
-            <p><strong>Seat: Hombrechtikon</strong></p>
-            <p><strong>UID: CHE-298.114.272</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_KLG", lang)}</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_SEAT", lang)}</strong></p>
+            <p><strong>${t("EMAIL_FOOTER_UID", lang)}</strong></p>
             <p>${t("EMAIL_WELCOME_ADMIN_FOOTER_CLOSING", lang)}</p>
         </div>
     </div>
