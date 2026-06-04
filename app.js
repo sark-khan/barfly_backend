@@ -204,7 +204,7 @@ const unProtectedApis = {
 
 app.use("/api/health-check", (req, res) => {
   return res.status(STATUS_CODES.OK).json({
-    message: `Countr service running...!`,
+    message: `countr service running...!`,
     time: new Date(),
   });
 });
