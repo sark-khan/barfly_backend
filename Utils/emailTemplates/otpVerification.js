@@ -153,7 +153,7 @@ const otpVerificationTemplate = (otp, purpose = "Email Update") => {
             <div class="greeting">Hello,</div>
 
             <div class="message">
-                We received a request to verify your identity for <strong>${purpose}</strong> on your <strong>Countr</strong> account.
+                We received a request to verify your identity for <strong>${purpose}</strong> on your <strong>countr</strong> account.
                 Please use the One-Time Password (OTP) below to complete the verification:
             </div>
 
@@ -170,8 +170,8 @@ const otpVerificationTemplate = (otp, purpose = "Email Update") => {
 
             <div class="security-notice">
                 <p><strong>🛡️ Security Tips:</strong></p>
-                <p>• Never share this OTP with anyone, including Countr staff</p>
-                <p>• Countr will never call or text you asking for this code</p>
+                <p>• Never share this OTP with anyone, including countr staff</p>
+                <p>• countr will never call or text you asking for this code</p>
                 <p>• If you didn't request this code, please ignore this email</p>
             </div>
 
@@ -184,9 +184,9 @@ const otpVerificationTemplate = (otp, purpose = "Email Update") => {
 
         <div class="footer">
             <p>This is an automated email. Please do not reply to this message.</p>
-            <div class="brand">The Countr Team</div>
+            <div class="brand">The countr Team</div>
             <p style="margin-top: 15px; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} Countr. All rights reserved.
+                © ${new Date().getFullYear()} countr. All rights reserved.
             </p>
         </div>
     </div>

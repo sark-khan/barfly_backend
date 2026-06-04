@@ -11,7 +11,7 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification Code - Countr</title>
+    <title>Verification Code - countr</title>
     <style>
         * {
             margin: 0;
@@ -149,7 +149,7 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
             </div>
             
             <div class="warning">
-                <p><strong>⚠️ Security Notice:</strong> Never share this code with anyone. Countr staff will never ask for your verification code.</p>
+                <p><strong>⚠️ Security Notice:</strong> Never share this code with anyone. countr staff will never ask for your verification code.</p>
             </div>
             
             <div class="divider"></div>
@@ -160,7 +160,7 @@ const getVerificationCodeTemplate = (code, validFor = "2 minutes") => {
         </div>
         
         <div class="email-footer">
-            <p><strong>Countr</strong></p>
+            <p><strong>countr</strong></p>
             <p>Thank you for using our service!</p>
         </div>
     </div>

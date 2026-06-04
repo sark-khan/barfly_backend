@@ -85,7 +85,7 @@ module.exports.register = async (req) => {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
-    const msg = `Use this code to verify your Countr account: ${otp}. It is valid for 5 minutes.`;
+    const msg = `Use this code to verify your countr account: ${otp}. It is valid for 5 minutes.`;
 
     const smsMessage = t("OTP_SMS_MESSAGE", lang, { otp });
 
@@ -216,10 +216,10 @@ module.exports.register = async (req) => {
   // Send welcome email to owner (non-blocking)
   try {
     if (email) {
-      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "Owner");
+      const welcomeHtml = getOwnerWelcomeTemplate(fullName || "", lang);
       createMail({
         to: email,
-        subject: "Welcome to Countr! 🎉",
+        subject: `${t("EMAIL_WELCOME_OWNER_SUBJECT", lang)} 🎉`,
         html: welcomeHtml,
       });
     }
@@ -362,7 +362,7 @@ module.exports.logoutEntity = async (req) => {
 const sendOtpToEmail = async (
   email,
   lang,
-  subject = "Your Verification Code - Countr",
+  subject = "Your Verification Code - countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
