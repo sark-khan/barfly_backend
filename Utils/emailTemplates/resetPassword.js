@@ -145,7 +145,7 @@ const resetPasswordTemplate = (fullName, resetLink) => {
             <div class="greeting">Hello ${fullName},</div>
 
             <div class="message">
-                We received a request to reset your password for your <strong>Countr</strong> admin account.
+                We received a request to reset your password for your <strong>countr</strong> admin account.
                 Click the button below to create a new password:
             </div>
 
@@ -176,9 +176,9 @@ const resetPasswordTemplate = (fullName, resetLink) => {
 
         <div class="footer">
             <p>This is an automated email. Please do not reply to this message.</p>
-            <div class="brand">The Countr Team</div>
+            <div class="brand">The countr Team</div>
             <p style="margin-top: 15px; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} Countr. All rights reserved.
+                © ${new Date().getFullYear()} countr. All rights reserved.
             </p>
         </div>
     </div>

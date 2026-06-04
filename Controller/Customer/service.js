@@ -12,6 +12,7 @@ const {
   COUNTRY_ARRAY,
   ANSWER_TYPES,
   APP_FEEDBACK_QUESTIONS,
+  ROLES,
 } = require("../../Utils/globalConstants");
 const throwError = require("../../Utils/throwError");
 const EntityDetails = require("../../Models/EntityDetails");
@@ -1351,7 +1352,11 @@ module.exports.updateUserDetails = async (req) => {
     return message;
   }
 
-  const query = { status: STATUS.ACTIVE };
+  const query = {
+    status: STATUS.ACTIVE,
+    role: ROLES.CUSTOMER,
+    _id: { $ne: userId },
+  };
   if (email) {
     query.email = email;
   }

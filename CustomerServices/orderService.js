@@ -768,7 +768,7 @@ const updateOfflineOrders = async (req) => {
   // Send Firebase notification to owner app for offline order status update
   sendFirebaseNotification({
     topic: `owner_entity_${entityId}`,
-    showNotification: true,
+    showNotification: false,
     title: "Order Status Updated",
     body: `Offline order status is now ${status}.`,
     data: {
@@ -787,7 +787,7 @@ const updateOfflineOrders = async (req) => {
   sendFirebaseNotification({
     topic: `user_${userId}`,
     showNotification: true,
-    title: "Order Status Updated",
+    title: "Offline Order Status Updated",
     body: `Order Status is ${status}`,
     data: {
       orderId: orderId,
