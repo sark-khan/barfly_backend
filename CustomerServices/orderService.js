@@ -162,6 +162,9 @@ const createOrder = async (req, session) => {
     walleeTransactionId: walleeTransactionId
       ? Number(walleeTransactionId)
       : undefined,
+    // Client timezone (IANA) for rendering the receipt; read by the Wallee
+    // webhook later when the PDF is generated. Falls back to default if absent.
+    timezone: req.headers?.["timezone"] || undefined,
   };
 
   const createdOrder = await Order.create([orderData], { session });
@@ -263,6 +266,9 @@ const createOfflineOrder = async (req) => {
     totalAmount: amount,
     // finalAmount: amount,
     status: ORDER_STATUS.IN_PROGRESS,
+    // Client timezone (IANA) for rendering the receipt PDF; falls back to
+    // default if absent.
+    timezone: req.headers?.["timezone"] || undefined,
   });
   const offlineOrderObj = await OfflineOrders.findOne({
     _id: offlineOrderObjCreated._id,
