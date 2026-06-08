@@ -423,6 +423,28 @@ app.post("/api/register-token", async (req, res) => {
 //   }
 // );
 
+// Global error handler — guarantees every error becomes a JSON response so
+// nginx never has to render its default HTML 500 page. Must be registered
+// AFTER all routes.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const lang = getLanguageFromRequest(req);
+  console.error("Unhandled error:", err);
+  const status = err.status || err.statusCode || STATUS_CODES.SERVER_ERROR;
+  return res.status(status).json({
+    message: err.message || t("SERVER_ERROR", lang) || "Internal Server Error",
+  });
+});
+
+// Crash safety nets — log instead of taking the process down (which would
+// trigger pm2 restart and drop in-flight requests).
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 const port = process.env.PORT;
 
 server.listen(port, () => {
