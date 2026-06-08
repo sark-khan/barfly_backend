@@ -288,13 +288,17 @@ const createOfflineOrder = async (req) => {
     : null;
   const customerId = customer?._id?.toString();
   if (customerId) {
+    const orderRef = internalNumber ? `#${internalNumber}` : "";
     sendFirebaseNotification({
       topic: `user_${customerId}`,
       showNotification: true,
       title: "New Offline Order",
-      body: "An offline order has been placed on your account.",
+      body: orderRef
+        ? `Offline order ${orderRef} has been placed on your account.`
+        : "An offline order has been placed on your account.",
       data: {
         orderId: offlineOrderObj._id.toString(),
+        internalNumber: (internalNumber || "").toString(),
         status: ORDER_STATUS.IN_PROGRESS,
         action: "offline_order_create",
         screen: "status",
@@ -825,13 +829,18 @@ const updateOfflineOrders = async (req) => {
   const customerId = customer?._id?.toString();
 
   if (customerId) {
+    const orderInternalNumber = updatedOrder?.internalNumber || "";
+    const orderRef = orderInternalNumber ? `#${orderInternalNumber}` : "";
     sendFirebaseNotification({
       topic: `user_${customerId}`,
       showNotification: true,
       title: "Offline Order Status Updated",
-      body: `Order Status is ${status}`,
+      body: orderRef
+        ? `Order ${orderRef} status is ${status}`
+        : `Order Status is ${status}`,
       data: {
         orderId: orderId.toString(),
+        internalNumber: orderInternalNumber.toString(),
         status: status,
         action: "order_status_update",
         screen: "status",
