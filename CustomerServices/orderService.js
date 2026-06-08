@@ -281,6 +281,34 @@ const createOfflineOrder = async (req) => {
     entityId: entityId.toString(),
   });
 
+  // Notify the customer (resolved via countrTag, not the auth-derived userId
+  // which is the owner/staff placing the order on their behalf).
+  const customer = countrTag
+    ? await User.findOne({ countrTag }, { _id: 1 }).lean()
+    : null;
+  const customerId = customer?._id?.toString();
+  if (customerId) {
+    sendFirebaseNotification({
+      topic: `user_${customerId}`,
+      showNotification: true,
+      title: "New Offline Order",
+      body: "An offline order has been placed on your account.",
+      data: {
+        orderId: offlineOrderObj._id.toString(),
+        status: ORDER_STATUS.IN_PROGRESS,
+        action: "offline_order_create",
+        screen: "status",
+        isOffline: "true",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `user_${customerId}`,
+      },
+    });
+  } else {
+    console.warn(
+      `[OfflineOrder] No customer found for countrTag=${countrTag} — skipping customer create notification`,
+    );
+  }
+
   genrateCustomerOrderReport({
     userId: userId,
     entityId: entityId,
@@ -788,23 +816,35 @@ const updateOfflineOrders = async (req) => {
     },
   });
 
-  const userId = updatedOrder?.userId?._id;
+  // The offline order's `userId` is the owner/staff who placed the order, not
+  // the customer. The customer is linked via `countrTag`. Resolve to the
+  // customer User so the notification reaches the right FCM topic.
+  const customer = updatedOrder?.countrTag
+    ? await User.findOne({ countrTag: updatedOrder.countrTag }, { _id: 1 }).lean()
+    : null;
+  const customerId = customer?._id?.toString();
 
-  sendFirebaseNotification({
-    topic: `user_${userId}`,
-    showNotification: true,
-    title: "Offline Order Status Updated",
-    body: `Order Status is ${status}`,
-    data: {
-      orderId: orderId,
-      status: status,
-      action: "order_status_update",
-      screen: "status",
-      isOffline: "true",
-      click_action: "FLUTTER_NOTIFICATION_CLICK",
-      topic: `user_${userId}`,
-    },
-  });
+  if (customerId) {
+    sendFirebaseNotification({
+      topic: `user_${customerId}`,
+      showNotification: true,
+      title: "Offline Order Status Updated",
+      body: `Order Status is ${status}`,
+      data: {
+        orderId: orderId.toString(),
+        status: status,
+        action: "order_status_update",
+        screen: "status",
+        isOffline: "true",
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+        topic: `user_${customerId}`,
+      },
+    });
+  } else {
+    console.warn(
+      `[OfflineOrder] No customer found for countrTag=${updatedOrder?.countrTag} — skipping customer notification`,
+    );
+  }
 };
 
 const getLiveOrdersUsers = async (req) => {
