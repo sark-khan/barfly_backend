@@ -301,6 +301,7 @@ const sendOtpToEmail = async (
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
+  console.log(`[OTP] Customer/Auth email=${email} otp=${generatedOtp}`);
 
   await redisClient.setEx(redisKey, 120, generatedOtp);
 

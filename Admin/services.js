@@ -834,6 +834,7 @@ const sendEmailOtp = async (req) => {
   // Send OTP
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${trimmedEmail}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
+  console.log(`[OTP] Admin email=${trimmedEmail} otp=${generatedOtp}`);
 
   await redisClient.setEx(redisKey, 120, generatedOtp);
 

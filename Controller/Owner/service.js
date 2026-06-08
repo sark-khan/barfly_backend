@@ -3510,6 +3510,7 @@ module.exports.editBusinessDetails = async (req) => {
   if (unifiedContactNumber) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
+      console.log(`[OTP] Owner/MobileUpdate contactNumber=${unifiedContactNumber} otp=${otp}`);
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
@@ -3591,6 +3592,7 @@ module.exports.editBusinessDetails = async (req) => {
         });
       }
       const otp = crypto.randomInt(100000, 999999).toString();
+      console.log(`[OTP] Owner/EmailUpdate email=${email} otp=${otp}`);
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(

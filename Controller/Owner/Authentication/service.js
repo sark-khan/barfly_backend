@@ -77,6 +77,7 @@ module.exports.register = async (req) => {
 
   if (!enteredOtp && contactNumber) {
     const otp = crypto.randomInt(100000, 999999).toString();
+    console.log(`[OTP] Owner/Auth contactNumber=${contactNumber} otp=${otp}`);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     otpRecord = await Otp.findOneAndUpdate(
@@ -366,6 +367,7 @@ const sendOtpToEmail = async (
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
+  console.log(`[OTP] Owner/AuthEmail email=${email} otp=${generatedOtp}`);
 
   // Store OTP in Redis with 2 minutes TTL (120 seconds)
   await redisClient.setEx(redisKey, 120, generatedOtp);
