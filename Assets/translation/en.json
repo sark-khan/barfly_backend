@@ -55,6 +55,7 @@
   "OWNER_ONLY_LOGIN": "Only owners can log in",
   "OWNER_REGISTRATION_SUCCESS": "Registration successful",
   "OWNER_REGISTER_ERROR": "Error while registering the user",
+  "OWNER_REGISTER_FIELDS_MISSING": "Required fields (entityName, entityType) are missing",
   "OWNER_COUNTER_CREATE_SUCCESS": "{{counterName}} created successfully.",
   "OWNER_COUNTER_CREATE_ERROR": "Error while creating counter.",
   "OWNER_ITEM_ADD_TO_CATEGORY_SUCCESS": "Item added to category successfully.",
