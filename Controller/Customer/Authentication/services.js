@@ -300,6 +300,13 @@ const sendOtpToEmail = async (
   subject = "Your Verification Code - countr",
 ) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
+
+  if (process.env.BYPASS_OTP === "true") {
+    await redisClient.setEx(redisKey, 120, "999999");
+    console.log(`[OTP] Customer/Auth BYPASS email=${email} otp=999999`);
+    return "999999";
+  }
+
   const generatedOtp = crypto.randomInt(100000, 999999).toString();
   console.log(`[OTP] Customer/Auth email=${email} otp=${generatedOtp}`);
 
@@ -332,27 +339,29 @@ const sendOtpToEmail = async (
  */
 const verifyOtpFromRedis = async (email, otp, lang) => {
   const redisKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}`;
-  const storedOtp = await redisClient.get(redisKey);
 
-  if (!storedOtp) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: t("OTP_EXPIRED", lang),
-    });
-  }
+  if (!(process.env.BYPASS_OTP === "true" && otp === "999999")) {
+    const storedOtp = await redisClient.get(redisKey);
 
-  if (storedOtp !== otp) {
-    throwError({
-      status: STATUS_CODES.BAD_REQUEST,
-      message: t("OTP_INVALID", lang),
-    });
+    if (!storedOtp) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OTP_EXPIRED", lang),
+      });
+    }
+
+    if (storedOtp !== otp) {
+      throwError({
+        status: STATUS_CODES.BAD_REQUEST,
+        message: t("OTP_INVALID", lang),
+      });
+    }
   }
 
   // Generate secure reset token
   const resetToken = crypto.randomBytes(32).toString("hex");
   const resetTokenKey = `${KEY_TYPE_PREFIXES.EMAIL_OTP}${email}:resetToken`;
 
-  // Delete OTP and store reset token with 24 hour expiry
   await Promise.all([
     redisClient.del(redisKey),
     redisClient.setEx(resetTokenKey, 86400, resetToken),
