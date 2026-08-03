@@ -236,7 +236,7 @@ const createWalleeTransaction = async (req) => {
  */
 const getWalleeTransactionStatus = async (req) => {
   const lang = getLanguageFromRequest(req);
-  const { transactionId, entityId } = req.query;
+  const { transactionId, entityId, eventId } = req.query;
 
   if (!transactionId) {
     throwError({
@@ -245,9 +245,55 @@ const getWalleeTransactionStatus = async (req) => {
     });
   }
 
-  // If entityId is provided, fetch merchant's space ID
-  // Otherwise, we'll need to find it from the transaction metadata or use platform space
-  let transactionSpaceId = spaceId; // Fallback to platform space
+  // Resolve which Wallee space the transaction lives in.
+  // Primary: eventId -> event.entityId.walleeSpaceId. This is the SAME chain
+  // create-payment uses to decide where the transaction is created, so create
+  // and status always resolve to the same space (see createWalleeTransaction).
+  // Secondary: entityId -> EntityDetails.walleeSpaceId (backward compatible).
+  // Platform space is only a last-resort candidate (e.g. countr's own space).
+  const candidateSpaces = [];
+  const pushSpace = (id) => {
+    const n = Number(id);
+    if (n && !isNaN(n) && n > 0 && !candidateSpaces.includes(n)) {
+      candidateSpaces.push(n);
+    }
+  };
+
+  if (eventId) {
+    try {
+      const event = await Event.findById(eventId).populate({
+        path: "entityId",
+        select: "walleeSpaceId",
+      });
+      if (event?.entityId?.walleeSpaceId) {
+        pushSpace(event.entityId.walleeSpaceId);
+      }
+    } catch (err) {
+      console.error(
+        "Error resolving space from eventId for transaction status:",
+        err.message
+      );
+    }
+  }
+
+  // Also resolve from the webhook-recorded Commission (keyed by the Wallee
+  // transaction id, which the client always sends). The webhook stores the
+  // space it fetched the transaction from, so this resolves the space even
+  // when eventId/entityId are absent — provided at least one webhook has
+  // already been received for this transaction.
+  try {
+    const commission = await Commission.findOne({
+      walleeTransactionId: Number(transactionId),
+    }).select("metadata");
+    if (commission?.metadata?.merchantSpaceId) {
+      pushSpace(commission.metadata.merchantSpaceId);
+    }
+  } catch (err) {
+    console.error(
+      "Error resolving space from Commission for transaction status:",
+      err.message
+    );
+  }
 
   if (entityId) {
     try {
@@ -255,7 +301,7 @@ const getWalleeTransactionStatus = async (req) => {
         "walleeSpaceId"
       );
       if (entity?.walleeSpaceId) {
-        transactionSpaceId = entity.walleeSpaceId;
+        pushSpace(entity.walleeSpaceId);
       }
     } catch (err) {
       console.error(
@@ -265,23 +311,31 @@ const getWalleeTransactionStatus = async (req) => {
     }
   }
 
+  // Last-resort candidate: the platform space (countr's own transactions).
+  pushSpace(spaceId);
+
   try {
-    // Try merchant space first, fallback to platform space if needed
+    // Try each candidate space until the transaction is found. Because the
+    // merchant space (from eventId) is tried first, this returns the correct
+    // state without ever silently checking the wrong space.
     let transaction;
-    try {
-      transaction = await transactionsService.getPaymentTransactionsId({
-        space: transactionSpaceId,
-        id: Number(transactionId),
-      });
-    } catch (merchantSpaceError) {
-      if (transactionSpaceId !== spaceId) {
+    let usedSpaceId;
+    let lastError;
+    for (const candidate of candidateSpaces) {
+      try {
         transaction = await transactionsService.getPaymentTransactionsId({
-          space: spaceId,
+          space: candidate,
           id: Number(transactionId),
         });
-      } else {
-        throw merchantSpaceError;
+        usedSpaceId = candidate;
+        break;
+      } catch (err) {
+        lastError = err;
       }
+    }
+
+    if (!transaction) {
+      throw lastError || new Error("Transaction not found in any known space");
     }
 
     return {
@@ -292,7 +346,7 @@ const getWalleeTransactionStatus = async (req) => {
       completedOn: transaction.completedOn,
       failedOn: transaction.failedOn,
       failureReason: transaction.failureReason,
-      spaceId: transactionSpaceId, // Return which space was used
+      spaceId: usedSpaceId, // Return which space the transaction was found in
     };
   } catch (error) {
     const errorDetails = await parseWalleeError(error);
