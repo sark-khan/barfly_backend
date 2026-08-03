@@ -1377,6 +1377,7 @@ module.exports.updateUserDetails = async (req) => {
   if (email) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
+      console.log(`[OTP] Customer/EmailUpdate email=${email} otp=${otp}`);
       const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
@@ -1425,6 +1426,7 @@ module.exports.updateUserDetails = async (req) => {
   if (contactNumber) {
     if (!enteredOtp) {
       const otp = crypto.randomInt(100000, 999999).toString();
+      console.log(`[OTP] Customer/MobileUpdate contactNumber=${contactNumber} otp=${otp}`);
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await Otp.findOneAndUpdate(
