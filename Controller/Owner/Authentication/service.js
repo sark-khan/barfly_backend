@@ -34,13 +34,6 @@ const { io } = require("../../../app");
 
 module.exports.register = async (req) => {
   const lang = getLanguageFromRequest(req);
-  console.log("[Owner/Register] FE request body:", JSON.stringify(req.body));
-  console.log(
-    "[Owner/Register] FE file:",
-    req.file
-      ? { originalname: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype }
-      : null,
-  );
   const {
     file,
     body: {
